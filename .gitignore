@@ -11,15 +11,10 @@ out/
 .env*
 !.env.example
 
-# Test outputs & Test files
+# Test outputs (ignore test run artifacts only)
 coverage/
 playwright-report/
 test-results/
-*.test.ts
-*.test.tsx
-*.spec.ts
-*.spec.tsx
-e2e/
 
 # Supabase temp
 supabase/.temp/
