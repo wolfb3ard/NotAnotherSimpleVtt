@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Next.js & Build outputs
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Environment & Secrets
+.env*
+!.env.example
+
+# Test outputs & Test files
+coverage/
+playwright-report/
+test-results/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+e2e/
+
+# Supabase temp
+supabase/.temp/
