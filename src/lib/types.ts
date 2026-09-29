@@ -79,6 +79,16 @@ export type Roll = {
   result: RollResult;
   created_at: string;
 };
+export type DiceStyle = {
+  faceColor: string;
+  numberColor: string;
+  outlineColor: string;
+  opacity: number;
+  glossiness: number;
+  shimmer: number;
+};
+export type RollCue = { roll_id: string; private: boolean; created_at: string };
+export type DiceStyleRecord = { user_id: string; style: DiceStyle };
 export type Snapshot = {
   game: Game;
   role: Role;
@@ -90,4 +100,6 @@ export type Snapshot = {
   grants: Grant[];
   templates: Template[];
   rolls: Roll[];
+  rollCues: RollCue[];
+  diceStyles: DiceStyleRecord[];
 };

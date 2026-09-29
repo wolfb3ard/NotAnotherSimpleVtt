@@ -131,10 +131,12 @@ export default function Tabletop({
   snapshot,
   run,
   selectActor,
+  children,
 }: {
   snapshot: Snapshot;
   run: Run;
   selectActor: (id: string) => void;
+  children?: React.ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const stage = useRef<Konva.Stage>(null);
@@ -486,6 +488,7 @@ export default function Tabletop({
               ? 'Drag between two points with a known distance'
               : 'Drag a rectangle over the map'}
       </span>
+      {children}
     </div>
   );
 }

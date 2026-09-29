@@ -8,17 +8,19 @@
 - Phase 4: manual fog, hidden tokens, GM player-view preview, server-side sanitized map rendering, private revision cache, and token filtering.
 - Phase 5: bounded server-side dice engine, custom die configuration, manual/sheet modifiers, saved rolls, private/public history, and idempotent retry identifiers.
 - Phase 6: automated checks, database authorization tests, browser smoke tests, an opt-in multiplayer browser test, CI, deployment and operations documentation.
+- 3D dice extension: standard numbered polyhedra, arbitrary-die question-mark visuals, anonymous private-player cues, GM-private silence, and per-user material controls with a live preview.
 
 ## Verified locally
 
 - Production build, TypeScript, lint, and formatting.
 - Unit/database tests exercise arithmetic, validation, concealed image pixels, movement coalescing, real Postgres RLS, invitation validity, revision conflicts, template ownership, roll privacy, cross-game isolation, and hidden-token access.
 - Browser smoke tests exercise public navigation, invalid invitations, and invalid data-route identifiers.
+- Full Playwright session passed against local Supabase with one GM and eight players, including private-player cue access, silent private GM rolls, customized dice appearance, scene movement, and persisted roll history.
 
 ## Still requires configured infrastructure
 
-- Run the full multiplayer browser suite against a Supabase test project. It is skipped unless explicitly enabled with test-project credentials.
-- Verify real email delivery, auth callbacks, private Storage HTTP access, and Realtime delivery/reconnect behavior.
+- Repeat the multiplayer browser suite against an isolated hosted Supabase test project; it is opt-in and passed against local Supabase.
+- Verify production email delivery, auth callbacks, private Storage HTTP access, and Realtime delivery/reconnect behavior.
 - Test one GM plus eight players and benchmark representative large maps/fog edits on Vercel.
 - Configure production Supabase, SMTP, Vercel environment variables, and deployment URLs; deploy and run production smoke checks.
 

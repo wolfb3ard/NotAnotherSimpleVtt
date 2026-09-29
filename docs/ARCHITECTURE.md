@@ -34,6 +34,10 @@ Versioned sheets use JSON documents with stable section/field/ability UUIDs. Dat
 
 Dice expressions use a bounded recursive-descent parser, not `eval`. Arithmetic honors parentheses and normal operator precedence; division retains decimals. Outcomes record original and resolved expressions, field values, individual dice, kept/discarded results, and totals. Later sheet changes never rewrite historical rolls.
 
+3D dice are client-rendered with React Three Fiber. Each numbered face has a matching landing orientation; the visual tween lands on the already persisted server value. Nonstandard dice use an anonymous `?`-faced d6, never an invented number. Results remain in accessible text history even without WebGL. At most eight real dice render per overlay, with a textual count for the rest.
+
+The public `roll_cues` table contains only roll ID, game ID, private flag, and timestamp. Public rolls and private **player** rolls insert cues in the same transaction as the result. Private GM rolls create no cue. All room members can read cues, but `rolls` RLS still restricts private results. Unauthorized viewers see only one anonymous masked die per private-player cue, independent of actual expression, die count, or author. Realtime publishes room invalidation revisions and these sanitized cues, never roll payloads. Only the author sees their private GM animation locally after a confirmed server roll. Per-user dice styles have bounded server validation and game-membership-scoped reads; masked cues always use the neutral default style to avoid identifying the roller.
+
 ## Runtime
 
 Next.js server actions and route handlers run on Vercel. Supabase provides durable services; Vercel does not host a persistent WebSocket server. `src/proxy.ts` refreshes auth cookies; every data route/action still performs its own authorization.

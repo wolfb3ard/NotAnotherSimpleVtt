@@ -9,6 +9,7 @@
 - Multiple saved scenes, uploaded maps/tokens, pan/zoom, assigned token control, live movement checkpoints, scene calibration, and a straight-line ruler.
 - Manual reveal/conceal fog, GM-hidden tokens, and player-view previews. Concealed background pixels are removed server-side.
 - Server-generated dice rolls: custom die sizes, mixed dice, arithmetic, parentheses, keep-highest/lowest, modifiers, and saved rolls using sheet fields.
+- Animated 3D polyhedral dice over the tabletop (d4/d6/d8/d10/d12/d20), anonymous private-player roll cues, and per-user dice material customization.
 - Public/private roll history, optimistic revision checks, reconnect reconciliation, and database-enforced access controls.
 
 See [PLAN.md](PLAN.md) for the agreed scope and [docs/STATUS.md](docs/STATUS.md) for verification and remaining launch work.
@@ -79,6 +80,8 @@ Open `http://localhost:3000`. Without environment configuration, the app display
 Examples: `2d6 + 3`, `(1d8 + 2) * 2`, `4d6kh3`, `2d20kl1`. Advantage/disadvantage shortcuts require d20 to be enabled. Sheet references use stable `@{field-uuid}` identifiers inserted by the editor.
 
 Private player rolls are visible to that player and the GM. Private GM rolls are GM-only. Players can supply arbitrary manual modifiers; sheet references require authorized character access and control.
+
+Standard dice tumble to their authoritative server-generated result. A d10 has faces 0–9, with 0 representing a result of 10. Arbitrary die sizes use a `?`-faced d6 visual; authorized text history still shows their real die size and outcome. Everyone sees an anonymous `?`-faced d6 when a **player** rolls privately, without identity, die count, expression, or result. Private GM rolls never appear to players. Use **Style** in the room to edit and save your own dice colors, opacity, glossiness, and shimmer. Animations are visual only and never determine results; WebGL and reduced-motion fallbacks remain readable.
 
 ## Checks
 

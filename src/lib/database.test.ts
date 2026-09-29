@@ -286,4 +286,57 @@ describe.sequential('database authorization and transactions', () => {
       ).rows[0].n,
     ).toBe(1);
   });
+  it('shows anonymous private player cues without private GM cues or values', async () => {
+    await as(gm);
+    const cues = await db.query<{ roll_id: string; private: boolean }>(
+      'select roll_id, private from public.roll_cues where game_id=$1',
+      [game],
+    );
+    expect(cues.rows.filter((cue) => cue.private)).toHaveLength(1);
+    await as(player);
+    expect(
+      (await db.query('select * from public.roll_cues where game_id=$1', [game])).rows,
+    ).toHaveLength(2);
+    await as(other);
+    expect(
+      (await db.query('select * from public.roll_cues where game_id=$1', [game])).rows,
+    ).toHaveLength(0);
+    await as(player);
+    await expect(
+      db.query('insert into public.roll_cues(game_id,roll_id,private) values($1,$2,true)', [
+        game,
+        randomUUID(),
+      ]),
+    ).rejects.toThrow(/permission denied/);
+  });
+  it('stores bounded per-user appearance without cross-user writes', async () => {
+    const style = {
+      faceColor: '#123456',
+      numberColor: '#ffffff',
+      outlineColor: '#000000',
+      opacity: 0.75,
+      glossiness: 0.5,
+      shimmer: 0.25,
+    };
+    await as(player);
+    await db.query('select public.save_dice_style($1::jsonb)', [JSON.stringify(style)]);
+    await as(gm);
+    expect(
+      (
+        await db.query<{ style: typeof style }>(
+          'select style from public.dice_styles where user_id=$1',
+          [player],
+        )
+      ).rows[0].style,
+    ).toEqual(style);
+    await expect(
+      db.query('update public.dice_styles set user_id=$1 where user_id=$2', [gm, player]),
+    ).rejects.toThrow(/permission denied/);
+    await as(player);
+    await expect(
+      db.query('select public.save_dice_style($1::jsonb)', [
+        JSON.stringify({ ...style, opacity: 3 }),
+      ]),
+    ).rejects.toThrow(/Invalid dice style/);
+  });
 });

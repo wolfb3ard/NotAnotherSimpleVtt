@@ -161,19 +161,33 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(gm.page.locator('.roll-card')).toHaveCount(1);
     await player.page.getByRole('button', { name: 'Dice', exact: true }).click();
     await expect(player.page.locator('.roll-card')).toHaveCount(0);
+    await expect(player.page.getByLabel('A private roll occurred')).toHaveCount(0);
+    expect(
+      (await (await player.page.request.get(`/api/games/${gameId}`)).json()).rollCues,
+    ).toHaveLength(0);
     await player.page.getByLabel('Visibility').selectOption('private');
     await player.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
     await expect(player.page.locator('.roll-card')).toHaveCount(1);
-    await expect(gm.page.locator('.roll-card')).toHaveCount(2);
+    await expect(spectators[0].page.getByLabel('A private roll occurred')).toBeVisible({
+      timeout: 20000,
+    });
+    await expect(gm.page.locator('.roll-card')).toHaveCount(2, { timeout: 20000 });
     await Promise.all(
       spectators.map(async ({ page }) => {
         const current = await (await page.request.get(`/api/games/${gameId}`)).json();
         expect(current.rolls).toHaveLength(0);
+        expect(current.rollCues).toHaveLength(1);
+        expect(Object.keys(current.rollCues[0]).sort()).toEqual([
+          'created_at',
+          'private',
+          'roll_id',
+        ]);
+        expect(current.rollCues[0].private).toBe(true);
       }),
     );
     await player.page.getByLabel('Visibility').selectOption('public');
     await player.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
-    await expect(gm.page.locator('.roll-card')).toHaveCount(3);
+    await expect(gm.page.locator('.roll-card')).toHaveCount(3, { timeout: 20000 });
     await Promise.all(
       spectators.map(async ({ page }) => {
         await page.getByRole('button', { name: 'Dice', exact: true }).click();
@@ -183,6 +197,17 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await player.page.reload();
     await player.page.getByRole('button', { name: 'Dice', exact: true }).click();
     await expect(player.page.locator('.roll-card')).toHaveCount(2);
+    await player.page.getByRole('button', { name: 'Style', exact: true }).click();
+    await player.page.getByLabel('Face color').fill('#aabbcc');
+    await player.page.getByRole('button', { name: 'Save my dice' }).click();
+    await expect(player.page.getByText('Dice appearance saved.')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const data = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+        return data.diceStyles.find((s: { user_id: string }) => s.user_id === player.id)?.style
+          .faceColor;
+      })
+      .toBe('#aabbcc');
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {
