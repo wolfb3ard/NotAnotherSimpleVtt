@@ -13,12 +13,7 @@ export async function GET(request: Request) {
   if (code) {
     const db = await supabaseServer();
     const { error } = await db.auth.exchangeCodeForSession(code);
-    if (!error)
-      return NextResponse.redirect(
-        new URL(safeNext, siteUrl),
-      );
+    if (!error) return NextResponse.redirect(new URL(safeNext, siteUrl));
   }
-  return NextResponse.redirect(
-    new URL('/login?error=expired', siteUrl),
-  );
+  return NextResponse.redirect(new URL('/login?error=expired', siteUrl));
 }
