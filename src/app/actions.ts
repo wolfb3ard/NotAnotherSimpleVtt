@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { commandSchemas, type Command } from '@/lib/commands';
 import { rollDice } from '@/lib/dice';
 import { numericFields, sheetSchema } from '@/lib/sheets';
+import { diceStyleSchema } from '@/lib/dice-style';
 
 const uuid = z.string().uuid();
 const title = z.string().trim().min(1).max(100);
@@ -216,6 +217,22 @@ export async function roll(gameId: string, payload: unknown) {
       p_visibility: input.visibility,
       p_result: result,
     });
+    if (error) throw new Error(error.message);
+    return { success: true, result };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function saveDiceStyle(payload: unknown): Promise<{ error?: string; success?: true }> {
+  try {
+    const style = diceStyleSchema.parse(payload);
+    const db = await supabaseServer();
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) throw new Error('Login required.');
+    const { error } = await db.rpc('save_dice_style', { p_style: style });
     if (error) throw new Error(error.message);
     return { success: true };
   } catch (error) {

@@ -21,14 +21,34 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
       .eq('scene_id', game.active_scene_id ?? '00000000-0000-0000-0000-000000000000'),
     db.from('templates').select('*').eq('game_id', gameId).order('name'),
     db
-      .from('rolls')
-      .select('*')
+      .from('roll_cues')
+      .select('roll_id,private,created_at')
       .eq('game_id', gameId)
       .order('created_at', { ascending: false })
       .limit(50),
   ]);
   for (const q of queries) if (q.error) throw new Error('Unable to load room data.');
-  const [members, actors, scenes, tokens, templates, rolls] = queries.map((q) => q.data ?? []);
+  const [members, actors, scenes, tokens, templates, rollCues] = queries.map((q) => q.data ?? []);
+  // Read the results after the cues: a newly committed cue must not outrun
+  // its authorized roll because these requests use separate DB transactions.
+  const rollQuery = await db
+    .from('rolls')
+    .select('*')
+    .eq('game_id', gameId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (rollQuery.error) throw new Error('Unable to load rolls.');
+  const rolls = rollQuery.data ?? [];
+  const styles = members.length
+    ? await db
+        .from('dice_styles')
+        .select('user_id,style')
+        .in(
+          'user_id',
+          members.map((m) => m.user_id),
+        )
+    : { data: [], error: null };
+  if (styles.error) throw new Error('Unable to load dice appearances.');
   const actorIds = actors.map((a) => a.id);
   const grants = actorIds.length
     ? await db.from('sheet_grants').select('*').in('actor_id', actorIds)
@@ -44,6 +64,8 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
     tokens,
     templates,
     rolls,
+    diceStyles: styles.data ?? [],
+    rollCues,
     grants: grants.data ?? [],
   } as Snapshot;
 }

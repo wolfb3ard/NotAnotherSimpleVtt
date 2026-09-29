@@ -7,13 +7,17 @@ import { supabaseBrowser } from '@/lib/supabase/browser';
 import type { Command } from '@/lib/commands';
 import type { Snapshot } from '@/lib/types';
 import { emptySheet } from '@/lib/sheets';
+import { defaultDiceStyle } from '@/lib/dice-style';
+import { presentCue, type Presentation } from '@/lib/dice-presentation';
+import { DiceStyleEditor } from './dice-style-editor';
 import { SheetEditor } from './sheet-editor';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
   loading: () => <div className="canvas-empty">Loading tabletop…</div>,
 });
-type Tab = 'party' | 'dice' | 'scenes' | 'settings';
+const DiceOverlay = dynamic(() => import('./dice-overlay'), { ssr: false });
+type Tab = 'party' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
 export function Room({ initial }: { initial: Snapshot }) {
   const [snapshot, setSnapshot] = useState(initial);
@@ -30,6 +34,9 @@ export function Room({ initial }: { initial: Snapshot }) {
   const [diceSetting, setDiceSetting] = useState(initial.game.dice.join(', '));
   const [createActor, setCreateActor] = useState(false);
   const [modifier, setModifier] = useState('0');
+  const [animations, setAnimations] = useState<Presentation[]>([]);
+  const seenCues = useRef(new Set(initial.rollCues?.map((c) => c.roll_id) ?? []));
+  const clearAnimation = useCallback(() => setAnimations((queue) => queue.slice(1)), []);
   const rollAttempt = useRef<{ key: string; id: string } | null>(null);
   const refreshRunning = useRef(false);
   const refreshAgain = useRef(false);
@@ -57,7 +64,23 @@ export function Room({ initial }: { initial: Snapshot }) {
           return;
         }
         if (!response.ok) throw new Error('Sync failed');
-        setSnapshot(await response.json());
+        const updated: Snapshot = await response.json();
+        const fresh = (updated.rollCues ?? [])
+          .filter(
+            (c) =>
+              !seenCues.current.has(c.roll_id) &&
+              Date.now() - new Date(c.created_at).getTime() < 15000,
+          )
+          .reverse();
+        const next: Presentation[] = [];
+        for (const cue of fresh) {
+          const presentation = presentCue(cue, updated.rolls);
+          if (!presentation) continue;
+          seenCues.current.add(cue.roll_id);
+          next.push(presentation);
+        }
+        if (next.length) setAnimations((queue) => [...queue, ...next].slice(-4));
+        setSnapshot(updated);
         setSync('Connected');
       } while (refreshAgain.current);
     } catch {
@@ -81,6 +104,16 @@ export function Room({ initial }: { initial: Snapshot }) {
           event: '*',
           schema: 'public',
           table: 'room_events',
+          filter: `game_id=eq.${initial.game.id}`,
+        },
+        queue,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'roll_cues',
           filter: `game_id=eq.${initial.game.id}`,
         },
         queue,
@@ -140,6 +173,23 @@ export function Room({ initial }: { initial: Snapshot }) {
         setError(result.error);
         rollAttempt.current = null;
       } else {
+        if (gm && visibility === 'private' && result.result) {
+          const presentation = presentCue(
+            {
+              roll_id: rollAttempt.current.id,
+              private: true,
+              created_at: new Date().toISOString(),
+            },
+            [
+              {
+                id: rollAttempt.current.id,
+                author_id: snapshot.userId,
+                result: result.result,
+              } as Snapshot['rolls'][number],
+            ],
+          );
+          if (presentation) setAnimations((queue) => [...queue, presentation].slice(-4));
+        }
         rollAttempt.current = null;
         await refresh();
       }
@@ -202,14 +252,34 @@ export function Room({ initial }: { initial: Snapshot }) {
               setTab('party');
             }
           }}
-        />
+        >
+          {animations[0] && (
+            <DiceOverlay
+              key={animations[0].id}
+              presentation={animations[0]}
+              onDone={clearAnimation}
+              style={
+                animations[0].masked
+                  ? defaultDiceStyle
+                  : (snapshot.diceStyles?.find((s) => s.user_id === animations[0].authorId)
+                      ?.style ?? defaultDiceStyle)
+              }
+            />
+          )}
+        </Tabletop>
         <aside className="sidebar">
           <nav className="tabs" aria-label="Room panels">
-            {(['party', 'dice', ...(gm ? ['scenes'] : []), 'settings'] as Tab[]).map((t) => (
-              <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-                {t === 'settings' ? 'Room' : t[0].toUpperCase() + t.slice(1)}
-              </button>
-            ))}
+            {(['party', 'dice', ...(gm ? ['scenes'] : []), 'appearance', 'settings'] as Tab[]).map(
+              (t) => (
+                <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+                  {t === 'settings'
+                    ? 'Room'
+                    : t === 'appearance'
+                      ? 'Style'
+                      : t[0].toUpperCase() + t.slice(1)}
+                </button>
+              ),
+            )}
           </nav>
           {error && (
             <div className="error-banner" role="alert">
@@ -220,6 +290,15 @@ export function Room({ initial }: { initial: Snapshot }) {
             </div>
           )}
           <div className="panel">
+            {tab === 'appearance' && (
+              <DiceStyleEditor
+                initial={
+                  snapshot.diceStyles?.find((s) => s.user_id === snapshot.userId)?.style ??
+                  defaultDiceStyle
+                }
+                onSaved={refresh}
+              />
+            )}
             {tab === 'party' && (
               <>
                 {actor ? (
