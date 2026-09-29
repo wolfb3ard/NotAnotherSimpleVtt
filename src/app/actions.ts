@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { z } from 'zod';
 import sharp from 'sharp';
 import { supabaseServer } from '@/lib/supabase/server';
@@ -18,7 +19,6 @@ function message(error: unknown) {
       ? error.message
       : 'Request failed. Please try again.';
 }
-
 export async function login(form: FormData) {
   const email = z.email().safeParse(form.get('email'));
   if (!email.success) return { error: 'Enter a valid email address.' };
@@ -26,7 +26,26 @@ export async function login(form: FormData) {
   const safeNext =
     next.startsWith('/invite/') && /^\/invite\/[a-f0-9]{48}$/.test(next) ? next : '/';
   const db = await supabaseServer();
-  const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const headerList = await headers();
+  const host = headerList.get('x-forwarded-host') || headerList.get('host');
+  const proto = headerList.get('x-forwarded-proto') || 'https';
+  const origin = host ? `${proto}://${host}` : undefined;
+  const envSite =
+    process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')
+      ? process.env.NEXT_PUBLIC_SITE_URL
+      : undefined;
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : undefined;
+  const site =
+    envSite ||
+    (origin && !origin.includes('localhost') ? origin : undefined) ||
+    vercelUrl ||
+    origin ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'http://localhost:3000';
   const { error } = await db.auth.signInWithOtp({
     email: email.data,
     options: { emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(safeNext)}` },
