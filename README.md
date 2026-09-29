@@ -107,13 +107,29 @@ This suite creates temporary auth users, a game, an image, and gameplay data, th
 
 ## Deployment
 
-1. Apply migrations to the production Supabase project.
+1. Configure the GitHub `production` environment for automated Supabase migrations (below). Review the project's existing migration history before the first deployment.
 2. Import the GitHub repository into Vercel using its Next.js preset and Node 22.
 3. Add the four environment variables above; use the production origin for `NEXT_PUBLIC_SITE_URL`.
 4. Add the production `/auth/callback` URL to Supabase's allowed redirects and configure email delivery.
 5. Deploy and complete the live smoke test in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Keep development/preview projects separate from production. Preview deployments need their own site URL and allowed authentication callback URL. Public Supabase variables are embedded at build time, so rebuild after changing them.
+
+### Automatic production database migrations
+
+`.github/workflows/deploy-supabase.yml` runs **only after a successful `Checks` workflow for a push to `main`**. It checks out the exact validated commit, links the production Supabase project, prints the pending migrations with `db push --dry-run`, and applies them with `db push`. Pull requests never deploy; subsequent runs are safe when there are no pending migrations. Deployments are serialized and never cancel one another. The `production` GitHub environment can require a reviewer before database access.
+
+Before merging the workflow, open **GitHub → Settings → Environments** and create `production`. Add these **environment-level** values (not `.env`, code, or Vercel variables):
+
+| Name                    | Kind     | Source                                                              |
+| ----------------------- | -------- | ------------------------------------------------------------------- |
+| `SUPABASE_ACCESS_TOKEN` | Secret   | Supabase account access token with access to the production project |
+| `SUPABASE_DB_PASSWORD`  | Secret   | Production project Postgres password                                |
+| `SUPABASE_PROJECT_REF`  | Variable | 20-character project ref from the Supabase dashboard URL            |
+
+Restrict the environment to `main` and enable required reviewers if you want a human approval gate. The job fails with a configuration message when values are missing; it **does not** fall back to a local or preview project. Do not point the opt-in multiplayer test at production.
+
+This action deploys **versioned database migrations**, including their SQL-defined RLS policies, functions, and bucket setup. It does not configure hosted Auth URLs/SMTP, provision Supabase projects, deploy Edge Functions, or manage Vercel environment variables. Vercel's GitHub integration may deploy in parallel with this workflow; until production deployment is explicitly gated on migration completion, write backward-compatible migrations and avoid releasing application code that requires a new schema before it is applied. Back up the production database and review migrations before merge.
 
 ## Structure
 
