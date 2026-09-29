@@ -46,3 +46,5 @@ Roll history is retained in Postgres; the UI queries the newest 50 authorized en
 ## Git and deployment workflow
 
 Work on feature branches. CI runs formatting, lint, TypeScript, unit/database tests, build, and infrastructure-free browser smoke tests. Run the opt-in multiplayer suite against a separate Supabase test project before production rollout. Review the PR and merge before selecting the production deployment.
+
+The `Deploy Supabase migrations` workflow applies pending migrations to the configured GitHub `production` environment after successful `Checks` on `main`; it is serialized and never runs for pull requests. Configure environment secrets and the project-ref variable as described in [README.md](../README.md#automatic-production-database-migrations). A failed deployment must be investigated before relying on Vercel's new application build. Do not use `migration repair` to make a failed deployment appear successful without confirming the actual database state. GitHub/Vercel deployments are not ordered by this workflow; use additive schema changes or gate Vercel separately.
