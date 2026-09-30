@@ -4,7 +4,7 @@
 
 ## Included
 
-- Magic-link sign-in, multiple games, game-scoped GM/player roles, and expiring/revocable invitations.
+- Google/Discord sign-in through Supabase, multiple games, game-scoped GM/player roles, and expiring/revocable invitations.
 - Custom character/NPC/enemy sheets, sections, text/numeric/resource fields, abilities, sheet permissions, and reusable templates.
 - Multiple saved scenes, uploaded maps/tokens, pan/zoom, assigned token control, live movement checkpoints, scene calibration, and a straight-line ruler.
 - Manual reveal/conceal fog, GM-hidden tokens, and player-view previews. Concealed background pixels are removed server-side.
@@ -46,7 +46,7 @@ npx supabase status
 
 Use the local URL, anon key, and service-role key in `.env.local`. Migrations are applied when the local project is created. After changing migrations, `npx supabase db reset` recreates the **local** database and deletes its existing data.
 
-Local email links appear in the mail inbox at `http://localhost:54324`. Open links in the same browser used to request them.
+Local OAuth requires provider credentials in `supabase/config.toml` and the local Supabase Auth callback registered with each provider. See [federated login setup](#federated-login-setup). The local mail inbox is not used by the application's login flow.
 
 ### Option B: hosted Supabase
 
@@ -56,7 +56,35 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-Use an empty project or review migrations before applying them to an existing database. In Supabase Authentication → URL Configuration, set the site URL and allow `http://localhost:3000/auth/callback`. Enable email sign-in. Configure SMTP before inviting real players; Supabase's default email sender has restricted delivery and quotas.
+Use an empty project or review migrations before applying them to an existing database. In Supabase Authentication → URL Configuration, set the site URL and allow `http://localhost:3000/auth/callback`. Enable Google and Discord using the setup below. Application login does not send email, so Supabase's email-send quota and SMTP configuration are not involved.
+
+### Federated login setup
+
+Supabase remains the session and identity backend; no database migrations or additional app environment variables are needed. Configure both providers before inviting players. Client secrets belong only in Supabase's provider settings (or local Supabase environment variables), never in `NEXT_PUBLIC_*` variables or source control.
+
+There are **two different callbacks**:
+
+- **Provider → Supabase:** `https://<project-ref>.supabase.co/auth/v1/callback`. Copy the exact callback from Supabase Authentication → Sign In / Providers. Register this URL with Google and Discord, **not** the app's `/auth/callback`.
+- **Supabase → app:** `https://notanothersimplevtt.vercel.app/auth/callback`. Allow this in Supabase Authentication → URL Configuration and set the Site URL to `https://notanothersimplevtt.vercel.app`. Allow `http://localhost:3000/auth/callback` separately for local Next.js development against hosted Supabase. Use the public domain, not the protected team/deployment aliases.
+
+**Google**
+
+1. Create a Google Cloud project and configure Google Auth Platform branding, audience, and the basic `openid`, email, and profile scopes.
+2. Create an OAuth client with type **Web application**. Add the public app origin under **Authorized JavaScript origins** (and `http://localhost:3000` for development), and the **Supabase callback** under **Authorized redirect URIs**.
+3. In Supabase Authentication → Sign In / Providers → Google, enable the provider and save the client ID and secret.
+4. While Google's app is in testing, add permitted test users. Set the appropriate production audience/publishing status before inviting other players.
+
+**Discord**
+
+1. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Under **OAuth2 → Redirects**, register the **Supabase callback**.
+3. In Supabase Authentication → Sign In / Providers → Discord, enable the provider and save its client ID and secret. No bot or guild permissions are needed.
+
+For a **local Supabase** stack, copy its Auth callback (normally `http://127.0.0.1:54321/auth/v1/callback`) into separate development provider clients, and add `[auth.external.google]` / `[auth.external.discord]` entries to `supabase/config.toml` with `enabled = true`, the development `client_id`, and `secret = "env(SUPABASE_AUTH_EXTERNAL_<PROVIDER>_SECRET)"`. Supply secrets to the CLI environment and restart the stack. Hosted provider settings do not configure the local stack.
+
+Existing games and permissions still use Supabase user IDs. For an existing email-login user, use a provider account with the same verified email; Supabase can automatically link matching verified identities. A different email may create a separate user with no existing memberships. Verify access to existing games before retiring an old login identity; do not reassign memberships merely because a user supplies an email address.
+
+See the official [Google](https://supabase.com/docs/guides/auth/social-login/auth-google) and [Discord](https://supabase.com/docs/guides/auth/social-login/auth-discord) setup guides. For a live smoke test, sign in with each provider in a signed-out browser, verify dashboard access and logout, then repeat from a valid invitation. Cancelling provider consent should offer a retry and retain the invitation.
 
 ### Run
 
@@ -97,7 +125,7 @@ npm run test:e2e
 
 Tests cover dice arithmetic and limits, fog pixel masking, geometry, sheet validation, movement ordering, and real Postgres RLS/RPC behavior using PGlite. PGlite tests supply Supabase's auth/storage schema scaffolding; they do not emulate Supabase Auth, Storage HTTP, or Realtime.
 
-Browser smoke tests run without infrastructure. The full nine-browser multiplayer test requires an isolated Supabase project and explicit opt-in:
+Browser smoke tests run without infrastructure, including provider handoff, same-site callbacks, PKCE cookie persistence, and cancelled-login recovery. The test server uses dummy Supabase values unless supplied through the runner's environment; the OAuth handoff is intercepted, not completed with Google/Discord. The full nine-browser multiplayer test requires an isolated Supabase project and explicit opt-in:
 
 ```powershell
 # Load the three Supabase variables above into this shell, using the same test
@@ -113,12 +141,12 @@ This suite creates temporary auth users, a game, an image, and gameplay data, th
 1. Configure the GitHub `production` environment for automated Supabase migrations (below). Review the project's existing migration history before the first deployment.
 2. Import the GitHub repository into Vercel using its Next.js preset and Node 22.
 3. Add the four environment variables above; use the production origin for `NEXT_PUBLIC_SITE_URL`.
-4. Set Supabase's site URL to the public production origin, add its `/auth/callback` URL to the allowed redirects, and configure email delivery. Use the stable public domain, not a deployment-specific Vercel URL that requires Vercel authentication.
+4. Set Supabase's site URL to the public production origin, add its `/auth/callback` URL to the allowed redirects, and enable/configure Google and Discord as described above. Use the stable public domain, not a deployment-specific Vercel URL that requires Vercel authentication.
 5. Deploy and complete the live smoke test in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Keep development/preview projects separate from production. Preview deployments need their own site URL and allowed authentication callback URL. Public Supabase variables are embedded at build time, so rebuild after changing them.
 
-Sign-in links and callback redirects stay on the origin where login started so the browser can use its PKCE verifier cookie. Allow each intended origin's callback in Supabase, including local development. Supabase can fall back to its configured site URL if a requested redirect is not allowed. Test the public production domain in a signed-out/private browser; players should never need a Vercel account. Protected previews still require deployment access; this app does not bypass Vercel protection.
+OAuth callbacks and post-login redirects stay on the origin where login started so the browser can use its PKCE verifier cookie. Allow each intended origin's callback in Supabase, including local development. Supabase can fall back to its configured site URL if a requested redirect is not allowed. Test the public production domain in a signed-out/private browser; players should never need a Vercel account. Protected previews still require deployment access; this app does not bypass Vercel protection.
 
 ### Automatic production database migrations
 

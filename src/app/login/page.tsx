@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { ActionForm } from '@/components/action-form';
-import { login } from '../actions';
+import { LoginForm } from '@/components/login-form';
 import { configured } from '@/lib/supabase/server';
 
 export default async function Login({
@@ -32,32 +31,24 @@ export default async function Login({
       <section className="auth-form">
         <span className="eyebrow">WELCOME TO THE TABLE</span>
         <h2>Your next adventure awaits.</h2>
-        <p className="muted">Sign in with a link sent straight to your inbox.</p>
+        <p className="muted">Sign in with your Google or Discord account.</p>
         {!configured() ? (
           <div className="notice">
             Connect Supabase to enable sign-in. Follow the setup steps in README.md and add your
             credentials to .env.local.
           </div>
         ) : (
-          <ActionForm action={login} label="Send sign-in link">
-            <label>
-              Email address
-              <input
-                name="email"
-                type="email"
-                placeholder="adventurer@example.com"
-                required
-                autoComplete="email"
-              />
-            </label>
-            <input type="hidden" name="next" value={params.next || '/'} />
-          </ActionForm>
+          <LoginForm next={params.next || '/'} />
         )}
         {params.error && (
-          <p className="notice">That link expired or was already used. Request a new one.</p>
+          <p className="notice" role="alert">
+            {params.error === 'oauth'
+              ? 'Sign-in was cancelled or rejected. Please try again.'
+              : 'Unable to finish sign-in. Please try again in the same browser where you started.'}
+          </p>
         )}
         <p className="small muted">
-          No passwords to remember. Open the email link in this browser.
+          No email links or new passwords. Continue in this browser to finish signing in.
         </p>
       </section>
     </main>

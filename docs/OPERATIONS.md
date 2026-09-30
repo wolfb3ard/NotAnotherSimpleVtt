@@ -4,7 +4,7 @@
 
 - Apply all migrations and confirm the private `tabletop` bucket exists.
 - Confirm `room_events` is included in the Realtime publication and that other gameplay tables are not published by these migrations.
-- Set site URLs, callback allowlists, SMTP, and environment variables for the correct environment.
+- Set site URLs, callback allowlists, Google/Discord provider credentials, and environment variables for the correct environment. Test both providers in a signed-out browser and from an invitation.
 - In separate GM/player browsers, create/join a room, upload a scene, reveal part of it, add/move a token, calibrate/measure, save a sheet, and roll publicly/privately.
 - Check player requests cannot fetch raw backgrounds, hidden tokens, restricted sheets, or GM-private rolls.
 - Disconnect/reconnect a player and verify persisted state returns. Revoke a sheet grant and confirm it disappears from that player's view.
@@ -25,7 +25,7 @@ Roll history is retained in Postgres; the UI queries the newest 50 authorized en
 - Keep migration files in source control. Review production migrations and back up data before applying schema changes.
 - Supabase database backups do not replace Storage object backups. Export database content and copy private image objects separately.
 - Use Supabase's backup/restore tools where the selected plan provides them. Otherwise schedule database dumps with the CLI or `pg_dump` and independently archive Storage objects.
-- Test restore into a separate project. Reconfigure keys, authentication redirects, SMTP, private bucket policies, and Realtime publication as necessary.
+- Test restore into a separate project. Reconfigure keys, authentication redirects, OAuth providers, private bucket policies, and Realtime publication as necessary.
 - To roll back the app, redeploy a known Vercel deployment. Schema changes need a compatible forward migration or a deliberate database restore, not an automatic destructive rollback.
 - Application logs should report failed operations without copying service credentials or private sheet/roll payloads.
 
@@ -34,7 +34,8 @@ Roll history is retained in Postgres; the UI queries the newest 50 authorized en
 | Symptom                         | Check                                                                                                                   |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Setup page instead of dashboard | Public Supabase environment variables; rebuild after changing them                                                      |
-| Magic link fails                | Same browser, unexpired link, site URL, callback allowlist, SMTP                                                        |
+| OAuth sign-in fails             | Enabled provider, client credentials, provider's Supabase callback, app callback allowlist, same browser/domain         |
+| Google blocks a user            | OAuth audience, publishing status, and test-user list in Google Auth Platform                                           |
 | Sign-in opens Vercel login      | Use the public production domain; Supabase site URL and callback allowlist must not point to a protected deployment URL |
 | Player sees a dark map          | New scenes start concealed; use Reveal as GM                                                                            |
 | Token is absent                 | Active scene, explicit hidden flag, fog at token center                                                                 |
