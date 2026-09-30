@@ -113,10 +113,12 @@ This suite creates temporary auth users, a game, an image, and gameplay data, th
 1. Configure the GitHub `production` environment for automated Supabase migrations (below). Review the project's existing migration history before the first deployment.
 2. Import the GitHub repository into Vercel using its Next.js preset and Node 22.
 3. Add the four environment variables above; use the production origin for `NEXT_PUBLIC_SITE_URL`.
-4. Add the production `/auth/callback` URL to Supabase's allowed redirects and configure email delivery.
+4. Set Supabase's site URL to the public production origin, add its `/auth/callback` URL to the allowed redirects, and configure email delivery. Use the stable public domain, not a deployment-specific Vercel URL that requires Vercel authentication.
 5. Deploy and complete the live smoke test in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Keep development/preview projects separate from production. Preview deployments need their own site URL and allowed authentication callback URL. Public Supabase variables are embedded at build time, so rebuild after changing them.
+
+Sign-in links and callback redirects stay on the origin where login started so the browser can use its PKCE verifier cookie. Allow each intended origin's callback in Supabase, including local development. Supabase can fall back to its configured site URL if a requested redirect is not allowed. Test the public production domain in a signed-out/private browser; players should never need a Vercel account. Protected previews still require deployment access; this app does not bypass Vercel protection.
 
 ### Automatic production database migrations
 
