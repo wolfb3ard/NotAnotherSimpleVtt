@@ -7,10 +7,18 @@ export async function GET(request: Request) {
   const next = url.searchParams.get('next') ?? '/';
   const safeNext = /^\/invite\/[a-f0-9]{48}$/.test(next) ? next : '/';
   const siteUrl = url.origin;
-  if (code) {
-    const db = await supabaseServer();
-    const { error } = await db.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL(safeNext, siteUrl));
+  const failureUrl = new URL('/login', siteUrl);
+  const providerError = url.searchParams.has('error');
+  failureUrl.searchParams.set('error', providerError ? 'oauth' : 'session');
+  if (safeNext !== '/') failureUrl.searchParams.set('next', safeNext);
+  if (code && !providerError) {
+    try {
+      const db = await supabaseServer();
+      const { error } = await db.auth.exchangeCodeForSession(code);
+      if (!error) return NextResponse.redirect(new URL(safeNext, siteUrl));
+    } catch {
+      // Do not expose provider errors, codes, or cookie details in the redirect.
+    }
   }
-  return NextResponse.redirect(new URL('/login?error=expired', siteUrl));
+  return NextResponse.redirect(failureUrl);
 }
