@@ -20,27 +20,39 @@ function message(error: unknown) {
       ? error.message
       : 'Request failed. Please try again.';
 }
-export async function login(form: FormData) {
-  const email = z.email().safeParse(form.get('email'));
-  if (!email.success) return { error: 'Enter a valid email address.' };
+export async function login(
+  _state: { error?: string },
+  form: FormData,
+): Promise<{ error?: string }> {
+  const provider = z.enum(['google', 'discord']).safeParse(form.get('provider'));
+  if (!provider.success) return { error: 'Choose Google or Discord to sign in.' };
   const next = String(form.get('next') || '/');
   const safeNext =
     next.startsWith('/invite/') && /^\/invite\/[a-f0-9]{48}$/.test(next) ? next : '/';
-  const db = await supabaseServer();
-  const headerList = await headers();
-  const host = headerList.get('x-forwarded-host') || headerList.get('host');
-  const proto = headerList.get('x-forwarded-proto') || 'https';
-  // Keep the PKCE callback on the browser's host, where its verifier cookie lives.
-  // Deployment-specific Vercel URLs can require Vercel authentication.
-  const origin = headerList.get('origin') || (host ? `${proto}://${host}` : undefined);
-  const site = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  const { error } = await db.auth.signInWithOtp({
-    email: email.data,
-    options: { emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(safeNext)}` },
-  });
-  return error
-    ? { error: error.message }
-    : { success: 'Check your email for a sign-in link. Open it in this browser.' };
+  let authorizeUrl: string;
+  try {
+    const db = await supabaseServer();
+    const headerList = await headers();
+    const host = headerList.get('x-forwarded-host') || headerList.get('host');
+    const proto = headerList.get('x-forwarded-proto') || 'https';
+    // Keep the PKCE callback on the browser's host, where its verifier cookie lives.
+    // Deployment-specific Vercel URLs can require Vercel authentication.
+    const origin = headerList.get('origin') || (host ? `${proto}://${host}` : undefined);
+    const site = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const { data, error } = await db.auth.signInWithOAuth({
+      provider: provider.data,
+      options: {
+        redirectTo: `${site}/auth/callback?next=${encodeURIComponent(safeNext)}`,
+        skipBrowserRedirect: true,
+      },
+    });
+    if (error) return { error: error.message };
+    if (!data.url) return { error: 'Unable to start sign-in. Please try again.' };
+    authorizeUrl = data.url;
+  } catch {
+    return { error: 'Unable to start sign-in. Please try again.' };
+  }
+  redirect(authorizeUrl);
 }
 
 export async function logout() {
