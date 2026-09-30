@@ -31,17 +31,18 @@ Roll history is retained in Postgres; the UI queries the newest 50 authorized en
 
 ## Troubleshooting
 
-| Symptom                         | Check                                                                      |
-| ------------------------------- | -------------------------------------------------------------------------- |
-| Setup page instead of dashboard | Public Supabase environment variables; rebuild after changing them         |
-| Magic link fails                | Same browser, unexpired link, site URL, callback allowlist, SMTP           |
-| Player sees a dark map          | New scenes start concealed; use Reveal as GM                               |
-| Token is absent                 | Active scene, explicit hidden flag, fog at token center                    |
-| Player cannot use a saved roll  | Actor control and independent sheet access; save sheet edits first         |
-| “Changed” conflict              | Reload the sheet or retry the action using current room state              |
-| Reconnecting status             | Supabase project availability, Realtime publication, session validity      |
-| Image upload fails              | Server service key, bucket, file type/size/dimensions                      |
-| Image processing is slow        | Map complexity/dimensions, revision-cache misses, Vercel function duration |
+| Symptom                         | Check                                                                                                                   |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Setup page instead of dashboard | Public Supabase environment variables; rebuild after changing them                                                      |
+| Magic link fails                | Same browser, unexpired link, site URL, callback allowlist, SMTP                                                        |
+| Sign-in opens Vercel login      | Use the public production domain; Supabase site URL and callback allowlist must not point to a protected deployment URL |
+| Player sees a dark map          | New scenes start concealed; use Reveal as GM                                                                            |
+| Token is absent                 | Active scene, explicit hidden flag, fog at token center                                                                 |
+| Player cannot use a saved roll  | Actor control and independent sheet access; save sheet edits first                                                      |
+| “Changed” conflict              | Reload the sheet or retry the action using current room state                                                           |
+| Reconnecting status             | Supabase project availability, Realtime publication, session validity                                                   |
+| Image upload fails              | Server service key, bucket, file type/size/dimensions                                                                   |
+| Image processing is slow        | Map complexity/dimensions, revision-cache misses, Vercel function duration                                              |
 
 ## Git and deployment workflow
 

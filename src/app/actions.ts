@@ -30,23 +30,10 @@ export async function login(form: FormData) {
   const headerList = await headers();
   const host = headerList.get('x-forwarded-host') || headerList.get('host');
   const proto = headerList.get('x-forwarded-proto') || 'https';
-  const origin = host ? `${proto}://${host}` : undefined;
-  const envSite =
-    process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')
-      ? process.env.NEXT_PUBLIC_SITE_URL
-      : undefined;
-  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : undefined;
-  const site =
-    envSite ||
-    (origin && !origin.includes('localhost') ? origin : undefined) ||
-    vercelUrl ||
-    origin ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    'http://localhost:3000';
+  // Keep the PKCE callback on the browser's host, where its verifier cookie lives.
+  // Deployment-specific Vercel URLs can require Vercel authentication.
+  const origin = headerList.get('origin') || (host ? `${proto}://${host}` : undefined);
+  const site = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
   const { error } = await db.auth.signInWithOtp({
     email: email.data,
     options: { emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(safeNext)}` },
