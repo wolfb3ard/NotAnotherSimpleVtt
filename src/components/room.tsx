@@ -252,21 +252,20 @@ export function Room({ initial }: { initial: Snapshot }) {
               setTab('party');
             }
           }}
-        >
-          {animations[0] && (
-            <DiceOverlay
-              key={animations[0].id}
-              presentation={animations[0]}
-              onDone={clearAnimation}
-              style={
-                animations[0].masked
-                  ? defaultDiceStyle
-                  : (snapshot.diceStyles?.find((s) => s.user_id === animations[0].authorId)
-                      ?.style ?? defaultDiceStyle)
-              }
-            />
-          )}
-        </Tabletop>
+        />
+        {animations[0] && (
+          <DiceOverlay
+            key={animations[0].id}
+            presentation={animations[0]}
+            onDone={clearAnimation}
+            style={
+              animations[0].masked
+                ? defaultDiceStyle
+                : (snapshot.diceStyles?.find((s) => s.user_id === animations[0].authorId)?.style ??
+                  defaultDiceStyle)
+            }
+          />
+        )}
         <aside className="sidebar">
           <nav className="tabs" aria-label="Room panels">
             {(['party', 'dice', ...(gm ? ['scenes'] : []), 'appearance', 'settings'] as Tab[]).map(

@@ -1,7 +1,7 @@
 'use client';
 
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
   CanvasTexture,
   DoubleSide,
@@ -13,6 +13,7 @@ import {
   Vector3,
 } from 'three';
 import { buildDieModel, landingRotation, visualSides } from '@/lib/dice-model';
+import { diceLayout, rollPose, rollDuration, type DiceTarget } from '@/lib/dice-motion';
 import type { DieVisual, Presentation } from '@/lib/dice-presentation';
 import type { DiceStyle } from '@/lib/types';
 
@@ -40,11 +41,17 @@ function Die({
   style,
   index,
   still,
+  target,
+  width,
+  height,
 }: {
   die: DieVisual;
   style: DiceStyle;
   index: number;
   still: boolean;
+  target: DiceTarget;
+  width: number;
+  height: number;
 }) {
   const shape = visualSides(die.sides);
   const model = useMemo(() => buildDieModel(shape), [shape]);
@@ -53,24 +60,27 @@ function Die({
     [model, die.masked, die.value],
   );
   const textures = useMemo(
-    () => model.faces.map((face) => labelTexture(die.masked ? '?' : String(face.value), style)),
-    [model, style, die.masked],
+    () =>
+      model.faces.map((face) =>
+        labelTexture(
+          die.masked ? '?' : String(shape === 10 && face.value === 0 ? 10 : face.value),
+          style,
+        ),
+      ),
+    [model, style, die.masked, shape],
   );
   const group = useRef<Group>(null);
   const material = useRef<MeshPhysicalMaterial>(null);
   const start = useRef<number | null>(null);
-  const spinning = useMemo(
-    () =>
-      new Quaternion().setFromEuler(new Euler(2.4 + index, 3.7 - index * 0.3, 1.6 + index * 0.8)),
-    [index],
-  );
+  const spinning = useMemo(() => new Quaternion(), []);
+  const tumble = useMemo(() => new Euler(), []);
   useEffect(
     () => () => {
-      model.geometry.dispose();
       textures.forEach((t) => t.dispose());
     },
-    [model, textures],
+    [textures],
   );
+  useEffect(() => () => model.geometry.dispose(), [model]);
   useFrame(({ clock }) => {
     if (material.current)
       material.current.emissiveIntensity =
@@ -78,17 +88,24 @@ function Die({
     if (!group.current) return;
     if (still) {
       group.current.quaternion.copy(final);
-      group.current.position.y = 0;
+      group.current.position.set(target.x, 0, target.z);
       return;
     }
     if (start.current === null) start.current = clock.elapsedTime;
-    const t = Math.min(1, (clock.elapsedTime - start.current) / 1.35);
-    const eased = 1 - Math.pow(1 - t, 3);
-    group.current.quaternion.copy(spinning).slerp(final, eased);
-    group.current.position.y = Math.sin(Math.PI * t) * 0.7;
+    const pose = rollPose(
+      (clock.elapsedTime - start.current) / rollDuration,
+      target,
+      width,
+      height,
+      index,
+    );
+    tumble.set(pose.spin, pose.spin * 0.7, pose.spin * 0.45);
+    spinning.setFromEuler(tumble).multiply(final);
+    group.current.quaternion.copy(spinning).slerp(final, pose.settle);
+    group.current.position.set(pose.x, pose.y, pose.z);
   });
   return (
-    <group ref={group} position={[0, 0, 0]}>
+    <group ref={group} scale={target.scale * (die.kept ? 1 : 0.8)}>
       <mesh geometry={model.geometry}>
         <meshPhysicalMaterial
           ref={material}
@@ -126,6 +143,31 @@ function Die({
   );
 }
 
+function DiceTable({
+  presentation,
+  style,
+  still,
+}: {
+  presentation: Presentation;
+  style: DiceStyle;
+  still: boolean;
+}) {
+  const { width, height } = useThree((state) => state.viewport);
+  const targets = diceLayout(width, height, presentation.dice.length);
+  return presentation.dice.map((die, i) => (
+    <Die
+      key={i}
+      die={die}
+      style={style}
+      index={i}
+      still={still}
+      target={targets[i]}
+      width={width}
+      height={height}
+    />
+  ));
+}
+
 function DiceScene({
   presentation,
   style,
@@ -135,25 +177,16 @@ function DiceScene({
   style: DiceStyle;
   still: boolean;
 }) {
-  const dice = presentation.dice;
   return (
     <Canvas
+      orthographic
       dpr={[1, 1.5]}
-      camera={{ position: [0, 7, 9], fov: 38 }}
+      camera={{ position: [0, 30, 0], up: [0, 0, -1], zoom: 48, near: 0.1, far: 100 }}
       gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
     >
       <ambientLight intensity={1.65} />
       <directionalLight position={[2, 7, 5]} intensity={2} />
-      {dice.map((die, i) => {
-        const columns = Math.min(dice.length, 4);
-        const x = ((i % columns) - (columns - 1) / 2) * 2.15;
-        const y = (Math.floor(i / columns) - (dice.length > 4 ? 0.5 : 0)) * 2.4;
-        return (
-          <group key={i} position={[x, y, 0]} scale={die.kept ? 1 : 0.8}>
-            <Die die={die} style={style} index={i} still={still} />
-          </group>
-        );
-      })}
+      <DiceTable presentation={presentation} style={style} still={still} />
     </Canvas>
   );
 }
@@ -247,13 +280,6 @@ export default function DiceOverlay({
         presentation.masked ? 'A private roll occurred' : `Dice roll ${presentation.total ?? ''}`
       }
     >
-      <div className="dice-overlay-heading">
-        {presentation.masked
-          ? 'A PRIVATE ROLL'
-          : presentation.private
-            ? 'PRIVATE ROLL'
-            : 'DICE ON THE TABLE'}
-      </div>
       <div className="dice-overlay-stage">
         {supported ? (
           <GraphicsBoundary fallback={fallback}>
@@ -263,7 +289,7 @@ export default function DiceOverlay({
           fallback
         )}
       </div>
-      <div className="dice-overlay-result">
+      <div className="dice-overlay-result" aria-hidden="true">
         {presentation.masked ? (
           'Result concealed'
         ) : (
@@ -277,9 +303,6 @@ export default function DiceOverlay({
           </>
         )}
       </div>
-      <button className="dice-overlay-dismiss" onClick={onDone} aria-label="Dismiss dice animation">
-        ×
-      </button>
     </div>
   );
 }
