@@ -12,7 +12,7 @@ export default async function Login({
     <main className="auth-shell">
       <section className="auth-art">
         <Link href="/" className="brand">
-          ◈ GATHER
+          ◈ Not Another Simple Vtt
         </Link>
         <div>
           <span className="eyebrow">A PLACE FOR YOUR PARTY</span>

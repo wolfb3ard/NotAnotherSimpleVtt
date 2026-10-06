@@ -1,6 +1,6 @@
-# NotAnotherSimpleVtt
+# Not Another Simple Vtt
 
-**Gather** is a desktop-browser, system-agnostic virtual tabletop. Next.js runs on Vercel; Supabase provides authentication, Postgres, private image storage, and realtime room updates.
+**Not Another Simple Vtt** is a desktop-browser, system-agnostic virtual tabletop. Next.js runs on Vercel; Supabase provides authentication, Postgres, private image storage, and realtime room updates.
 
 ## Included
 

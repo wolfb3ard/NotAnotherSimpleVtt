@@ -22,7 +22,7 @@ export default async function Invite({ params }: { params: Promise<{ token: stri
   return (
     <main className="setup">
       <Link className="brand" href="/">
-        ◈ GATHER
+        ◈ Not Another Simple Vtt
       </Link>
       <h1>A seat awaits you.</h1>
       <section className="card">

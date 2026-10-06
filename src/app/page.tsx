@@ -8,7 +8,7 @@ export default async function Home() {
   if (!configured())
     return (
       <main className="setup">
-        <div className="brand">◈ GATHER</div>
+        <div className="brand">◈ Not Another Simple Vtt</div>
         <span className="eyebrow">NOT ANOTHER SIMPLE VTT</span>
         <h1>
           Your world.
@@ -47,7 +47,7 @@ export default async function Home() {
     <main className="dashboard">
       <header className="topbar">
         <Link className="brand" href="/">
-          ◈ GATHER
+          ◈ Not Another Simple Vtt
         </Link>
         <form action={logout}>
           <button className="ghost">Sign out</button>

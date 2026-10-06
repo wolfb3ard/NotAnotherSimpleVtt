@@ -225,7 +225,7 @@ export function Room({ initial }: { initial: Snapshot }) {
     <main className="room">
       <header className="room-header">
         <Link href="/" className="brand" title="Back to games">
-          ◈ GATHER
+          ◈ Not Another Simple Vtt
         </Link>
         <span className="header-divider" />
         <div>

@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 
 test('public entry point renders and supports navigation', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('GATHER', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Not Another Simple Vtt', { exact: false }).first()).toBeVisible();
+  await expect(page).toHaveTitle('Not Another Simple Vtt • Virtual Tabletop');
   if (await page.getByRole('link', { name: 'Go to sign in' }).count())
     await page.getByRole('link', { name: 'Go to sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Your next adventure awaits.' })).toBeVisible();
