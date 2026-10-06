@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { supabaseServer } from '@/lib/supabase/server';
+import { authCallbackPath, authNextCookie, safeAuthNext } from '@/lib/auth-redirect';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
-  const next = url.searchParams.get('next') ?? '/';
-  const safeNext = /^\/invite\/[a-f0-9]{48}$/.test(next) ? next : '/';
+  const store = await cookies();
+  // Support in-flight older links while new flows use an exact callback URL.
+  const safeNext = safeAuthNext(url.searchParams.get('next') ?? store.get(authNextCookie)?.value);
+  store.set(authNextCookie, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: url.protocol === 'https:',
+    path: authCallbackPath,
+    maxAge: 0,
+  });
   const siteUrl = url.origin;
   const failureUrl = new URL('/login', siteUrl);
   const providerError = url.searchParams.has('error');

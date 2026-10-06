@@ -31,8 +31,15 @@ test('google login redirects with a same-site callback and a PKCE cookie', async
   const callback = new URL(authorizeUrl!.searchParams.get('redirect_to')!);
   expect(callback.origin).toBe('http://localhost:3000');
   expect(callback.pathname).toBe('/auth/callback');
-  expect(callback.searchParams.get('next')).toBe(invite);
-  const cookies = await context.cookies('http://localhost:3000');
+  expect(callback.href).toBe('http://localhost:3000/auth/callback');
+  const cookies = await context.cookies(callback.href);
+  const returnCookie = cookies.find((cookie) => cookie.name === 'vtt-auth-next');
+  expect(returnCookie).toMatchObject({
+    httpOnly: true,
+    sameSite: 'Lax',
+    path: '/auth/callback',
+  });
+  expect(decodeURIComponent(returnCookie!.value)).toBe(invite);
   const verifierCookie = cookies.find((cookie) =>
     cookie.name.endsWith('-auth-token-code-verifier'),
   );
@@ -46,6 +53,12 @@ test('google login redirects with a same-site callback and a PKCE cookie', async
   expect(authorizeUrl!.searchParams.get('code_challenge')).toBe(
     createHash('sha256').update(verifier).digest('base64url'),
   );
+  // A denied provider callback must recover the destination without ?next=.
+  await page.goto('http://localhost:3000/auth/callback?error=access_denied');
+  await expect(page.locator('input[name="next"]')).toHaveValue(invite);
+  expect(
+    (await context.cookies(callback.href)).some((cookie) => cookie.name === 'vtt-auth-next'),
+  ).toBe(false);
 });
 
 test('cancelled sign-in allows a retry without losing the invitation', async ({ page }) => {
