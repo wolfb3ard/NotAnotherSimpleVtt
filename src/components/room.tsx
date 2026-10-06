@@ -748,8 +748,7 @@ export function Room({ initial }: { initial: Snapshot }) {
                     <button
                       onClick={async () => {
                         const data = await run('invite', {});
-                        if (data?.token)
-                          setInvite(`${window.location.origin}/invite/${data.token}`);
+                        if (data?.url) setInvite(data.url);
                       }}
                     >
                       Create invitation link

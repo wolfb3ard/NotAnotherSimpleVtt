@@ -3,6 +3,16 @@ import { expect, test } from '@playwright/test';
 
 const invite = `/invite/${'a'.repeat(48)}`;
 
+test('a signed-out invitation opens app sign-in and retains the invitation', async ({ page }) => {
+  await page.goto(invite);
+  await expect(page).toHaveURL(`http://localhost:3000/login?next=${encodeURIComponent(invite)}`);
+  const destination = new URL(page.url());
+  expect(destination.origin).toBe('http://localhost:3000');
+  expect(destination.pathname).toBe('/login');
+  expect(destination.searchParams.get('next')).toBe(invite);
+  await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+});
+
 for (const provider of ['google', 'discord']) {
   test(`${provider} login redirects with a same-site callback and a PKCE cookie`, async ({
     page,
