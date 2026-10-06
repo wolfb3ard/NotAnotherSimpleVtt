@@ -181,7 +181,7 @@ function DiceScene({
     <Canvas
       orthographic
       dpr={[1, 1.5]}
-      camera={{ position: [0, 30, 0], up: [0, 0, -1], zoom: 48, near: 0.1, far: 100 }}
+      camera={{ position: [0, 30, 0], up: [0, 0, -1], zoom: 64, near: 0.1, far: 100 }}
       gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
     >
       <ambientLight intensity={1.65} />

@@ -546,6 +546,12 @@ code {
   min-width: 38px;
   padding: 11px 7px;
 }
+.dice-types button[aria-pressed='true'] {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #192227;
+  font-weight: 700;
+}
 .dice-icon {
   font-size: 43px;
   color: var(--gold);
@@ -829,12 +835,12 @@ summary {
   border: 2px solid #d9bd93;
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  width: 84px;
+  height: 84px;
   border-radius: 12px;
   background: #42665e;
   color: #fff;
-  font-size: 28px;
+  font-size: 36px;
   animation: dice-fallback-roll 1.8s ease-out both;
 }
 .dice-overlay-fallback span:nth-child(even) {

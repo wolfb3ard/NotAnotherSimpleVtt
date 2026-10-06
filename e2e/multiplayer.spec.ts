@@ -156,6 +156,22 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       })
       .toBeCloseTo(0.05, 5);
     await gm.page.getByRole('button', { name: 'Dice', exact: true }).click();
+    const d20 = gm.page.getByRole('button', { name: 'd20', exact: true });
+    const d6 = gm.page.getByRole('button', { name: 'd6', exact: true });
+    await expect(d20).toHaveAttribute('aria-pressed', 'true');
+    await d6.click();
+    await expect(d6).toHaveAttribute('aria-pressed', 'true');
+    await expect(d20).toHaveAttribute('aria-pressed', 'false');
+    await gm.page.getByLabel('Expression', { exact: true }).fill('2d6 + 1d8');
+    await expect(d6).toHaveAttribute('aria-pressed', 'true');
+    await expect(gm.page.getByRole('button', { name: 'd8', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await gm.page.getByRole('button', { name: 'Advantage', exact: true }).click();
+    await expect(d20).toHaveAttribute('aria-pressed', 'true');
+    await expect(d6).toHaveAttribute('aria-pressed', 'false');
+    await d20.click();
     await gm.page.getByLabel('Visibility').selectOption('private');
     await gm.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
     await expect(gm.page.locator('.roll-card')).toHaveCount(1);
