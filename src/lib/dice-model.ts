@@ -170,5 +170,13 @@ export function landingRotation(model: DieModel, value: number) {
   const printed = model.faces.length === 10 && value === 10 ? 0 : value;
   const face = model.faces.find((f) => f.value === printed);
   if (!face) throw new Error('Outcome has no matching face');
-  return new Quaternion().setFromUnitVectors(face.normal, new Vector3(0, 1, 0));
+  const rotation = new Quaternion().setFromUnitVectors(face.normal, new Vector3(0, 1, 0));
+  // Match the label plane's local up direction to the top of the top-down screen.
+  const labelRotation = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), face.normal);
+  const labelUp = new Vector3(0, 1, 0).applyQuaternion(labelRotation).applyQuaternion(rotation);
+  const upright = new Quaternion().setFromAxisAngle(
+    new Vector3(0, 1, 0),
+    Math.atan2(labelUp.x, -labelUp.z),
+  );
+  return upright.multiply(rotation);
 }

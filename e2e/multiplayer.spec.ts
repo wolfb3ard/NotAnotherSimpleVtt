@@ -187,6 +187,19 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     );
     await player.page.getByLabel('Visibility').selectOption('public');
     await player.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
+    await Promise.all(
+      [gm, player, ...spectators].map(async ({ page }) => {
+        const overlay = page.locator('.dice-overlay[aria-label^="Dice roll"]');
+        await expect(overlay).toBeVisible({ timeout: 20000 });
+        await expect(overlay).toHaveCSS('position', 'fixed');
+        await expect(overlay).toHaveCSS('pointer-events', 'none');
+        await expect(overlay).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+        await expect(overlay.getByRole('button')).toHaveCount(0);
+        const bounds = await overlay.boundingBox();
+        expect(bounds).toEqual({ x: 0, y: 0, ...page.viewportSize()! });
+        await page.getByRole('button', { name: 'Dice', exact: true }).click();
+      }),
+    );
     await expect(gm.page.locator('.roll-card')).toHaveCount(3, { timeout: 20000 });
     await Promise.all(
       spectators.map(async ({ page }) => {

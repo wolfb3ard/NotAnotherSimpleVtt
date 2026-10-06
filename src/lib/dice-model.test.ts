@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildDieModel, visualSides, landingRotation } from './dice-model';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 
 describe('polyhedral dice', () => {
   for (const sides of [4, 6, 8, 10, 12, 20]) {
@@ -18,6 +18,14 @@ describe('polyhedral dice', () => {
         )!;
         const up = face.normal.clone().applyQuaternion(landingRotation(model, value));
         expect(up.distanceTo(new Vector3(0, 1, 0))).toBeLessThan(0.0001);
+        const labelRotation = new Quaternion().setFromUnitVectors(
+          new Vector3(0, 0, 1),
+          face.normal,
+        );
+        const labelUp = new Vector3(0, 1, 0)
+          .applyQuaternion(labelRotation)
+          .applyQuaternion(landingRotation(model, value));
+        expect(labelUp.distanceTo(new Vector3(0, 0, -1))).toBeLessThan(0.0001);
       }
       if (sides !== 4)
         for (const face of model.faces) {
