@@ -10,6 +10,7 @@ import { commandSchemas, type Command } from '@/lib/commands';
 import { rollDice } from '@/lib/dice';
 import { numericFields, sheetSchema } from '@/lib/sheets';
 import { diceStyleSchema } from '@/lib/dice-style';
+import { invitationUrl } from '@/lib/invitations';
 
 const uuid = z.string().uuid();
 const title = z.string().trim().min(1).max(100);
@@ -112,6 +113,14 @@ export async function mutate(
       p: validated,
     });
     if (error) throw new Error(error.message);
+    if (command === 'invite' && data?.token) {
+      const headerList = await headers();
+      const host = headerList.get('x-forwarded-host') || headerList.get('host');
+      const proto = headerList.get('x-forwarded-proto') || 'https';
+      const origin = headerList.get('origin') || (host ? `${proto}://${host}` : undefined);
+      if (!origin) throw new Error('Unable to determine the app origin. Please try again.');
+      return { data: { ...data, url: invitationUrl(data.token, origin) } };
+    }
     return { data };
   } catch (error) {
     return { error: message(error) };
