@@ -1,15 +1,27 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const { signInWithOtp, signInWithOAuth, exchangeCodeForSession, requestHeaders, redirect } =
-  vi.hoisted(() => ({
-    signInWithOtp: vi.fn(),
-    signInWithOAuth: vi.fn(),
-    exchangeCodeForSession: vi.fn(),
-    requestHeaders: vi.fn(),
-    redirect: vi.fn(),
-  }));
+const {
+  signInWithOtp,
+  signInWithOAuth,
+  exchangeCodeForSession,
+  requestHeaders,
+  redirect,
+  getCookie,
+  setCookie,
+} = vi.hoisted(() => ({
+  signInWithOtp: vi.fn(),
+  signInWithOAuth: vi.fn(),
+  exchangeCodeForSession: vi.fn(),
+  requestHeaders: vi.fn(),
+  redirect: vi.fn(),
+  getCookie: vi.fn(),
+  setCookie: vi.fn(),
+}));
 
-vi.mock('next/headers', () => ({ headers: requestHeaders }));
+vi.mock('next/headers', () => ({
+  headers: requestHeaders,
+  cookies: async () => ({ get: getCookie, set: setCookie }),
+}));
 vi.mock('next/navigation', () => ({ redirect }));
 vi.mock('@/lib/supabase/server', () => ({
   supabaseServer: async () => ({
@@ -58,12 +70,19 @@ it.each(['google', 'discord'])(
     expect(signInWithOAuth).toHaveBeenCalledWith({
       provider,
       options: {
-        redirectTo: `${publicSite}/auth/callback?next=${encodeURIComponent(invite)}`,
+        redirectTo: `${publicSite}/auth/callback`,
         skipBrowserRedirect: true,
       },
     });
     expect(redirect).toHaveBeenCalledWith(authorizeUrl);
     expect(signInWithOtp).not.toHaveBeenCalled();
+    expect(setCookie).toHaveBeenCalledWith('vtt-auth-next', invite, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/auth/callback',
+      maxAge: 600,
+    });
   },
 );
 
@@ -78,10 +97,15 @@ it('keeps local sign-in on localhost even with production environment URLs', asy
   expect(signInWithOAuth).toHaveBeenCalledWith({
     provider: 'google',
     options: {
-      redirectTo: 'http://localhost:3000/auth/callback?next=%2F',
+      redirectTo: 'http://localhost:3000/auth/callback',
       skipBrowserRedirect: true,
     },
   });
+  expect(setCookie).toHaveBeenCalledWith(
+    'vtt-auth-next',
+    '/',
+    expect.objectContaining({ secure: false }),
+  );
 });
 
 it('uses the forwarded public host when the browser origin is absent', async () => {
@@ -95,9 +119,7 @@ it('uses the forwarded public host when the browser origin is absent', async () 
   const form = new FormData();
   form.set('provider', 'discord');
   await expect(login({}, form)).rejects.toThrow('NEXT_REDIRECT');
-  expect(signInWithOAuth.mock.calls[0][0].options.redirectTo).toBe(
-    `${publicSite}/auth/callback?next=%2F`,
-  );
+  expect(signInWithOAuth.mock.calls[0][0].options.redirectTo).toBe(`${publicSite}/auth/callback`);
 });
 
 it('returns successful callbacks to the same site and preserves invitations', async () => {
@@ -188,4 +210,52 @@ it('handles connection failures during code exchange', async () => {
   exchangeCodeForSession.mockRejectedValue(new Error('Connection details'));
   const response = await GET(new Request(`${publicSite}/auth/callback?code=test`));
   expect(response.headers.get('location')).toBe(`${publicSite}/login?error=session`);
+});
+
+it('restores an invitation from the cookie after an exact callback and clears the cookie', async () => {
+  getCookie.mockReturnValue({ value: invite });
+  const response = await GET(new Request(`${publicSite}/auth/callback?code=test`));
+  expect(response.headers.get('location')).toBe(`${publicSite}${invite}`);
+  expect(getCookie).toHaveBeenCalledWith('vtt-auth-next');
+  expect(setCookie).toHaveBeenCalledWith(
+    'vtt-auth-next',
+    '',
+    expect.objectContaining({ path: '/auth/callback', maxAge: 0 }),
+  );
+});
+
+it.each(['https://evil.example.com', '//evil.example.com', '/invite/invalid'])(
+  'rejects unsafe return cookies (%s)',
+  async (value) => {
+    getCookie.mockReturnValue({ value });
+    const response = await GET(new Request(`${publicSite}/auth/callback?code=test`));
+    expect(response.headers.get('location')).toBe(`${publicSite}/`);
+  },
+);
+
+it('preserves the cookie invitation for retry when exchange fails', async () => {
+  getCookie.mockReturnValue({ value: invite });
+  exchangeCodeForSession.mockResolvedValue({ error: { message: 'Missing verifier' } });
+  const response = await GET(new Request(`${publicSite}/auth/callback?code=test`));
+  const destination = new URL(response.headers.get('location')!);
+  expect(destination.searchParams.get('next')).toBe(invite);
+  expect(destination.searchParams.get('error')).toBe('session');
+  expect(setCookie).toHaveBeenCalledWith(
+    'vtt-auth-next',
+    '',
+    expect.objectContaining({ maxAge: 0 }),
+  );
+});
+
+it('clears the return cookie on provider denial and retains the invitation', async () => {
+  getCookie.mockReturnValue({ value: invite });
+  const response = await GET(new Request(`${publicSite}/auth/callback?error=access_denied`));
+  const destination = new URL(response.headers.get('location')!);
+  expect(destination.searchParams.get('next')).toBe(invite);
+  expect(destination.searchParams.get('error')).toBe('oauth');
+  expect(setCookie).toHaveBeenCalledWith(
+    'vtt-auth-next',
+    '',
+    expect.objectContaining({ maxAge: 0 }),
+  );
 });

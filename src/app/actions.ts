@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { z } from 'zod';
 import sharp from 'sharp';
 import { supabaseServer } from '@/lib/supabase/server';
@@ -11,6 +11,7 @@ import { rollDice } from '@/lib/dice';
 import { numericFields, sheetSchema } from '@/lib/sheets';
 import { diceStyleSchema } from '@/lib/dice-style';
 import { invitationUrl } from '@/lib/invitations';
+import { authCallbackPath, authNextCookie, safeAuthNext } from '@/lib/auth-redirect';
 
 const uuid = z.string().uuid();
 const title = z.string().trim().min(1).max(100);
@@ -27,9 +28,7 @@ export async function login(
 ): Promise<{ error?: string }> {
   const provider = z.enum(['google', 'discord']).safeParse(form.get('provider'));
   if (!provider.success) return { error: 'Choose Google or Discord to sign in.' };
-  const next = String(form.get('next') || '/');
-  const safeNext =
-    next.startsWith('/invite/') && /^\/invite\/[a-f0-9]{48}$/.test(next) ? next : '/';
+  const safeNext = safeAuthNext(form.get('next'));
   let authorizeUrl: string;
   try {
     const db = await supabaseServer();
@@ -40,15 +39,26 @@ export async function login(
     // Deployment-specific Vercel URLs can require Vercel authentication.
     const origin = headerList.get('origin') || (host ? `${proto}://${host}` : undefined);
     const site = origin || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const callback = new URL(authCallbackPath, site);
     const { data, error } = await db.auth.signInWithOAuth({
       provider: provider.data,
       options: {
-        redirectTo: `${site}/auth/callback?next=${encodeURIComponent(safeNext)}`,
+        // Query parameters can miss Supabase's exact callback allowlist and fall
+        // back to a protected Site URL. Keep the destination in a cookie instead.
+        redirectTo: callback.href,
         skipBrowserRedirect: true,
       },
     });
     if (error) return { error: error.message };
     if (!data.url) return { error: 'Unable to start sign-in. Please try again.' };
+    const store = await cookies();
+    store.set(authNextCookie, safeNext, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: callback.protocol === 'https:',
+      path: authCallbackPath,
+      maxAge: 600,
+    });
     authorizeUrl = data.url;
   } catch {
     return { error: 'Unable to start sign-in. Please try again.' };
