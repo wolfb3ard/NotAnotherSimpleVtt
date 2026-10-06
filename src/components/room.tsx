@@ -12,6 +12,7 @@ import { selectedDiceSides } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
 import { DiceStyleEditor } from './dice-style-editor';
 import { SheetEditor } from './sheet-editor';
+import { useDiceZoom } from './use-dice-zoom';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -21,6 +22,7 @@ const DiceOverlay = dynamic(() => import('./dice-overlay'), { ssr: false });
 type Tab = 'party' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
 export function Room({ initial }: { initial: Snapshot }) {
+  const [diceZoom, setDiceZoom] = useDiceZoom();
   const [snapshot, setSnapshot] = useState(initial);
   const [tab, setTab] = useState<Tab>('party');
   const [selectedActor, setSelectedActor] = useState<string>();
@@ -504,6 +506,18 @@ export function Room({ initial }: { initial: Snapshot }) {
                     </button>
                   ))}
                 </div>
+                <label>
+                  Dice zoom: {Math.round(diceZoom * 100)}%
+                  <input
+                    type="range"
+                    min={1}
+                    max={2}
+                    step={0.05}
+                    value={diceZoom}
+                    onChange={(e) => setDiceZoom(Number(e.target.value))}
+                  />
+                  <span className="small muted">Your view only · 100%–200%</span>
+                </label>
                 <label>
                   Roll for
                   <select value={rollActor} onChange={(e) => setRollActor(e.target.value)}>

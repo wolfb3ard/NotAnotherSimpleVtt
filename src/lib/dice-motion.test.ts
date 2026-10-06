@@ -8,6 +8,8 @@ it('keeps up to eight landed dice inside portrait and landscape screens, without
     [9, 4],
     [390 / 64, 844 / 64],
     [1440 / 64, 1000 / 64],
+    [390 / 128, 844 / 128],
+    [1440 / 128, 1000 / 128],
   ]) {
     for (let count = 1; count <= 8; count++) {
       const layout = diceLayout(width, height, count);

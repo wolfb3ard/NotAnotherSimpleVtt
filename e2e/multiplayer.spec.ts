@@ -156,6 +156,17 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       })
       .toBeCloseTo(0.05, 5);
     await gm.page.getByRole('button', { name: 'Dice', exact: true }).click();
+    const zoomSlider = gm.page.getByRole('slider', { name: /Dice zoom/ });
+    await expect(zoomSlider).toHaveValue('1');
+    await zoomSlider.focus();
+    await zoomSlider.press('End');
+    await expect(zoomSlider).toHaveValue('2');
+    await gm.page.reload();
+    await gm.page.getByRole('button', { name: 'Dice', exact: true }).click();
+    await expect(zoomSlider).toHaveValue('2');
+    await zoomSlider.focus();
+    await zoomSlider.press('Home');
+    await expect(zoomSlider).toHaveValue('1');
     const d20 = gm.page.getByRole('button', { name: 'd20', exact: true });
     const d6 = gm.page.getByRole('button', { name: 'd6', exact: true });
     await expect(d20).toHaveAttribute('aria-pressed', 'true');
@@ -176,6 +187,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await gm.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
     await expect(gm.page.locator('.roll-card')).toHaveCount(1);
     await player.page.getByRole('button', { name: 'Dice', exact: true }).click();
+    await expect(player.page.getByRole('slider', { name: /Dice zoom/ })).toHaveValue('1');
     await expect(player.page.locator('.roll-card')).toHaveCount(0);
     await expect(player.page.getByLabel('A private roll occurred')).toHaveCount(0);
     expect(
