@@ -4,7 +4,7 @@
 
 - Apply all migrations and confirm the private `tabletop` bucket exists.
 - Confirm `room_events` is included in the Realtime publication and that other gameplay tables are not published by these migrations.
-- Set site URLs, callback allowlists, Google/Discord provider credentials, and environment variables for the correct environment. Test both providers in a signed-out browser and from an invitation.
+- Set site URLs, callback allowlists, Google provider credentials, and environment variables for the correct environment. Test Google sign-in in a signed-out browser and from an invitation. Discord's sign-in button is currently hidden.
 - In separate GM/player browsers, create/join a room, upload a scene, reveal part of it, add/move a token, calibrate/measure, save a sheet, and roll publicly/privately.
 - Check player requests cannot fetch raw backgrounds, hidden tokens, restricted sheets, or GM-private rolls.
 - Disconnect/reconnect a player and verify persisted state returns. Revoke a sheet grant and confirm it disappears from that player's view.
