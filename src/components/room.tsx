@@ -8,6 +8,7 @@ import type { Command } from '@/lib/commands';
 import type { Snapshot } from '@/lib/types';
 import { emptySheet } from '@/lib/sheets';
 import { defaultDiceStyle } from '@/lib/dice-style';
+import { selectedDiceSides } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
 import { DiceStyleEditor } from './dice-style-editor';
 import { SheetEditor } from './sheet-editor';
@@ -41,6 +42,7 @@ export function Room({ initial }: { initial: Snapshot }) {
   const refreshRunning = useRef(false);
   const refreshAgain = useRef(false);
   const gm = snapshot.role === 'gm';
+  const selectedDice = selectedDiceSides(expression);
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
   const actor = snapshot.actors.find((a) => a.id === selectedActor);
   const controlledActors = snapshot.actors.filter(
@@ -493,7 +495,11 @@ export function Room({ initial }: { initial: Snapshot }) {
                 </div>
                 <div className="dice-types">
                   {snapshot.game.dice.map((d) => (
-                    <button key={d} onClick={() => setExpression(`1d${d}`)}>
+                    <button
+                      key={d}
+                      aria-pressed={selectedDice.has(d)}
+                      onClick={() => setExpression(`1d${d}`)}
+                    >
                       d{d}
                     </button>
                   ))}
