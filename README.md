@@ -4,7 +4,7 @@
 
 ## Included
 
-- Google/Discord sign-in through Supabase, multiple games, game-scoped GM/player roles, and expiring/revocable invitations.
+- Google sign-in through Supabase, multiple games, game-scoped GM/player roles, and expiring/revocable invitations.
 - Custom character/NPC/enemy sheets, sections, text/numeric/resource fields, abilities, sheet permissions, and reusable templates.
 - Multiple saved scenes, uploaded maps/tokens, pan/zoom, assigned token control, live movement checkpoints, scene calibration, and a straight-line ruler.
 - Manual reveal/conceal fog, GM-hidden tokens, and player-view previews. Concealed background pixels are removed server-side.
@@ -56,11 +56,11 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-Use an empty project or review migrations before applying them to an existing database. In Supabase Authentication → URL Configuration, set the site URL and allow `http://localhost:3000/auth/callback`. Enable Google and Discord using the setup below. Application login does not send email, so Supabase's email-send quota and SMTP configuration are not involved.
+Use an empty project or review migrations before applying them to an existing database. In Supabase Authentication → URL Configuration, set the site URL and allow `http://localhost:3000/auth/callback`. Enable Google using the setup below. Application login does not send email, so Supabase's email-send quota and SMTP configuration are not involved.
 
 ### Federated login setup
 
-Supabase remains the session and identity backend; no database migrations or additional app environment variables are needed. Configure both providers before inviting players. Client secrets belong only in Supabase's provider settings (or local Supabase environment variables), never in `NEXT_PUBLIC_*` variables or source control.
+Supabase remains the session and identity backend; no database migrations or additional app environment variables are needed. Configure Google before inviting players. Discord's backend support remains available, but its sign-in button is currently hidden and configuring it is not required. Client secrets belong only in Supabase's provider settings (or local Supabase environment variables), never in `NEXT_PUBLIC_*` variables or source control.
 
 There are **two different callbacks**:
 
@@ -74,7 +74,7 @@ There are **two different callbacks**:
 3. In Supabase Authentication → Sign In / Providers → Google, enable the provider and save the client ID and secret.
 4. While Google's app is in testing, add permitted test users. Set the appropriate production audience/publishing status before inviting other players.
 
-**Discord**
+**Discord (optional; sign-in button currently hidden)**
 
 1. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications).
 2. Under **OAuth2 → Redirects**, register the **Supabase callback**.
@@ -84,7 +84,7 @@ For a **local Supabase** stack, copy its Auth callback (normally `http://127.0.0
 
 Existing games and permissions still use Supabase user IDs. For an existing email-login user, use a provider account with the same verified email; Supabase can automatically link matching verified identities. A different email may create a separate user with no existing memberships. Verify access to existing games before retiring an old login identity; do not reassign memberships merely because a user supplies an email address.
 
-See the official [Google](https://supabase.com/docs/guides/auth/social-login/auth-google) and [Discord](https://supabase.com/docs/guides/auth/social-login/auth-discord) setup guides. For a live smoke test, sign in with each provider in a signed-out browser, verify dashboard access and logout, then repeat from a valid invitation. Cancelling provider consent should offer a retry and retain the invitation.
+See the official [Google](https://supabase.com/docs/guides/auth/social-login/auth-google) and [Discord](https://supabase.com/docs/guides/auth/social-login/auth-discord) setup guides. For a live smoke test, sign in with Google in a signed-out browser, verify dashboard access and logout, then repeat from a valid invitation. Cancelling provider consent should offer a retry and retain the invitation.
 
 ### Run
 
@@ -141,7 +141,7 @@ This suite creates temporary auth users, a game, an image, and gameplay data, th
 1. Configure the GitHub `production` environment for automated Supabase migrations (below). Review the project's existing migration history before the first deployment.
 2. Import the GitHub repository into Vercel using its Next.js preset and Node 22.
 3. Add the four environment variables above; use the production origin for `NEXT_PUBLIC_SITE_URL`.
-4. Set Supabase's site URL to the public production origin, add its `/auth/callback` URL to the allowed redirects, and enable/configure Google and Discord as described above. Use the stable public domain, not a deployment-specific Vercel URL that requires Vercel authentication.
+4. Set Supabase's site URL to the public production origin, add its `/auth/callback` URL to the allowed redirects, and enable/configure Google as described above. Use the stable public domain, not a deployment-specific Vercel URL that requires Vercel authentication.
 5. Deploy and complete the live smoke test in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Keep development/preview projects separate from production. Preview deployments need their own site URL and allowed authentication callback URL. Public Supabase variables are embedded at build time, so rebuild after changing them.

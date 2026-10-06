@@ -2,7 +2,7 @@
 
 ## Built
 
-- Phase 1: application foundation, Google/Discord authentication, game-scoped roles, invitations, dashboard, and authorization migrations.
+- Phase 1: application foundation, Google authentication (Discord backend retained; button hidden), game-scoped roles, invitations, dashboard, and authorization migrations.
 - Phase 2: actor sheets, customizable fields/resources/abilities, grants, templates, copies, and revision checks.
 - Phase 3: uploaded scenes/tokens, scene switching, assigned movement with live persisted checkpoints, pan/zoom, calibration, ruler, and reconciliation.
 - Phase 4: manual fog, hidden tokens, GM player-view preview, server-side sanitized map rendering, private revision cache, and token filtering.
@@ -20,7 +20,7 @@
 ## Still requires configured infrastructure
 
 - Repeat the multiplayer browser suite against an isolated hosted Supabase test project; it is opt-in and passed against local Supabase.
-- Verify live Google/Discord sign-in, invitation callbacks, existing-account identity linking, private Storage HTTP access, and Realtime delivery/reconnect behavior.
+- Verify live Google sign-in, invitation callbacks, existing-account identity linking, private Storage HTTP access, and Realtime delivery/reconnect behavior.
 - Test one GM plus eight players and benchmark representative large maps/fog edits on Vercel.
 - Configure production Supabase OAuth providers, Vercel environment variables, and deployment URLs; deploy and run production smoke checks. Email delivery is not needed for application login.
 

@@ -31,7 +31,7 @@ export default async function Login({
       <section className="auth-form">
         <span className="eyebrow">WELCOME TO THE TABLE</span>
         <h2>Your next adventure awaits.</h2>
-        <p className="muted">Sign in with your Google or Discord account.</p>
+        <p className="muted">Sign in with your Google account.</p>
         {!configured() ? (
           <div className="notice">
             Connect Supabase to enable sign-in. Follow the setup steps in README.md and add your
