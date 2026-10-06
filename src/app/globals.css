@@ -835,12 +835,12 @@ summary {
   border: 2px solid #d9bd93;
   display: grid;
   place-items: center;
-  width: 84px;
-  height: 84px;
+  width: calc(84px * var(--dice-zoom, 1));
+  height: calc(84px * var(--dice-zoom, 1));
   border-radius: 12px;
   background: #42665e;
   color: #fff;
-  font-size: 36px;
+  font-size: calc(36px * var(--dice-zoom, 1));
   animation: dice-fallback-roll 1.8s ease-out both;
 }
 .dice-overlay-fallback span:nth-child(even) {

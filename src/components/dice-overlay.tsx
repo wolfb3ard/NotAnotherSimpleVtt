@@ -1,6 +1,14 @@
 'use client';
 
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Component,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
   CanvasTexture,
@@ -8,6 +16,7 @@ import {
   Euler,
   Group,
   MeshPhysicalMaterial,
+  OrthographicCamera,
   Quaternion,
   SRGBColorSpace,
   Vector3,
@@ -16,6 +25,8 @@ import { buildDieModel, landingRotation, visualSides } from '@/lib/dice-model';
 import { diceLayout, rollPose, rollDuration, type DiceTarget } from '@/lib/dice-motion';
 import type { DieVisual, Presentation } from '@/lib/dice-presentation';
 import type { DiceStyle } from '@/lib/types';
+import { baseDiceZoom } from '@/lib/dice-zoom';
+import { useDiceZoom } from './use-dice-zoom';
 
 function labelTexture(label: string, style: DiceStyle) {
   const canvas = document.createElement('canvas');
@@ -168,24 +179,46 @@ function DiceTable({
   ));
 }
 
+function DiceCameraZoom({ zoom }: { zoom: number }) {
+  const get = useThree((state) => state.get);
+  const set = useThree((state) => state.set);
+  useEffect(() => {
+    const { camera, viewport } = get();
+    if (!(camera instanceof OrthographicCamera)) return;
+    camera.zoom = baseDiceZoom * zoom;
+    camera.updateProjectionMatrix();
+    set({ viewport: { ...viewport, ...viewport.getCurrentViewport(camera) } });
+  }, [get, set, zoom]);
+  return null;
+}
+
 function DiceScene({
   presentation,
   style,
   still,
+  zoom = 1,
 }: {
   presentation: Presentation;
   style: DiceStyle;
   still: boolean;
+  zoom?: number;
 }) {
   return (
     <Canvas
       orthographic
       dpr={[1, 1.5]}
-      camera={{ position: [0, 30, 0], up: [0, 0, -1], zoom: 64, near: 0.1, far: 100 }}
+      camera={{
+        position: [0, 30, 0],
+        up: [0, 0, -1],
+        zoom: baseDiceZoom * zoom,
+        near: 0.1,
+        far: 100,
+      }}
       gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
     >
       <ambientLight intensity={1.65} />
       <directionalLight position={[2, 7, 5]} intensity={2} />
+      <DiceCameraZoom zoom={zoom} />
       <DiceTable presentation={presentation} style={style} still={still} />
     </Canvas>
   );
@@ -249,6 +282,7 @@ export default function DiceOverlay({
   style: DiceStyle;
   onDone: () => void;
 }) {
+  const [zoom] = useDiceZoom();
   const [reduced, setReduced] = useState(
     () =>
       typeof window !== 'undefined' &&
@@ -275,6 +309,7 @@ export default function DiceOverlay({
   return (
     <div
       className="dice-overlay"
+      style={{ '--dice-zoom': zoom } as CSSProperties}
       role="status"
       aria-label={
         presentation.masked ? 'A private roll occurred' : `Dice roll ${presentation.total ?? ''}`
@@ -283,7 +318,7 @@ export default function DiceOverlay({
       <div className="dice-overlay-stage">
         {supported ? (
           <GraphicsBoundary fallback={fallback}>
-            <DiceScene presentation={presentation} style={style} still={reduced} />
+            <DiceScene presentation={presentation} style={style} still={reduced} zoom={zoom} />
           </GraphicsBoundary>
         ) : (
           fallback
