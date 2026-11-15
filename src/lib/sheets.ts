@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Sheet } from './types';
 import { dndNumbers, validateDndSheet } from './dnd';
+import { characterDetailsSchema } from './character-details';
 
 const field = z
   .object({
@@ -28,6 +29,7 @@ const field = z
 export const sheetSchema = z
   .object({
     version: z.literal(1),
+    character: characterDetailsSchema.optional(),
     sections: z
       .array(
         z.object({

@@ -8,7 +8,11 @@ export type Field = {
 };
 export type Ability = { id: string; name: string; description: string; expression: string };
 export type Section = { id: string; title: string; fields: Field[]; abilities: Ability[] };
-export type Sheet = { version: 1; sections: Section[] };
+export type Sheet = {
+  version: 1;
+  sections: Section[];
+  character?: import('./character-details').CharacterDetails;
+};
 export type Actor = {
   id: string;
   game_id: string;

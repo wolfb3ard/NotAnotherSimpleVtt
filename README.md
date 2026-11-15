@@ -20,7 +20,7 @@
 - Create a character → **Start from template → 5.5e · SRD 5.2.1**. Save edits, then prepare checks, saves, skills, weapon/spell attacks, damage, critical damage, or initiative directly from the sheet. D20 rolls offer advantage/disadvantage; the existing roll panel confirms visibility and situational modifiers.
 - Level (1–20), ability scores (1–30), selected proficiencies/expertise, bonuses, and exhaustion drive calculations. Derived modifiers are recalculated server-side from the saved sheet. Damage adds the configured ability and bonuses, never proficiency; criticals double dice, not modifiers. `max(0, expression)` prevents negative damage.
 - Configure class/subclass, species, background, saving throw and skill proficiencies, three attack slots, equipment, features, HP, hit dice, and spell-slot resources manually. Spellcasting ability and each attack's ability/proficiency/damage settings are explicit. This is a rules-aware template, **not a full character-builder or automated class/spell/condition engine**. Features, tool checks, additional damage dice, situational effects, and further attacks can use custom fields/abilities and roll expressions. Advantage and disadvantage together cancel; choose a normal roll.
-- Built-in sheets still use the existing version-1 document format, permissions, revision checks, and reusable/cross-game templates. No database migration is required.
+- Built-in sheets retain the version-1 document format, permissions, revision checks, and reusable/cross-game templates. Structured character tabs use an optional character-data extension; apply the migration below.
 
 ### SRD attribution
 
@@ -32,10 +32,20 @@ The rules have been adapted into an interactive sheet and calculations. Source: 
 
 - Party cards stay compact. **Double-click** a card (or focus it and press **Enter/Space**) to open its sheet in a separate, non-modal window within the VTT. Tokens can also open the sheet.
 - Drag the window header, use arrow keys on its focused move handle, resize from the corner, or maximize/restore. Close with × or Escape. Unsaved edits require confirmation before closing/switching; a saved sheet roll opens the existing dice panel. The window closes if a refreshed snapshot removes sheet access.
-- Built-in 5.5e sheets use a parchment-style, responsive three-column layout: ability scores, saves and skills; combat, HP and attacks; spellcasting, features, equipment and notes. “Customize sheet” retains the generic section/field/ability editor.
+- Built-in 5.5e sheets keep ability scores, saves, skills, combat and HP visible above five keyboard-accessible tabs. “Customize sheet” retains the generic section/field/ability editor.
 - GMs use **Manage sheet access → Sheet owner / member access** to assign ownership, no access, view-only, or view-and-edit grants. The owner can edit and roll; the GM always has full access. No-access sheets/cards are filtered by database row-level security, not merely hidden in the UI.
 - Ownership transfers require a current revision and a member of the same game. Former-owner grants are cleared and tokens they controlled for that character transfer to the new owner. Other assigned token controllers are unchanged. Regrant view/edit access explicitly if needed.
 - Apply `supabase/migrations/202611150001_actor_ownership.sql` before using ownership transfers. The transfer RPC enforces GM authorization even when called directly; existing view/edit grants retain their database authorization boundary.
+
+### Character tabs
+
+- **Actions:** weapon/spell attack rolls, cantrips, prepared spells, features grouped by Action, Bonus action, Reaction, Other or Passive, and custom abilities. Feature uses are shared with Features & Traits.
+- **Spell:** add/remove spells, select level and casting time, prepare/unprepare spells, and use/recover spell slots. Lists run from cantrips through level 9, alphabetically within each level. Configure slot maxima manually; casting does not automatically spend a slot.
+- **Inventory:** add/remove items, quantity, descriptions, rarity and attunement (up to three items). Rarities are labelled and colour-coded: common grey/white, uncommon green, rare blue, very rare purple, legendary orange, artifact pink.
+- **Features & Traits:** class, species, background, feat or other features, descriptions, action types and limited-use counters. Zero maximum uses means unlimited/passive; configure a maximum, then recover uses as needed.
+- **Biography:** chosen background, physical description, personality/mental description, family history and notes.
+- Existing free-text spell, equipment and feature notes stay in their matching tabs. Changes require **Save sheet** and are included in reusable templates. View-only access remains read-only.
+- Apply `supabase/migrations/202611150002_character_tabs.sql` before deployment. This validates the optional character extension at the database boundary; older sheets remain valid. No hosted migration is applied automatically.
 
 See [PLAN.md](PLAN.md) for the agreed scope and [docs/STATUS.md](docs/STATUS.md) for verification and remaining launch work.
 
