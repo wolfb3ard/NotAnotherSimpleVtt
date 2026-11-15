@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { createDndSheet, dndId } from './dnd';
 import { numericFields, sheetSchema } from './sheets';
 import type { Sheet } from './types';
+import { emptyCharacterDetails } from './character-details';
 
 const gm = randomUUID(),
   player = randomUUID(),
@@ -315,6 +316,34 @@ describe.sequential('database authorization and transactions', () => {
   it('persists and templates SRD sheets under existing database validation and permissions', async () => {
     await as(player);
     const original = createDndSheet();
+    original.character = emptyCharacterDetails();
+    original.character.spells.push({
+      id: randomUUID(),
+      name: 'Shield',
+      description: 'Defensive magic',
+      level: 1,
+      prepared: true,
+      actionType: 'Reaction',
+    });
+    original.character.items.push({
+      id: randomUUID(),
+      name: 'Wand',
+      description: '',
+      rarity: 'Rare',
+      quantity: 1,
+      requiresAttunement: true,
+      attuned: true,
+    });
+    original.character.features.push({
+      id: randomUUID(),
+      name: 'Second Wind',
+      description: '',
+      source: 'Class',
+      actionType: 'Bonus action',
+      uses: 1,
+      maxUses: 2,
+    });
+    original.character.biography.history = 'Raised by scholars';
     const id = (
       await command('actor_create', {
         name: 'SRD hero',
@@ -338,6 +367,40 @@ describe.sequential('database authorization and transactions', () => {
       ])
     ).rows[0].sheet;
     expect(numericFields(template)[dndId('pb')]).toBe(3);
+    expect(template.character).toEqual(original.character);
+    for (const corrupt of [
+      (s: Sheet) => {
+        s.character!.spells[0].level = 10;
+      },
+      (s: Sheet) => {
+        s.character!.spells[0].prepared = 'yes' as unknown as boolean;
+      },
+      (s: Sheet) => {
+        s.character!.features[0].uses = 3;
+      },
+      (s: Sheet) => {
+        s.character!.items[0].quantity = -1;
+      },
+      (s: Sheet) => {
+        s.character!.items[0].requiresAttunement = false;
+      },
+      (s: Sheet) => {
+        s.character!.items[0].rarity = 'Invalid' as 'Rare';
+      },
+      (s: Sheet) => {
+        s.character!.features[0].id = s.character!.spells[0].id;
+      },
+      (s: Sheet) => {
+        s.character!.biography.history = 'x'.repeat(4001);
+      },
+    ]) {
+      const invalid = structuredClone(saved);
+      corrupt(invalid);
+      expect(sheetSchema.safeParse(invalid).success).toBe(false);
+      await expect(
+        command('actor_save', { id, name: 'Invalid', sheet: invalid, revision: 1 }),
+      ).rejects.toThrow();
+    }
     await as(other);
     expect((await db.query('select sheet from actors where id=$1', [id])).rows).toHaveLength(0);
     await expect(

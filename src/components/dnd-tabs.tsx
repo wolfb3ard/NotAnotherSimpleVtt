@@ -1,0 +1,589 @@
+'use client';
+
+import { useId, useState, type ReactNode } from 'react';
+import {
+  actionTypes,
+  emptyCharacterDetails,
+  rarities,
+  type CharacterDetails,
+} from '@/lib/character-details';
+import { dndId } from '@/lib/dnd';
+import type { Sheet } from '@/lib/types';
+
+const tabs = ['Actions', 'Spell', 'Inventory', 'Features & Traits', 'Biography'] as const;
+type Tab = (typeof tabs)[number];
+type Props = {
+  sheet: Sheet;
+  editable: boolean;
+  rollable: boolean;
+  dirty: boolean;
+  update: (edit: (sheet: Sheet) => void) => void;
+  onRoll: (expression: string) => void;
+  input: (key: string, label?: string, multiline?: boolean) => ReactNode;
+  spellAttack: ReactNode;
+  children: ReactNode;
+};
+
+export function DndTabs({
+  sheet,
+  editable,
+  rollable,
+  dirty,
+  update,
+  onRoll,
+  input,
+  spellAttack,
+  children,
+}: Props) {
+  const [tab, setTab] = useState<Tab>('Actions');
+  const id = useId();
+  const details = sheet.character ?? emptyCharacterDetails();
+  function edit(fn: (details: CharacterDetails) => void) {
+    if (!editable) return;
+    update((copy) => {
+      copy.character ??= emptyCharacterDetails();
+      fn(copy.character);
+    });
+  }
+  function text(label: string, value: string, change: (value: string) => void, multiline = false) {
+    return (
+      <label>
+        {label}
+        {multiline ? (
+          <textarea
+            aria-label={label}
+            value={value}
+            maxLength={4000}
+            disabled={!editable}
+            onChange={(e) => change(e.target.value)}
+          />
+        ) : (
+          <input
+            aria-label={label}
+            value={value}
+            maxLength={80}
+            disabled={!editable}
+            onChange={(e) => change(e.target.value)}
+          />
+        )}
+      </label>
+    );
+  }
+  function select(
+    label: string,
+    value: string,
+    options: readonly string[],
+    change: (value: string) => void,
+  ) {
+    return (
+      <label>
+        {label}
+        <select
+          aria-label={label}
+          value={value}
+          disabled={!editable}
+          onChange={(e) => change(e.target.value)}
+        >
+          {options.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  function number(label: string, value: number, change: (value: number) => void, max = 999) {
+    return (
+      <label>
+        {label}
+        <input
+          aria-label={label}
+          type="number"
+          min={0}
+          max={max}
+          step={1}
+          value={value}
+          disabled={!editable}
+          onChange={(e) => change(Math.max(0, Math.min(max, Math.trunc(Number(e.target.value)))))}
+        />
+      </label>
+    );
+  }
+  function check(
+    label: string,
+    value: boolean,
+    change: (value: boolean) => void,
+    disabled = false,
+  ) {
+    return (
+      <label className="dnd-check">
+        <input
+          aria-label={label}
+          type="checkbox"
+          checked={value}
+          disabled={!editable || disabled}
+          onChange={(e) => change(e.target.checked)}
+        />
+        {label}
+      </label>
+    );
+  }
+  function uses(feature: CharacterDetails['features'][number]) {
+    return (
+      <div className="wrap" aria-label={`${feature.name} uses`}>
+        <span>
+          {feature.uses} / {feature.maxUses} uses remaining
+        </span>
+        <button
+          disabled={!editable || feature.uses === 0}
+          onClick={() =>
+            edit((d) => {
+              d.features.find((f) => f.id === feature.id)!.uses--;
+            })
+          }
+        >
+          Use {feature.name}
+        </button>
+        <button
+          disabled={!editable || feature.uses === feature.maxUses}
+          onClick={() =>
+            edit((d) => {
+              d.features.find((f) => f.id === feature.id)!.uses++;
+            })
+          }
+        >
+          Recover {feature.name}
+        </button>
+      </div>
+    );
+  }
+  const spells = [...details.spells].sort(
+    (a, b) => a.level - b.level || a.name.localeCompare(b.name),
+  );
+  const customAbilities = sheet.sections
+    .flatMap((s) => s.abilities)
+    .filter((a) => !a.id.startsWith('5e202024-'));
+
+  return (
+    <div className="dnd-tabbed">
+      <div role="tablist" aria-label="Character details" className="dnd-tabs">
+        {tabs.map((label, index) => (
+          <button
+            key={label}
+            role="tab"
+            id={`${id}-tab-${index}`}
+            aria-controls={`${id}-panel-${index}`}
+            aria-selected={tab === label}
+            tabIndex={tab === label ? 0 : -1}
+            onClick={() => setTab(label)}
+            onKeyDown={(e) => {
+              let next = index;
+              if (e.key === 'ArrowRight') next = (index + 1) % tabs.length;
+              else if (e.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+              else if (e.key === 'Home') next = 0;
+              else if (e.key === 'End') next = tabs.length - 1;
+              else return;
+              e.preventDefault();
+              setTab(tabs[next]);
+              document.getElementById(`${id}-tab-${next}`)?.focus();
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tabs.map((label, index) => (
+        <div
+          key={label}
+          role="tabpanel"
+          id={`${id}-panel-${index}`}
+          aria-labelledby={`${id}-tab-${index}`}
+          hidden={tab !== label}
+          tabIndex={0}
+          className="dnd-tab-panel"
+        >
+          {label === 'Actions' && (
+            <>
+              {children}
+              {actionTypes.map((type) => {
+                const availableSpells = spells.filter(
+                  (s) => s.actionType === type && (s.level === 0 || s.prepared),
+                );
+                const features = details.features.filter((f) => f.actionType === type);
+                return (
+                  <section className="dnd-box" key={type}>
+                    <h3>{type}</h3>
+                    {availableSpells.length + features.length === 0 && (
+                      <p className="muted">No entries. Add spells or features in their tabs.</p>
+                    )}
+                    {availableSpells.map((spell) => (
+                      <article key={spell.id}>
+                        <h4>
+                          {spell.name} · {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+                        </h4>
+                        <p className="dnd-description">{spell.description}</p>
+                      </article>
+                    ))}
+                    {features.map((feature) => (
+                      <article key={feature.id}>
+                        <h4>
+                          {feature.name} · {feature.source}
+                        </h4>
+                        <p className="dnd-description">{feature.description}</p>
+                        {feature.maxUses > 0 && uses(feature)}
+                      </article>
+                    ))}
+                  </section>
+                );
+              })}
+              {customAbilities.map((ability) => (
+                <article className="dnd-box" key={ability.id}>
+                  <h4>{ability.name}</h4>
+                  <p className="dnd-description">{ability.description}</p>
+                  {ability.expression && (
+                    <button
+                      disabled={!rollable || dirty}
+                      onClick={() => onRoll(ability.expression)}
+                    >
+                      Prepare {ability.name}
+                    </button>
+                  )}
+                </article>
+              ))}
+            </>
+          )}
+          {label === 'Spell' && (
+            <>
+              <section className="dnd-box">
+                <h3>Spellcasting</h3>
+                {input('spell-ability')}
+                {input('spell-dc')}
+                {spellAttack}
+                <div className="dnd-entry-grid">
+                  {Array.from({ length: 9 }, (_, level) => {
+                    const slot = sheet.sections
+                      .flatMap((s) => s.fields)
+                      .find((f) => f.id === dndId(`slot:${level}`));
+                    return (
+                      slot && (
+                        <div className="dnd-box" key={level}>
+                          {input(`slot:${level}`, `Level ${level + 1} slots remaining`)}
+                          <div className="wrap">
+                            <button
+                              disabled={!editable || Number(slot.value) <= 0}
+                              onClick={() =>
+                                update((copy) => {
+                                  const f = copy.sections
+                                    .flatMap((s) => s.fields)
+                                    .find((f) => f.id === slot.id)!;
+                                  f.value = Number(f.value) - 1;
+                                })
+                              }
+                            >
+                              Use level {level + 1} slot
+                            </button>
+                            <button
+                              disabled={!editable || Number(slot.value) >= (slot.max ?? 0)}
+                              onClick={() =>
+                                update((copy) => {
+                                  const f = copy.sections
+                                    .flatMap((s) => s.fields)
+                                    .find((f) => f.id === slot.id)!;
+                                  f.value = Number(f.value) + 1;
+                                })
+                              }
+                            >
+                              Recover level {level + 1} slot
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    );
+                  })}
+                </div>
+              </section>
+              {editable && (
+                <button
+                  disabled={spells.length >= 200}
+                  onClick={() =>
+                    edit((d) => {
+                      d.spells.push({
+                        id: crypto.randomUUID(),
+                        name: 'New spell',
+                        description: '',
+                        level: 0,
+                        prepared: false,
+                        actionType: 'Action',
+                      });
+                    })
+                  }
+                >
+                  Add spell
+                </button>
+              )}
+              {Array.from({ length: 10 }, (_, level) => (
+                <section className="dnd-box" key={level}>
+                  <h3>{level === 0 ? 'Cantrips' : `Level ${level}`}</h3>
+                  {!spells.some((s) => s.level === level) && <p className="muted">No spells.</p>}
+                  {spells
+                    .filter((s) => s.level === level)
+                    .map((spell) => (
+                      <article className="dnd-entry" key={spell.id}>
+                        {text('Spell name', spell.name, (v) =>
+                          edit((d) => {
+                            d.spells.find((s) => s.id === spell.id)!.name = v;
+                          }),
+                        )}
+                        {number(
+                          `${spell.name} level`,
+                          spell.level,
+                          (v) =>
+                            edit((d) => {
+                              d.spells.find((s) => s.id === spell.id)!.level = v;
+                            }),
+                          9,
+                        )}
+                        {select(`${spell.name} casting time`, spell.actionType, actionTypes, (v) =>
+                          edit((d) => {
+                            d.spells.find((s) => s.id === spell.id)!.actionType =
+                              v as typeof spell.actionType;
+                          }),
+                        )}
+                        {spell.level > 0 &&
+                          check(`Prepare ${spell.name}`, spell.prepared, (v) =>
+                            edit((d) => {
+                              d.spells.find((s) => s.id === spell.id)!.prepared = v;
+                            }),
+                          )}
+                        {text(
+                          `${spell.name} description`,
+                          spell.description,
+                          (v) =>
+                            edit((d) => {
+                              d.spells.find((s) => s.id === spell.id)!.description = v;
+                            }),
+                          true,
+                        )}
+                        {editable && (
+                          <button
+                            onClick={() =>
+                              edit((d) => {
+                                d.spells = d.spells.filter((s) => s.id !== spell.id);
+                              })
+                            }
+                          >
+                            Remove {spell.name}
+                          </button>
+                        )}
+                      </article>
+                    ))}
+                </section>
+              ))}
+              {input('spells', 'Existing spell notes', true)}
+            </>
+          )}
+          {label === 'Inventory' && (
+            <>
+              <p>Attuned: {details.items.filter((i) => i.attuned).length} / 3</p>
+              {editable && (
+                <button
+                  disabled={details.items.length >= 200}
+                  onClick={() =>
+                    edit((d) => {
+                      d.items.push({
+                        id: crypto.randomUUID(),
+                        name: 'New item',
+                        description: '',
+                        quantity: 1,
+                        rarity: 'Common',
+                        requiresAttunement: false,
+                        attuned: false,
+                      });
+                    })
+                  }
+                >
+                  Add item
+                </button>
+              )}
+              {details.items.length === 0 && <p className="muted">No inventory items.</p>}
+              {details.items.map((item) => (
+                <article className="dnd-box" key={item.id}>
+                  <h3>
+                    <span className={`dnd-rarity dnd-rarity-${rarities.indexOf(item.rarity)}`}>
+                      {item.name} · {item.rarity}
+                    </span>
+                  </h3>
+                  {text('Item name', item.name, (v) =>
+                    edit((d) => {
+                      d.items.find((i) => i.id === item.id)!.name = v;
+                    }),
+                  )}
+                  {select(`${item.name} rarity`, item.rarity, rarities, (v) =>
+                    edit((d) => {
+                      d.items.find((i) => i.id === item.id)!.rarity = v as typeof item.rarity;
+                    }),
+                  )}
+                  {number(`${item.name} quantity`, item.quantity, (v) =>
+                    edit((d) => {
+                      d.items.find((i) => i.id === item.id)!.quantity = v;
+                    }),
+                  )}
+                  {check(`${item.name} requires attunement`, item.requiresAttunement, (v) =>
+                    edit((d) => {
+                      const i = d.items.find((i) => i.id === item.id)!;
+                      i.requiresAttunement = v;
+                      if (!v) i.attuned = false;
+                    }),
+                  )}
+                  {item.requiresAttunement &&
+                    check(
+                      `Attune ${item.name}`,
+                      item.attuned,
+                      (v) =>
+                        edit((d) => {
+                          d.items.find((i) => i.id === item.id)!.attuned = v;
+                        }),
+                      !item.attuned && details.items.filter((i) => i.attuned).length >= 3,
+                    )}
+                  {text(
+                    `${item.name} description`,
+                    item.description,
+                    (v) =>
+                      edit((d) => {
+                        d.items.find((i) => i.id === item.id)!.description = v;
+                      }),
+                    true,
+                  )}
+                  {editable && (
+                    <button
+                      onClick={() =>
+                        edit((d) => {
+                          d.items = d.items.filter((i) => i.id !== item.id);
+                        })
+                      }
+                    >
+                      Remove {item.name}
+                    </button>
+                  )}
+                </article>
+              ))}
+              {input('equipment', 'Equipment & proficiency notes', true)}
+            </>
+          )}
+          {label === 'Features & Traits' && (
+            <>
+              {editable && (
+                <button
+                  disabled={details.features.length >= 200}
+                  onClick={() =>
+                    edit((d) => {
+                      d.features.push({
+                        id: crypto.randomUUID(),
+                        name: 'New feature',
+                        description: '',
+                        source: 'Class',
+                        actionType: 'Passive',
+                        uses: 0,
+                        maxUses: 0,
+                      });
+                    })
+                  }
+                >
+                  Add feature
+                </button>
+              )}
+              {details.features.length === 0 && <p className="muted">No features or traits.</p>}
+              {details.features.map((feature) => (
+                <article className="dnd-box" key={feature.id}>
+                  {text('Feature name', feature.name, (v) =>
+                    edit((d) => {
+                      d.features.find((f) => f.id === feature.id)!.name = v;
+                    }),
+                  )}
+                  {select(
+                    `${feature.name} source`,
+                    feature.source,
+                    ['Class', 'Species', 'Background', 'Feat', 'Other'],
+                    (v) =>
+                      edit((d) => {
+                        d.features.find((f) => f.id === feature.id)!.source =
+                          v as typeof feature.source;
+                      }),
+                  )}
+                  {select(`${feature.name} action type`, feature.actionType, actionTypes, (v) =>
+                    edit((d) => {
+                      d.features.find((f) => f.id === feature.id)!.actionType =
+                        v as typeof feature.actionType;
+                    }),
+                  )}
+                  {number(`${feature.name} maximum uses`, feature.maxUses, (v) =>
+                    edit((d) => {
+                      const f = d.features.find((f) => f.id === feature.id)!;
+                      f.maxUses = v;
+                      f.uses = Math.min(f.uses, v);
+                    }),
+                  )}
+                  {feature.maxUses > 0 && uses(feature)}
+                  {text(
+                    `${feature.name} description`,
+                    feature.description,
+                    (v) =>
+                      edit((d) => {
+                        d.features.find((f) => f.id === feature.id)!.description = v;
+                      }),
+                    true,
+                  )}
+                  {editable && (
+                    <button
+                      onClick={() =>
+                        edit((d) => {
+                          d.features = d.features.filter((f) => f.id !== feature.id);
+                        })
+                      }
+                    >
+                      Remove {feature.name}
+                    </button>
+                  )}
+                </article>
+              ))}
+              {input('features', 'Existing feature notes', true)}
+            </>
+          )}
+          {label === 'Biography' && (
+            <section className="dnd-box">
+              <h3>Biography & background</h3>
+              {input('background')}
+              {text(
+                'Physical description',
+                details.biography.physical,
+                (v) =>
+                  edit((d) => {
+                    d.biography.physical = v;
+                  }),
+                true,
+              )}
+              {text(
+                'Personality & mental description',
+                details.biography.personality,
+                (v) =>
+                  edit((d) => {
+                    d.biography.personality = v;
+                  }),
+                true,
+              )}
+              {text(
+                'Family & history',
+                details.biography.history,
+                (v) =>
+                  edit((d) => {
+                    d.biography.history = v;
+                  }),
+                true,
+              )}
+              {input('notes-text', 'Additional notes', true)}
+            </section>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

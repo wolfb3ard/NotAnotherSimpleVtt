@@ -10,6 +10,7 @@ import {
   dndFieldOptions,
 } from '@/lib/dnd';
 import type { Sheet } from '@/lib/types';
+import { DndTabs } from './dnd-tabs';
 
 type Props = {
   name: string;
@@ -43,8 +44,13 @@ export function DndSheet({
     update((copy) => {
       const target = copy.sections.flatMap((s) => s.fields).find((f) => f.id === dndId(key));
       if (target) {
-        if (maximum) target.max = Number(value);
-        else target.value = value;
+        if (target.kind === 'resource') {
+          const amount = Math.max(0, Math.trunc(Number(value)));
+          if (maximum) {
+            target.max = amount;
+            target.value = Math.min(Number(target.value), amount);
+          } else target.value = Math.min(amount, target.max ?? 0);
+        } else target.value = value;
       }
     });
   }
@@ -86,7 +92,11 @@ export function DndSheet({
             value={computed[f.id] ?? f.value}
             disabled={!editable || derived}
             min={
-              key === 'level' || key.startsWith('score:') ? 1 : key === 'exhaustion' ? 0 : undefined
+              key === 'level' || key.startsWith('score:')
+                ? 1
+                : key === 'exhaustion' || f.kind === 'resource'
+                  ? 0
+                  : undefined
             }
             max={
               key === 'level'
@@ -95,7 +105,9 @@ export function DndSheet({
                   ? 30
                   : key === 'exhaustion'
                     ? 6
-                    : undefined
+                    : f.kind === 'resource'
+                      ? f.max
+                      : undefined
             }
             onChange={(e) =>
               change(key, f.kind === 'text' ? e.target.value : Number(e.target.value))
@@ -196,7 +208,7 @@ export function DndSheet({
             onChange={(e) => onNameChange(e.target.value)}
           />
         </label>
-        {['class', 'level', 'species', 'background', 'alignment', 'pb'].map((key) => (
+        {['class', 'level', 'species', 'alignment', 'pb'].map((key) => (
           <div
             className={['class', 'species', 'background'].includes(key) ? 'dnd-identity-wide' : ''}
             key={key}
@@ -247,6 +259,8 @@ export function DndSheet({
               </div>
             ))}
           </section>
+        </div>
+        <div className="dnd-column">
           <section className="dnd-box">
             <h3>Skills</h3>
             {skills.map(([name, ability], i) => (
@@ -275,46 +289,7 @@ export function DndSheet({
             </div>
           </section>
           <section className="dnd-box">
-            <h3>Attacks & damage</h3>
-            {[0, 1, 2].map((i) => {
-              let damage = '',
-                critical = '';
-              try {
-                damage = dndDamageExpression(String(field(`weapon-dice:${i}`)?.value), i);
-                critical = dndDamageExpression(String(field(`weapon-dice:${i}`)?.value), i, true);
-              } catch {
-                /* Invalid dice are explained below and rejected on save. */
-              }
-              return (
-                <div className="dnd-attack" key={i}>
-                  {input(`weapon-name:${i}`, `Attack ${i + 1} name`)}
-                  <div className="dnd-inline">
-                    {input(`weapon-dice:${i}`, `Attack ${i + 1} damage dice`)}
-                    {input(`weapon-type:${i}`, `Attack ${i + 1} damage type`)}
-                  </div>
-                  {rollButton('Attack roll', `weapon-total:${i}`)}
-                  <div className="dnd-inline">
-                    {rollButton('Damage', `weapon-damage-total:${i}`, damage)}
-                    {rollButton('Critical damage', `weapon-damage-total:${i}`, critical)}
-                  </div>
-                  {!damage && <p role="alert">Use damage dice such as 1d8 or 2d6.</p>}
-                  <details>
-                    <summary>Attack {i + 1} configuration</summary>
-                    <div className="dnd-config">
-                      {input(`weapon-ability:${i}`, `Attack ${i + 1} ability`)}
-                      {input(`weapon-prof:${i}`, `Attack ${i + 1} proficiency`)}
-                      {input(`weapon-add:${i}`, `Attack ${i + 1} add ability to damage`)}
-                      {input(`weapon-hit:${i}`, `Attack ${i + 1} extra attack bonus`)}
-                      {input(`weapon-damage:${i}`, `Attack ${i + 1} extra damage bonus`)}
-                    </div>
-                  </details>
-                </div>
-              );
-            })}
-          </section>
-          <section className="dnd-box">
-            <h3>Bonuses & features</h3>
-            <p className="small muted">Set situational bonuses and class features explicitly.</p>
+            <h3>Bonuses</h3>
             <details>
               <summary>Additional roll bonuses</summary>
               <div className="dnd-config">
@@ -325,39 +300,56 @@ export function DndSheet({
             </details>
           </section>
         </div>
-        <div className="dnd-column">
-          <section className="dnd-box">
-            <h3>Spellcasting</h3>
-            {input('spell-ability')}
-            {input('spell-dc')}
-            {rollButton('Spell attack', 'spell-attack')}
-            <details>
-              <summary>Spell slots</summary>
-              <div className="dnd-slots">
-                {Array.from({ length: 9 }, (_, i) => (
-                  <div key={i}>{input(`slot:${i}`)}</div>
-                ))}
-              </div>
-            </details>
-          </section>
-          <section className="dnd-box">
-            <h3>Features & traits</h3>
-            {input('features', undefined, true)}
-          </section>
-          <section className="dnd-box">
-            <h3>Equipment & proficiencies</h3>
-            {input('equipment', undefined, true)}
-          </section>
-          <section className="dnd-box">
-            <h3>Spells</h3>
-            {input('spells', undefined, true)}
-          </section>
-          <section className="dnd-box">
-            <h3>Notes</h3>
-            {input('notes-text', undefined, true)}
-          </section>
-        </div>
       </div>
+      <DndTabs
+        sheet={sheet}
+        editable={editable}
+        rollable={rollable}
+        dirty={dirty}
+        update={update}
+        onRoll={onRoll}
+        input={input}
+        spellAttack={rollButton('Spell attack', 'spell-attack')}
+      >
+        <section className="dnd-box">
+          <h3>Weapon & spell attacks</h3>
+          {[0, 1, 2].map((i) => {
+            let damage = '',
+              critical = '';
+            try {
+              damage = dndDamageExpression(String(field(`weapon-dice:${i}`)?.value), i);
+              critical = dndDamageExpression(String(field(`weapon-dice:${i}`)?.value), i, true);
+            } catch {
+              /* Invalid dice are explained below and rejected on save. */
+            }
+            return (
+              <div className="dnd-attack" key={i}>
+                {input(`weapon-name:${i}`, `Attack ${i + 1} name`)}
+                <div className="dnd-inline">
+                  {input(`weapon-dice:${i}`, `Attack ${i + 1} damage dice`)}
+                  {input(`weapon-type:${i}`, `Attack ${i + 1} damage type`)}
+                </div>
+                {rollButton('Attack roll', `weapon-total:${i}`)}
+                <div className="dnd-inline">
+                  {rollButton('Damage', `weapon-damage-total:${i}`, damage)}
+                  {rollButton('Critical damage', `weapon-damage-total:${i}`, critical)}
+                </div>
+                {!damage && <p role="alert">Use damage dice such as 1d8 or 2d6.</p>}
+                <details>
+                  <summary>Attack {i + 1} configuration</summary>
+                  <div className="dnd-config">
+                    {input(`weapon-ability:${i}`, `Attack ${i + 1} ability`)}
+                    {input(`weapon-prof:${i}`, `Attack ${i + 1} proficiency`)}
+                    {input(`weapon-add:${i}`, `Attack ${i + 1} add ability to damage`)}
+                    {input(`weapon-hit:${i}`, `Attack ${i + 1} extra attack bonus`)}
+                    {input(`weapon-damage:${i}`, `Attack ${i + 1} extra damage bonus`)}
+                  </div>
+                </details>
+              </div>
+            );
+          })}
+        </section>
+      </DndTabs>
       {sheet.sections.some(
         (s) => s.abilities.some((a) => !a.id.startsWith('5e202024-')) || !knownSections.has(s.id),
       ) && (
