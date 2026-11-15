@@ -10,7 +10,12 @@ import {
 } from 'three';
 
 export type Face = { value: number; normal: Vector3; center: Vector3 };
-export type DieModel = { geometry: BufferGeometry; faces: Face[] };
+export type DieModel = {
+  geometry: BufferGeometry;
+  faces: Face[];
+  vertices: Vector3[];
+  polygons: number[][];
+};
 
 export function visualSides(sides: number) {
   return [4, 6, 8, 10, 12, 20].includes(sides) ? sides : 6;
@@ -34,6 +39,8 @@ function triangles(geometry: BufferGeometry) {
     }
     faces.push(face);
   }
+  if (g !== geometry) g.dispose();
+  geometry.dispose();
   return { points, faces };
 }
 
@@ -135,9 +142,16 @@ export function buildDieModel(sides: number): DieModel {
     const center = poly
       .reduce((sum, i) => sum.add(raw.points[i]), new Vector3())
       .divideScalar(poly.length);
-    return { center, normal: center.clone().normalize() };
+    const normal = raw.points[poly[1]]
+      .clone()
+      .sub(raw.points[poly[0]])
+      .cross(raw.points[poly[2]].clone().sub(raw.points[poly[0]]))
+      .normalize();
+    if (normal.dot(center) < 0) normal.negate();
+    return { center, normal };
   });
   const positions: number[] = [];
+  const orderedPolygons: number[][] = [];
   polygons.forEach((poly, index) => {
     const normal = faces[index].normal;
     // Sort vertices in the face plane for correct triangulation and winding.
@@ -151,6 +165,7 @@ export function buildDieModel(sides: number): DieModel {
       };
       return angle(a) - angle(b);
     });
+    orderedPolygons.push(ordered);
     for (let j = 1; j < ordered.length - 1; j++)
       for (const k of [ordered[0], ordered[j], ordered[j + 1]])
         positions.push(...raw.points[k].toArray());
@@ -163,20 +178,65 @@ export function buildDieModel(sides: number): DieModel {
     faces.map((f) => f.normal),
     shape,
   );
-  return { geometry, faces: faces.map((f, i) => ({ ...f, value: values[i] })) };
+  return {
+    geometry,
+    faces: faces.map((f, i) => ({ ...f, value: values[i] })),
+    vertices: raw.points,
+    polygons: orderedPolygons,
+  };
 }
 
 export function landingRotation(model: DieModel, value: number) {
   const printed = model.faces.length === 10 && value === 10 ? 0 : value;
   const face = model.faces.find((f) => f.value === printed);
   if (!face) throw new Error('Outcome has no matching face');
-  const rotation = new Quaternion().setFromUnitVectors(face.normal, new Vector3(0, 1, 0));
-  // Match the label plane's local up direction to the top of the top-down screen.
+  const rotation = new Quaternion().setFromUnitVectors(
+    face.normal,
+    new Vector3(0, model.faces.length === 4 ? -1 : 1, 0),
+  );
+  if (model.faces.length === 4) return rotation;
+  // Static previews retain upright top-down labels; physical throws do not steer.
   const labelRotation = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), face.normal);
   const labelUp = new Vector3(0, 1, 0).applyQuaternion(labelRotation).applyQuaternion(rotation);
-  const upright = new Quaternion().setFromAxisAngle(
-    new Vector3(0, 1, 0),
-    Math.atan2(labelUp.x, -labelUp.z),
+  return new Quaternion()
+    .setFromAxisAngle(new Vector3(0, 1, 0), Math.atan2(labelUp.x, -labelUp.z))
+    .multiply(rotation);
+}
+
+/** A genuine rotational symmetry, not a late correction or a face relabel. */
+export function outcomeSymmetry(model: DieModel, settled: Quaternion, value: number) {
+  const axis = new Vector3(0, model.faces.length === 4 ? -1 : 1, 0);
+  const target = model.faces.reduce((a, b) =>
+    b.normal.clone().applyQuaternion(settled).dot(axis) >
+    a.normal.clone().applyQuaternion(settled).dot(axis)
+      ? b
+      : a,
   );
-  return upright.multiply(rotation);
+  const source = model.faces.find(
+    (f) => f.value === (model.faces.length === 10 && value === 10 ? 0 : value),
+  )!;
+  if (!source) throw new Error('Outcome has no matching face');
+  const align = new Quaternion().setFromUnitVectors(source.normal, target.normal);
+  const second = model.faces.find((f) => Math.abs(f.normal.dot(source.normal)) < 0.99)!;
+  const from = second.normal
+    .clone()
+    .applyQuaternion(align)
+    .projectOnPlane(target.normal)
+    .normalize();
+  for (const candidate of model.faces) {
+    if (Math.abs(candidate.normal.dot(target.normal) - second.normal.dot(source.normal)) > 0.0001)
+      continue;
+    const to = candidate.normal.clone().projectOnPlane(target.normal).normalize();
+    const angle = Math.atan2(target.normal.dot(from.clone().cross(to)), from.dot(to));
+    const rotation = new Quaternion().setFromAxisAngle(target.normal, angle).multiply(align);
+    if (
+      model.vertices.every((v) =>
+        model.vertices.some(
+          (other) => other.distanceTo(v.clone().applyQuaternion(rotation)) < 0.0001,
+        ),
+      )
+    )
+      return rotation;
+  }
+  throw new Error('No matching die symmetry');
 }

@@ -30,6 +30,14 @@ export function rollDice(
   function atom(): number {
     if (++depth > 32) throw new Error('Expression is too deeply nested.');
     try {
+      if (input.startsWith('max(', index)) {
+        index += 4;
+        const left = sum();
+        if (input[index++] !== ',') throw new Error('Expected comma in max().');
+        const right = sum();
+        if (input[index++] !== ')') throw new Error('Missing closing parenthesis.');
+        return check(Math.max(left, right));
+      }
       const sign = input[index];
       if (sign === '+' || sign === '-') {
         index++;

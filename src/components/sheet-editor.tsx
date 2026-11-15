@@ -2,6 +2,15 @@
 import { useState } from 'react';
 import type { Actor, Sheet, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
+import {
+  createDndSheet,
+  dndDamageExpression,
+  dndFieldOptions,
+  dndId,
+  dndNumbers,
+  isDndSheet,
+} from '@/lib/dnd';
+import { numericFields } from '@/lib/sheets';
 
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
 export function SheetEditor({
@@ -20,6 +29,12 @@ export function SheetEditor({
   const [savedRevision, setSavedRevision] = useState(actor.revision);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const dnd = isDndSheet(sheet);
+  const computed = dndNumbers(sheet);
+  const builtInRolls = new Set(
+    dnd ? createDndSheet().sections.flatMap((s) => s.abilities.map((a) => a.id)) : [],
+  );
+  const fields = numericFields(sheet);
   const editable =
     snapshot.role === 'gm' ||
     actor.owner_id === snapshot.userId ||
@@ -67,6 +82,28 @@ export function SheetEditor({
           }}
         />
       </label>
+      {dnd && (
+        <div className="notice">
+          <strong>5.5e · SRD 5.2.1</strong>
+          <p>
+            Modifiers update from level, scores, and selected proficiencies. Configure class
+            features, equipment, spell slots, and situational bonuses yourself. Save changes before
+            rolling.
+          </p>
+          <p>
+            Weapon attacks add the chosen ability and proficiency; damage never adds proficiency.
+            For spell damage, choose “No” for adding ability unless a feature allows it.
+          </p>
+          <small>
+            This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by
+            Wizards of the Coast LLC, available at{' '}
+            <a href="https://www.dndbeyond.com/srd">dndbeyond.com/srd</a>. The SRD 5.2.1 is licensed
+            under the Creative Commons Attribution 4.0 International License, available at{' '}
+            <a href="https://creativecommons.org/licenses/by/4.0/legalcode">CC BY 4.0</a>. Adapted
+            as an interactive template.
+          </small>
+        </div>
+      )}
       {sheet.sections.map((section, si) => (
         <section className="sheet-section" key={section.id}>
           <div className="row">
@@ -94,16 +131,18 @@ export function SheetEditor({
                 >
                   ↑
                 </button>
-                <button
-                  aria-label={`Delete ${section.title} section`}
-                  onClick={() =>
-                    update((s) => {
-                      s.sections.splice(si, 1);
-                    })
-                  }
-                >
-                  ×
-                </button>
+                {!dnd && (
+                  <button
+                    aria-label={`Delete ${section.title} section`}
+                    onClick={() =>
+                      update((s) => {
+                        s.sections.splice(si, 1);
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -121,7 +160,7 @@ export function SheetEditor({
                     })
                   }
                 />
-                {editable && (
+                {editable && !dnd && (
                   <button
                     aria-label={`Delete ${field.label}`}
                     onClick={() =>
@@ -135,7 +174,24 @@ export function SheetEditor({
                 )}
               </div>
               <div className="row">
-                {field.kind === 'text' ? (
+                {dnd && dndFieldOptions(field.id) ? (
+                  <select
+                    aria-label={field.label}
+                    value={field.value}
+                    disabled={!editable}
+                    onChange={(e) =>
+                      update((s) => {
+                        s.sections[si].fields[fi].value = Number(e.target.value);
+                      })
+                    }
+                  >
+                    {dndFieldOptions(field.id)!.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : field.kind === 'text' ? (
                   <textarea
                     aria-label={field.label}
                     value={field.value}
@@ -151,8 +207,8 @@ export function SheetEditor({
                     <input
                       aria-label={field.label}
                       type="number"
-                      value={field.value}
-                      disabled={!editable}
+                      value={computed[field.id] ?? field.value}
+                      disabled={!editable || Object.hasOwn(computed, field.id)}
                       onChange={(e) =>
                         update((s) => {
                           s.sections[si].fields[fi].value = Number(e.target.value);
@@ -181,84 +237,143 @@ export function SheetEditor({
               </div>
             </div>
           ))}
-          {section.abilities.map((ability, ai) => (
-            <div className="ability" key={ability.id}>
-              <div className="row">
-                <input
-                  aria-label="Ability name"
-                  placeholder="Ability name"
-                  value={ability.name}
+          {section.abilities.map((savedAbility, ai) => {
+            const ability = { ...savedAbility };
+            if (dnd)
+              for (let i = 0; i < 3; i++) {
+                const critical = ability.id === dndId(`roll:weapon-critical:${i}`);
+                if (critical || ability.id === dndId(`roll:weapon-damage:${i}`)) {
+                  const dice = sheet.sections
+                    .flatMap((s) => s.fields)
+                    .find((f) => f.id === dndId(`weapon-dice:${i}`));
+                  try {
+                    ability.expression = dndDamageExpression(String(dice?.value), i, critical);
+                  } catch {
+                    ability.expression = '';
+                  }
+                }
+              }
+            if (builtInRolls.has(ability.id)) {
+              const resolved = ability.expression.replace(/@\{([^}]+)\}/g, (_, id: string) =>
+                String(fields[id] ?? '?'),
+              );
+              const d20 = ability.expression.startsWith('1d20');
+              return (
+                <div className="ability stack" key={ability.id}>
+                  <strong>{ability.name}</strong>
+                  <code>{resolved || 'Enter valid damage dice, e.g. 2d6'}</code>
+                  {rollable && (
+                    <div className="wrap">
+                      <button
+                        disabled={dirty || !ability.expression}
+                        onClick={() => onRoll(actor.id, ability.expression)}
+                      >
+                        ◇ Prepare roll
+                      </button>
+                      {d20 && (
+                        <>
+                          <button
+                            disabled={dirty}
+                            onClick={() =>
+                              onRoll(actor.id, ability.expression.replace('1d20', '2d20kh1'))
+                            }
+                          >
+                            Advantage
+                          </button>
+                          <button
+                            disabled={dirty}
+                            onClick={() =>
+                              onRoll(actor.id, ability.expression.replace('1d20', '2d20kl1'))
+                            }
+                          >
+                            Disadvantage
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <div className="ability" key={ability.id}>
+                <div className="row">
+                  <input
+                    aria-label="Ability name"
+                    placeholder="Ability name"
+                    value={ability.name}
+                    disabled={!editable}
+                    onChange={(e) =>
+                      update((s) => {
+                        s.sections[si].abilities[ai].name = e.target.value;
+                      })
+                    }
+                  />
+                  {editable && (
+                    <button
+                      aria-label={`Delete ${ability.name}`}
+                      onClick={() =>
+                        update((s) => {
+                          s.sections[si].abilities.splice(ai, 1);
+                        })
+                      }
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  aria-label={`${ability.name} description`}
+                  placeholder="What does this ability do?"
+                  value={ability.description}
                   disabled={!editable}
                   onChange={(e) =>
                     update((s) => {
-                      s.sections[si].abilities[ai].name = e.target.value;
+                      s.sections[si].abilities[ai].description = e.target.value;
+                    })
+                  }
+                />
+                <input
+                  aria-label={`${ability.name} expression`}
+                  placeholder="Roll expression, e.g. 1d20 + 3"
+                  value={ability.expression}
+                  disabled={!editable}
+                  onChange={(e) =>
+                    update((s) => {
+                      s.sections[si].abilities[ai].expression = e.target.value;
                     })
                   }
                 />
                 {editable && (
-                  <button
-                    aria-label={`Delete ${ability.name}`}
-                    onClick={() =>
-                      update((s) => {
-                        s.sections[si].abilities.splice(ai, 1);
-                      })
-                    }
+                  <select
+                    aria-label="Insert sheet modifier"
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value)
+                        update((s) => {
+                          s.sections[si].abilities[ai].expression += ` + @{${e.target.value}}`;
+                        });
+                    }}
                   >
-                    ×
+                    <option value="">+ Insert numeric field…</option>
+                    {sheet.sections
+                      .flatMap((s) => s.fields)
+                      .filter((f) => f.kind !== 'text')
+                      .map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.label}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {rollable && ability.expression && (
+                  <button disabled={dirty} onClick={() => onRoll(actor.id, ability.expression)}>
+                    ◇ Prepare roll
                   </button>
                 )}
               </div>
-              <textarea
-                aria-label={`${ability.name} description`}
-                placeholder="What does this ability do?"
-                value={ability.description}
-                disabled={!editable}
-                onChange={(e) =>
-                  update((s) => {
-                    s.sections[si].abilities[ai].description = e.target.value;
-                  })
-                }
-              />
-              <input
-                aria-label={`${ability.name} expression`}
-                placeholder="Roll expression, e.g. 1d20 + 3"
-                value={ability.expression}
-                disabled={!editable}
-                onChange={(e) =>
-                  update((s) => {
-                    s.sections[si].abilities[ai].expression = e.target.value;
-                  })
-                }
-              />
-              {editable && (
-                <select
-                  aria-label="Insert sheet modifier"
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value)
-                      update((s) => {
-                        s.sections[si].abilities[ai].expression += ` + @{${e.target.value}}`;
-                      });
-                  }}
-                >
-                  <option value="">+ Insert numeric field…</option>
-                  {sheet.sections
-                    .flatMap((s) => s.fields)
-                    .filter((f) => f.kind !== 'text')
-                    .map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.label}
-                      </option>
-                    ))}
-                </select>
-              )}
-              {rollable && ability.expression && (
-                <button disabled={dirty} onClick={() => onRoll(actor.id, ability.expression)}>
-                  ◇ Prepare roll
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
           {editable && (
             <div className="wrap">
               <select
