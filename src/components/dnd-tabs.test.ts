@@ -67,6 +67,40 @@ afterEach(async () => {
 });
 
 describe('character tabs', () => {
+  it('opens on Actions with combat essentials outside the Abilities panel', async () => {
+    await fixture();
+    expect(panel().textContent).toContain('Weapon & spell attacks');
+    expect(panel().textContent).not.toContain('Ability scores');
+    const quickChecks = container.querySelector('[aria-label="Quick ability checks"]')!;
+    expect(quickChecks.querySelectorAll('button')).toHaveLength(6);
+    expect(quickChecks.closest('[role="tabpanel"]')).toBeNull();
+    const combat = container.querySelector('[aria-label="Combat essentials"]')!;
+    expect(combat.closest('[role="tabpanel"]')).toBeNull();
+    expect(combat.querySelector('[aria-label="Hit Points"]')).not.toBeNull();
+    await click('Abilities');
+    expect(panel().textContent).toContain('Ability scores');
+    expect(panel().textContent).toContain('Saving throws');
+    expect(panel().textContent).toContain('Skills');
+    expect(panel().textContent).toContain('Additional roll bonuses');
+    await click('Spell');
+    expect(panel().textContent).toContain('Spellcasting');
+    expect(combat.isConnected).toBe(true);
+  });
+
+  it('rolls attack, damage and critical damage directly; roll mode only modifies d20s', async () => {
+    const { onRoll } = await fixture();
+    await value('Sheet roll mode', 'disadvantage');
+    for (const label of ['Attack roll', 'Damage', 'Critical damage']) {
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>(`[aria-label="Roll ${label}"]`)!.click(),
+      );
+    }
+    expect(onRoll).toHaveBeenNthCalledWith(1, `2d20kl1 + @{${dndId('weapon-total:0')}}`);
+    expect(onRoll).toHaveBeenNthCalledWith(2, expect.stringContaining('1d8'));
+    expect(onRoll).toHaveBeenNthCalledWith(3, expect.stringContaining('2d8'));
+    expect(button('Actions').getAttribute('aria-selected')).toBe('true');
+  });
+
   it('switches panels with mouse and keyboard without losing edits', async () => {
     await fixture();
     expect(panel().textContent).toContain('Weapon & spell attacks');

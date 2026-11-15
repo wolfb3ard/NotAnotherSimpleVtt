@@ -317,7 +317,7 @@ export function SheetEditor({
                           }
                           onClick={() => onRoll(actor.id, ability.expression)}
                         >
-                          ◇ Prepare roll
+                          ◇ Roll
                         </button>
                         {d20 && (
                           <>
@@ -420,7 +420,7 @@ export function SheetEditor({
                       disabled={dirty || actor.revision !== savedRevision}
                       onClick={() => onRoll(actor.id, ability.expression)}
                     >
-                      ◇ Prepare roll
+                      ◇ Roll
                     </button>
                   )}
                 </div>

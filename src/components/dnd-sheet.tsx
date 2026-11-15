@@ -25,7 +25,7 @@ type Props = {
 const signed = (n: number) => (n >= 0 ? `+${n}` : String(n));
 const ref = (key: string) => `@{${dndId(key)}}`;
 
-/** Familiar three-column sheet; the version-1 document remains the source of truth. */
+/** Compact combat dashboard; the version-1 document remains the source of truth. */
 export function DndSheet({
   name,
   onNameChange,
@@ -130,7 +130,12 @@ export function DndSheet({
       </div>
     );
   }
-  function rollButton(label: string, key: string, expression = `1d20 + ${ref(key)}`) {
+  function rollButton(
+    label: string,
+    key: string,
+    expression = `1d20 + ${ref(key)}`,
+    displayLabel = label,
+  ) {
     const value = computed[dndId(key)];
     const resolved = expression.replace(/@\{([^}]+)\}/g, (_, id: string) =>
       String(computed[id] ?? fields.get(id)?.value ?? '?'),
@@ -140,7 +145,7 @@ export function DndSheet({
         className="dnd-roll"
         disabled={!rollable || dirty || !expression}
         title={dirty ? 'Save changes before rolling' : resolved}
-        aria-label={`Prepare ${label}`}
+        aria-label={`Roll ${label}`}
         onClick={() =>
           onRoll(
             mode === 'normal'
@@ -149,7 +154,7 @@ export function DndSheet({
           )
         }
       >
-        <span>{label}</span>
+        <span>{displayLabel}</span>
         {value !== undefined && <strong>{signed(value)}</strong>} <span aria-hidden="true">◇</span>
       </button>
     );
@@ -231,76 +236,37 @@ export function DndSheet({
           </select>
         </label>
         <span>
-          {dirty ? 'Save changes to enable rolls.' : '◇ prepares a roll in the dice panel.'}
+          {dirty
+            ? 'Save changes to enable rolls.'
+            : '◇ rolls immediately using dice panel visibility.'}
         </span>
       </div>
-      <div className="dnd-columns">
-        <div className="dnd-column">
-          <section className="dnd-box">
-            <h3>Ability scores</h3>
-            <div className="dnd-ability-scores">
-              {abilities.map((name, i) => (
-                <div className="dnd-score" key={name}>
-                  {input(`score:${i}`, name)}
-                  <output aria-label={`${name} modifier`}>
-                    {signed(computed[dndId(`mod:${i}`)])}
-                  </output>
-                  {rollButton(`${name} check`, `check:${i}`)}
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="dnd-box">
-            <h3>Saving throws</h3>
-            {abilities.map((name, i) => (
-              <div className="dnd-stat-row" key={name}>
-                {proficiency(`save-prof:${i}`, name)}
-                {rollButton(`${name} save`, `save:${i}`)}
-              </div>
-            ))}
-          </section>
-        </div>
-        <div className="dnd-column">
-          <section className="dnd-box">
-            <h3>Skills</h3>
-            {skills.map(([name, ability], i) => (
-              <div className="dnd-stat-row" key={name}>
-                {proficiency(`skill-prof:${i}`, name)}
-                {rollButton(`${name} (${abilities[ability].slice(0, 3)})`, `skill:${i}`)}
-              </div>
-            ))}
-            {input('passive')}
-          </section>
-        </div>
-        <div className="dnd-column">
-          <section className="dnd-box">
-            <h3>Combat</h3>
-            <div className="dnd-combat-stats">
-              {input('ac')}
-              {input('speed')}
-              {input('initiative')}
-              {input('exhaustion')}
-            </div>
-            {rollButton('Initiative', 'check:1')}
-            <div className="dnd-resource-grid">
-              {input('hp')}
-              {input('hit-dice')}
-              {input('inspiration')}
-            </div>
-          </section>
-          <section className="dnd-box">
-            <h3>Bonuses</h3>
-            <details>
-              <summary>Additional roll bonuses</summary>
-              <div className="dnd-config">
-                {extraKeys.map((key) => (
-                  <div key={key}>{input(key)}</div>
-                ))}
-              </div>
-            </details>
-          </section>
-        </div>
+      <div className="dnd-ability-summary" role="group" aria-label="Quick ability checks">
+        {abilities.map((name, i) => (
+          <div key={name}>
+            {rollButton(
+              `${name} check`,
+              `check:${i}`,
+              undefined,
+              `${name.slice(0, 3).toUpperCase()} ${field(`score:${i}`)?.value ?? ''}`,
+            )}
+          </div>
+        ))}
       </div>
+      <section className="dnd-box dnd-combat-dashboard" aria-label="Combat essentials">
+        <div className="dnd-combat-stats">
+          {input('ac')}
+          {input('speed')}
+          {input('initiative')}
+          {input('exhaustion')}
+          {rollButton('Initiative', 'check:1')}
+        </div>
+        <div className="dnd-resource-grid">
+          {input('hp')}
+          {input('hit-dice')}
+          {input('inspiration')}
+        </div>
+      </section>
       <DndTabs
         sheet={sheet}
         editable={editable}
@@ -310,6 +276,60 @@ export function DndSheet({
         onRoll={onRoll}
         input={input}
         spellAttack={rollButton('Spell attack', 'spell-attack')}
+        abilityPanel={
+          <div className="dnd-columns">
+            <div className="dnd-column">
+              <section className="dnd-box">
+                <h3>Ability scores</h3>
+                <div className="dnd-ability-scores">
+                  {abilities.map((name, i) => (
+                    <div className="dnd-score" key={name}>
+                      {input(`score:${i}`, name)}
+                      <output aria-label={`${name} modifier`}>
+                        {signed(computed[dndId(`mod:${i}`)])}
+                      </output>
+                      {rollButton(`${name} check`, `check:${i}`)}
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="dnd-box">
+                <h3>Saving throws</h3>
+                {abilities.map((name, i) => (
+                  <div className="dnd-stat-row" key={name}>
+                    {proficiency(`save-prof:${i}`, name)}
+                    {rollButton(`${name} save`, `save:${i}`)}
+                  </div>
+                ))}
+              </section>
+            </div>
+            <div className="dnd-column">
+              <section className="dnd-box">
+                <h3>Skills</h3>
+                {skills.map(([name, ability], i) => (
+                  <div className="dnd-stat-row" key={name}>
+                    {proficiency(`skill-prof:${i}`, name)}
+                    {rollButton(`${name} (${abilities[ability].slice(0, 3)})`, `skill:${i}`)}
+                  </div>
+                ))}
+                {input('passive')}
+              </section>
+            </div>
+            <div className="dnd-column">
+              <section className="dnd-box">
+                <h3>Bonuses</h3>
+                <details>
+                  <summary>Additional roll bonuses</summary>
+                  <div className="dnd-config">
+                    {extraKeys.map((key) => (
+                      <div key={key}>{input(key)}</div>
+                    ))}
+                  </div>
+                </details>
+              </section>
+            </div>
+          </div>
+        }
       >
         <section className="dnd-box">
           <h3>Weapon & spell attacks</h3>

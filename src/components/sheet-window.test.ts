@@ -132,7 +132,7 @@ describe('character sheet window', () => {
     const { render, onClose } = fixture();
     await render();
     await typeName('Changed hero');
-    expect(button('Prepare Strength check').disabled).toBe(true);
+    expect(button('Roll Strength check').disabled).toBe(true);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     await click(button('Close character sheet'));
     expect(confirm).toHaveBeenCalledWith('Discard unsaved character sheet changes?');
@@ -142,13 +142,13 @@ describe('character sheet window', () => {
     await click(button('Close character sheet'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
-  it('prepares sheet advantage rolls and closes the window to expose the dice panel', async () => {
+  it('rolls with advantage without closing the sheet', async () => {
     const { render, onRoll, onClose } = fixture();
     await render();
     await select('Sheet roll mode', 'advantage');
-    await click(button('Prepare Strength check'));
+    await click(button('Roll Strength check'));
     expect(onRoll).toHaveBeenCalledWith('actor', `2d20kh1 + @{${dndId('check:0')}}`);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
   it('allows the GM to set view-only access and transfer ownership with a revision', async () => {
     const { render, run } = fixture(true);
@@ -175,8 +175,8 @@ describe('character sheet window', () => {
     expect(container.querySelector<HTMLInputElement>('[aria-label="Strength"]')!.disabled).toBe(
       true,
     );
-    expect(button('Prepare Strength check').disabled).toBe(true);
-    await click(button('Prepare Strength check'));
+    expect(button('Roll Strength check').disabled).toBe(true);
+    await click(button('Roll Strength check'));
     expect(onRoll).not.toHaveBeenCalled();
     expect(container.querySelector('[aria-label="Sheet owner"]')).toBeNull();
   });
