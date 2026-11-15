@@ -116,12 +116,21 @@ export async function mutate(
     uuid.parse(gameId);
     if (!Object.hasOwn(commandSchemas, command)) throw new Error('Unknown command.');
     const validated = commandSchemas[command].parse(payload);
+    const ownership =
+      command === 'actor_owner' ? commandSchemas.actor_owner.parse(validated) : null;
     const db = await supabaseServer();
-    const { data, error } = await db.rpc('mutate_game', {
-      p_game: gameId,
-      p_command: command,
-      p: validated,
-    });
+    const { data, error } = ownership
+      ? await db.rpc('transfer_actor_owner', {
+          p_game: gameId,
+          p_actor: ownership.actor_id,
+          p_owner: ownership.owner_id,
+          p_revision: ownership.revision,
+        })
+      : await db.rpc('mutate_game', {
+          p_game: gameId,
+          p_command: command,
+          p: validated,
+        });
     if (error) throw new Error(error.message);
     if (command === 'invite' && data?.token) {
       const headerList = await headers();

@@ -107,7 +107,21 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await gm.page.getByRole('button', { name: 'Create scene', exact: true }).click();
     await expect(gm.page.getByRole('button', { name: 'Active', exact: true })).toBeVisible();
     await gm.page.getByRole('button', { name: 'Reveal entire scene' }).click();
-    await player.page.getByRole('button', { name: 'All characters', exact: false }).click();
+    await player.page.getByRole('button', { name: 'Close character sheet', exact: true }).click();
+    const card = player.page.getByRole('button', {
+      name: 'Open Aria character sheet',
+      exact: true,
+    });
+    await card.click();
+    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toHaveCount(0);
+    await card.dblclick();
+    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toBeVisible();
+    await player.page.getByRole('button', { name: 'Close character sheet', exact: true }).click();
+    await card.focus();
+    await player.page.keyboard.press('Enter');
+    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toBeVisible();
+    await player.page.keyboard.press('Escape');
+    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toHaveCount(0);
     await player.page.getByText('Add character token to scene', { exact: true }).click();
     await player.page.getByLabel('Actor', { exact: true }).selectOption({ label: 'Aria' });
     await player.page.getByRole('button', { name: 'Place token', exact: true }).click();
