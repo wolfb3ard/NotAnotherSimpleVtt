@@ -10,7 +10,14 @@ import {
 import { dndId } from '@/lib/dnd';
 import type { Sheet } from '@/lib/types';
 
-const tabs = ['Actions', 'Spell', 'Inventory', 'Features & Traits', 'Biography'] as const;
+const tabs = [
+  'Actions',
+  'Spell',
+  'Abilities',
+  'Inventory',
+  'Features & Traits',
+  'Biography',
+] as const;
 type Tab = (typeof tabs)[number];
 type Props = {
   sheet: Sheet;
@@ -21,6 +28,7 @@ type Props = {
   onRoll: (expression: string) => void;
   input: (key: string, label?: string, multiline?: boolean) => ReactNode;
   spellAttack: ReactNode;
+  abilityPanel: ReactNode;
   children: ReactNode;
 };
 
@@ -33,6 +41,7 @@ export function DndTabs({
   onRoll,
   input,
   spellAttack,
+  abilityPanel,
   children,
 }: Props) {
   const [tab, setTab] = useState<Tab>('Actions');
@@ -201,6 +210,7 @@ export function DndTabs({
           tabIndex={0}
           className="dnd-tab-panel"
         >
+          {label === 'Abilities' && abilityPanel}
           {label === 'Actions' && (
             <>
               {children}
@@ -244,7 +254,7 @@ export function DndTabs({
                       disabled={!rollable || dirty}
                       onClick={() => onRoll(ability.expression)}
                     >
-                      Prepare {ability.name}
+                      Roll {ability.name}
                     </button>
                   )}
                 </article>

@@ -133,10 +133,7 @@ export function SheetWindow({
             dirtyRef.current = dirty;
             onDirtyChange?.(dirty);
           }}
-          onRoll={(actorId, expression) => {
-            onRoll(actorId, expression);
-            onClose();
-          }}
+          onRoll={onRoll}
         />
       </div>
     </div>

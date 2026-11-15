@@ -47,6 +47,7 @@ export function Room({ initial }: { initial: Snapshot }) {
   const seenCues = useRef(new Set(initial.rollCues?.map((c) => c.roll_id) ?? []));
   const clearAnimation = useCallback(() => setAnimations((queue) => queue.slice(1)), []);
   const rollAttempt = useRef<{ key: string; id: string } | null>(null);
+  const rollPending = useRef(false);
   const refreshRunning = useRef(false);
   const refreshAgain = useRef(false);
   const gm = snapshot.role === 'gm';
@@ -177,18 +178,23 @@ export function Room({ initial }: { initial: Snapshot }) {
       setError('Connection lost. Your change was not confirmed. Reload before retrying.');
     }
   }
-  async function sendRoll() {
+  async function sendRoll(sheetRoll?: { actorId: string; expression: string }) {
+    if (rollPending.current) return;
+    rollPending.current = true;
     setPending(true);
     setError('');
-    const finalExpression = Number(modifier)
-      ? `(${expression}) + (${Number(modifier)})`
-      : expression;
-    const key = JSON.stringify([finalExpression, rollActor, visibility]);
+    const actorId = sheetRoll?.actorId ?? rollActor;
+    const finalExpression = sheetRoll
+      ? sheetRoll.expression
+      : Number(modifier)
+        ? `(${expression}) + (${Number(modifier)})`
+        : expression;
+    const key = JSON.stringify([finalExpression, actorId, visibility]);
     if (rollAttempt.current?.key !== key) rollAttempt.current = { key, id: crypto.randomUUID() };
     try {
       const result = await roll(snapshot.game.id, {
         id: rollAttempt.current.id,
-        actor_id: rollActor || null,
+        actor_id: actorId || null,
         expression: finalExpression,
         visibility,
       });
@@ -219,14 +225,15 @@ export function Room({ initial }: { initial: Snapshot }) {
     } catch {
       setError('Roll not confirmed. Retry without changing it to avoid a duplicate.');
     } finally {
+      rollPending.current = false;
       setPending(false);
     }
   }
-  function prepareRoll(actorId: string, value: string) {
+  function rollFromSheet(actorId: string, value: string) {
     setRollActor(actorId);
     setExpression(value);
     setModifier('0');
-    setTab('dice');
+    void sendRoll({ actorId, expression: value });
   }
   async function imageUpload(file: File, kind: 'background' | 'token') {
     const form = new FormData();
@@ -594,7 +601,7 @@ export function Room({ initial }: { initial: Snapshot }) {
                 <button
                   className="primary roll-button"
                   disabled={pending || !expression}
-                  onClick={sendRoll}
+                  onClick={() => void sendRoll()}
                 >
                   {pending ? 'Rolling…' : '◇ Roll dice'}
                 </button>
@@ -860,7 +867,7 @@ export function Room({ initial }: { initial: Snapshot }) {
           actor={actor}
           snapshot={snapshot}
           run={run}
-          onRoll={prepareRoll}
+          onRoll={rollFromSheet}
           onClose={() => setSelectedActor(undefined)}
           error={error}
           onDirtyChange={trackSheetDirty}
