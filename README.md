@@ -28,6 +28,15 @@ This work includes material from the System Reference Document 5.2.1 (“SRD 5.2
 
 The rules have been adapted into an interactive sheet and calculations. Source: the supplied `SRD_CC_v5.2.1.pdf`, especially pp. 6–9 (D20 tests/proficiency), 13 (initiative), 16 (damage/critical hits), and the Exhaustion rules glossary entry.
 
+## Character sheet windows & access
+
+- Party cards stay compact. **Double-click** a card (or focus it and press **Enter/Space**) to open its sheet in a separate, non-modal window within the VTT. Tokens can also open the sheet.
+- Drag the window header, use arrow keys on its focused move handle, resize from the corner, or maximize/restore. Close with × or Escape. Unsaved edits require confirmation before closing/switching; a saved sheet roll opens the existing dice panel. The window closes if a refreshed snapshot removes sheet access.
+- Built-in 5.5e sheets use a parchment-style, responsive three-column layout: ability scores, saves and skills; combat, HP and attacks; spellcasting, features, equipment and notes. “Customize sheet” retains the generic section/field/ability editor.
+- GMs use **Manage sheet access → Sheet owner / member access** to assign ownership, no access, view-only, or view-and-edit grants. The owner can edit and roll; the GM always has full access. No-access sheets/cards are filtered by database row-level security, not merely hidden in the UI.
+- Ownership transfers require a current revision and a member of the same game. Former-owner grants are cleared and tokens they controlled for that character transfer to the new owner. Other assigned token controllers are unchanged. Regrant view/edit access explicitly if needed.
+- Apply `supabase/migrations/202611150001_actor_ownership.sql` before using ownership transfers. The transfer RPC enforces GM authorization even when called directly; existing view/edit grants retain their database authorization boundary.
+
 See [PLAN.md](PLAN.md) for the agreed scope and [docs/STATUS.md](docs/STATUS.md) for verification and remaining launch work.
 
 ## Requirements

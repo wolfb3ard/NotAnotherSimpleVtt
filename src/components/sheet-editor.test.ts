@@ -68,7 +68,11 @@ describe('SRD sheet controls', () => {
     snapshot.userId = 'viewer';
     const html = render();
     expect(html).toContain('Read only');
-    expect(html).not.toContain('Prepare roll');
+    expect(
+      [...html.matchAll(/<button class="dnd-roll"[^>]*>/g)].every(([button]) =>
+        button.includes('disabled=""'),
+      ),
+    ).toBe(true);
     expect(html).not.toContain('Save sheet');
   });
 });

@@ -374,4 +374,98 @@ describe.sequential('database authorization and transactions', () => {
       ]),
     ).rejects.toThrow(/Invalid dice style/);
   });
+  it('transfers ownership only within the game, rejects stale writes, and removes former owner access/control', async () => {
+    const nextOwner = randomUUID();
+    await db.exec('reset role');
+    await db.query('insert into auth.users values($1)', [nextOwner]);
+    await as(gm);
+    const invitation = (await command('invite')).token;
+    await as(nextOwner);
+    await db.query("select accept_invite($1,'New owner')", [invitation]);
+    await as(gm);
+    const id = (
+      await command('actor_create', {
+        name: 'Transfer hero',
+        kind: 'character',
+        owner_id: player,
+        sheet,
+      })
+    ).id;
+    await command('token_create', { actor_id: id, scene_id: scene, asset_id: null });
+    await command('grant', { actor_id: id, user_id: player, access: 'edit' });
+    await command('grant', { actor_id: id, user_id: nextOwner, access: 'view' });
+    const transfer = (owner: string, revision: number | null, gameId = game) =>
+      db.query('select transfer_actor_owner($1,$2,$3,$4)', [gameId, id, owner, revision]);
+    await db.exec('reset role; set role anon');
+    await expect(transfer(nextOwner, 0)).rejects.toThrow(/permission denied/);
+    await as(player);
+    await expect(transfer(nextOwner, 0)).rejects.toThrow(/GM required/);
+    await expect(
+      command('grant', { actor_id: id, user_id: nextOwner, access: 'edit' }),
+    ).rejects.toThrow(/GM required/);
+    await as(gm);
+    await expect(transfer(other, 0)).rejects.toThrow(/Invalid/);
+    await expect(transfer(nextOwner, 99)).rejects.toThrow(/changed/);
+    await expect(transfer(nextOwner, null)).rejects.toThrow(/changed/);
+    await as(other);
+    await expect(transfer(other, 0, otherGame)).rejects.toThrow(/Invalid/);
+    await as(gm);
+    await transfer(nextOwner, 0);
+    const actorRow = (
+      await db.query<{ owner_id: string; revision: number }>(
+        'select owner_id,revision from actors where id=$1',
+        [id],
+      )
+    ).rows[0];
+    expect(actorRow).toEqual({ owner_id: nextOwner, revision: 1 });
+    await transfer(nextOwner, 1);
+    expect(
+      (await db.query<{ revision: number }>('select revision from actors where id=$1', [id]))
+        .rows[0].revision,
+    ).toBe(1);
+    const tokenRows = (
+      await db.query<{ controller_id: string; revision: number }>(
+        'select controller_id,revision from tokens where actor_id=$1',
+        [id],
+      )
+    ).rows;
+    expect(tokenRows).toEqual([{ controller_id: nextOwner, revision: 1 }]);
+    expect(
+      (await db.query('select * from sheet_grants where actor_id=$1', [id])).rows,
+    ).toHaveLength(0);
+    await expect(transfer(player, 0)).rejects.toThrow(/changed/);
+    await as(player);
+    expect((await db.query('select * from actors where id=$1', [id])).rows).toHaveLength(0);
+    await expect(command('actor_save', { id, name: 'Stolen', sheet, revision: 1 })).rejects.toThrow(
+      /denied/,
+    );
+    await db.exec('reset role; set role service_role');
+    await expect(
+      db.query("select record_roll($1,$2,$3,$4,'1d6','public',$5)", [
+        player,
+        game,
+        randomUUID(),
+        id,
+        JSON.stringify({
+          total: 1,
+          dice: [{ sides: 6, values: [1], kept: [true], total: 1 }],
+          resolvedExpression: '1d6',
+          modifiers: {},
+        }),
+      ]),
+    ).rejects.toThrow(/control required/);
+    await as(nextOwner);
+    await command('actor_save', { id, name: 'Owned hero', sheet, revision: 1 });
+    await as(gm);
+    await command('grant', { actor_id: id, user_id: player, access: 'view' });
+    await as(player);
+    expect((await db.query('select * from actors where id=$1', [id])).rows).toHaveLength(1);
+    await expect(
+      command('actor_save', { id, name: 'Read only', sheet, revision: 2 }),
+    ).rejects.toThrow(/denied/);
+    await as(gm);
+    await command('grant', { actor_id: id, user_id: player, access: 'none' });
+    await as(player);
+    expect((await db.query('select * from actors where id=$1', [id])).rows).toHaveLength(0);
+  });
 });

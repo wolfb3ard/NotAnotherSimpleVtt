@@ -794,6 +794,328 @@ summary {
   color: #fff;
   pointer-events: none;
 }
+
+/* Non-modal sheets leave the tabletop usable; dice remain above the window. */
+.sheet-window {
+  position: fixed;
+  z-index: 40;
+  width: min(1140px, calc(100vw - 48px));
+  height: min(850px, calc(100vh - 90px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  min-width: min(460px, calc(100vw - 48px));
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid #74684f;
+  border-radius: 12px;
+  box-shadow: 0 16px 64px #000b;
+  resize: both;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: sheet-window;
+}
+.sheet-window.is-maximized {
+  inset: 8px;
+  width: calc(100vw - 16px);
+  height: calc(100vh - 16px);
+  resize: none;
+}
+.sheet-window-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.sheet-window-header h2 {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+.sheet-window-handle {
+  flex: 1;
+  min-width: 0;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.sheet-window-handle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.sheet-window-body {
+  overflow: auto;
+  flex: 1;
+  padding: 18px;
+  min-height: 0;
+}
+.sheet-save-bar {
+  position: sticky;
+  bottom: -18px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  z-index: 1;
+}
+.sheet-help {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sheet-help p {
+  margin: 10px 0;
+}
+.sheet-mode {
+  justify-content: space-between;
+}
+.sheet-access {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.dnd-sheet {
+  background: #eee6d6;
+  color: #302d25;
+  padding: 18px;
+  border-radius: 8px;
+  color-scheme: light;
+}
+.dnd-sheet input,
+.dnd-sheet select,
+.dnd-sheet textarea {
+  background: #fffaf0;
+  border: 1px solid #b7aa90;
+  color: #302d25;
+  border-radius: 4px;
+  padding: 7px 8px;
+}
+.dnd-sheet input:disabled,
+.dnd-sheet select:disabled,
+.dnd-sheet textarea:disabled {
+  opacity: 1;
+  background: #e7ddc8;
+  color: #504a3e;
+}
+.dnd-sheet label {
+  color: #514c40;
+  font-size: 11px;
+  font-weight: 600;
+}
+.dnd-sheet h3 {
+  font-family: Georgia, serif;
+  text-transform: uppercase;
+  font-size: 15px;
+  letter-spacing: 1px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #b7aa90;
+  margin-bottom: 12px;
+}
+.dnd-sheet .muted {
+  color: #645d4f;
+}
+.dnd-sheet .notice {
+  color: #302d25;
+  background: #dfd3ba;
+}
+.dnd-sheet summary {
+  font-size: 12px;
+  color: #514c40;
+  padding: 9px 0;
+}
+.dnd-identity {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  border-bottom: 2px solid #74684f;
+  padding-bottom: 14px;
+}
+.dnd-character-name {
+  grid-column: span 3;
+}
+.dnd-identity-wide {
+  grid-column: span 2;
+}
+.dnd-value {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.dnd-roll-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 11px;
+  color: #645d4f;
+}
+.dnd-roll-toolbar label {
+  flex-direction: row;
+  align-items: center;
+  white-space: nowrap;
+}
+.dnd-roll-toolbar select {
+  width: auto;
+}
+.dnd-columns {
+  display: grid;
+  grid-template-columns: 0.95fr 1.15fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.dnd-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.dnd-box {
+  border: 1px solid #a89a7c;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.dnd-box > .dnd-value {
+  margin-bottom: 10px;
+}
+.dnd-ability-scores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dnd-score {
+  text-align: center;
+  border: 2px solid #a89a7c;
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 0;
+}
+.dnd-score input {
+  text-align: center;
+}
+.dnd-score output {
+  font-family: Georgia, serif;
+  display: block;
+  font-size: 32px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+.dnd-sheet .dnd-roll {
+  background: transparent;
+  border: 1px solid #c3b79e;
+  color: #302d25;
+  padding: 7px 8px;
+  font-size: 11px;
+  text-align: left;
+  width: 100%;
+  justify-content: space-between;
+}
+.dnd-sheet .dnd-roll:hover:not(:disabled) {
+  background: #d8c7a5;
+}
+.dnd-sheet .dnd-roll:disabled {
+  opacity: 0.65;
+}
+.dnd-sheet .dnd-roll strong {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.dnd-stat-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.dnd-sheet .dnd-proficiency {
+  font-size: 10px;
+  padding: 7px 3px;
+}
+.dnd-inline,
+.dnd-combat-stats,
+.dnd-resource-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 10px 0;
+}
+.dnd-resource-max {
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+}
+.dnd-resource-max input {
+  max-width: 75px;
+}
+.dnd-attack {
+  padding: 10px 0;
+  border-bottom: 1px solid #b7aa90;
+}
+.dnd-attack:last-child {
+  border: 0;
+}
+.dnd-config {
+  display: grid;
+  gap: 10px;
+}
+.dnd-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dnd-notes textarea {
+  min-height: 130px;
+  line-height: 1.6;
+}
+@container sheet-window (max-width: 900px) {
+  .dnd-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dnd-column:last-child {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .dnd-identity {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .dnd-character-name {
+    grid-column: span 3;
+  }
+  .dnd-identity-wide {
+    grid-column: auto;
+  }
+}
+@container sheet-window (max-width: 600px) {
+  .dnd-columns,
+  .dnd-column:last-child {
+    display: flex;
+    flex-direction: column;
+  }
+  .dnd-column {
+    width: 100%;
+  }
+  .dnd-box {
+    width: 100%;
+  }
+  .dnd-identity {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dnd-character-name {
+    grid-column: span 2;
+  }
+  .dnd-roll-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sheet-mode {
+    flex-wrap: wrap;
+  }
+}
 .dice-overlay * {
   pointer-events: none !important;
 }

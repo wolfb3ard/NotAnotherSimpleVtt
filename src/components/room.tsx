@@ -12,7 +12,8 @@ import { defaultDiceStyle } from '@/lib/dice-style';
 import { selectedDiceSides } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
 import { DiceStyleEditor } from './dice-style-editor';
-import { SheetEditor } from './sheet-editor';
+import { SheetWindow } from './sheet-window';
+import { ActorCard } from './actor-card';
 import { useDiceZoom } from './use-dice-zoom';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
@@ -27,6 +28,10 @@ export function Room({ initial }: { initial: Snapshot }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [tab, setTab] = useState<Tab>('party');
   const [selectedActor, setSelectedActor] = useState<string>();
+  const sheetDirtyRef = useRef(false);
+  const trackSheetDirty = useCallback((dirty: boolean) => {
+    sheetDirtyRef.current = dirty;
+  }, []);
   const [error, setError] = useState('');
   const [sync, setSync] = useState('Connecting');
   const [denied, setDenied] = useState(false);
@@ -48,6 +53,16 @@ export function Room({ initial }: { initial: Snapshot }) {
   const selectedDice = selectedDiceSides(expression);
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
   const actor = snapshot.actors.find((a) => a.id === selectedActor);
+  function openSheet(id: string) {
+    if (
+      id !== selectedActor &&
+      sheetDirtyRef.current &&
+      !window.confirm('Discard unsaved character sheet changes and open another sheet?')
+    )
+      return false;
+    setSelectedActor(id);
+    return true;
+  }
   const controlledActors = snapshot.actors.filter(
     (a) =>
       gm ||
@@ -86,6 +101,9 @@ export function Room({ initial }: { initial: Snapshot }) {
         }
         if (next.length) setAnimations((queue) => [...queue, ...next].slice(-4));
         setSnapshot(updated);
+        setSelectedActor((current) =>
+          updated.actors.some((a) => a.id === current) ? current : undefined,
+        );
         setSync('Connected');
       } while (refreshAgain.current);
     } catch {
@@ -253,8 +271,7 @@ export function Room({ initial }: { initial: Snapshot }) {
           run={run}
           selectActor={(id) => {
             if (snapshot.actors.some((a) => a.id === id)) {
-              setSelectedActor(id);
-              setTab('party');
+              if (openSheet(id)) setTab('party');
             }
           }}
         />
@@ -305,190 +322,165 @@ export function Room({ initial }: { initial: Snapshot }) {
             )}
             {tab === 'party' && (
               <>
-                {actor ? (
-                  <>
+                <>
+                  <div className="panel-heading">
+                    <div>
+                      <span className="eyebrow">THE ADVENTURERS</span>
+                      <h2>At the table</h2>
+                    </div>
                     <button
-                      className="ghost back-button"
-                      onClick={() => setSelectedActor(undefined)}
+                      onClick={() => setCreateActor(!createActor)}
+                      aria-label="Create character"
                     >
-                      ← All characters
+                      +
                     </button>
-                    <SheetEditor
-                      key={actor.id}
-                      actor={actor}
-                      snapshot={snapshot}
-                      run={run}
-                      onRoll={prepareRoll}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div className="panel-heading">
-                      <div>
-                        <span className="eyebrow">THE ADVENTURERS</span>
-                        <h2>At the table</h2>
-                      </div>
-                      <button
-                        onClick={() => setCreateActor(!createActor)}
-                        aria-label="Create character"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <p className="muted small">Characters, companions, and the occasional foe.</p>
-                    {createActor && (
-                      <form
-                        className="card stack"
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          setPending(true);
-                          const form = new FormData(e.currentTarget);
-                          const template = snapshot.templates.find(
-                            (t) => t.id === form.get('template'),
-                          );
-                          const data = await run('actor_create', {
-                            name: form.get('name'),
-                            kind: form.get('kind') || 'character',
-                            owner_id: form.get('owner_id') || snapshot.userId,
-                            sheet:
-                              form.get('template') === 'srd-5.2.1'
-                                ? createDndSheet()
-                                : template?.sheet || emptySheet(),
-                          });
-                          if (data?.id) {
-                            setSelectedActor(data.id);
-                            setCreateActor(false);
-                          }
-                          setPending(false);
-                        }}
-                      >
-                        <label>
-                          Name
-                          <input name="name" required maxLength={100} placeholder="A new hero…" />
-                        </label>
-                        {gm && (
-                          <>
-                            <label>
-                              Actor type
-                              <select name="kind">
-                                <option value="character">Player character</option>
-                                <option value="npc">NPC</option>
-                                <option value="enemy">Enemy</option>
-                              </select>
-                            </label>
-                            <label>
-                              Owner
-                              <select name="owner_id" defaultValue={snapshot.userId}>
-                                {snapshot.members.map((m) => (
-                                  <option key={m.user_id} value={m.user_id}>
-                                    {m.display_name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </>
-                        )}
-                        <label>
-                          Start from template
-                          <select name="template">
-                            <option value="">Blank sheet</option>
-                            <option value="srd-5.2.1">5.5e · SRD 5.2.1</option>
-                            {snapshot.templates.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <button className="primary" disabled={pending}>
-                          Create actor
-                        </button>
-                      </form>
-                    )}
-                    <div className="actor-list">
-                      {snapshot.actors.map((a) => (
-                        <button
-                          className="actor-card"
-                          key={a.id}
-                          onClick={() => setSelectedActor(a.id)}
-                        >
-                          <span className={`avatar ${a.kind}`}>
-                            {a.name.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span>
-                            <strong>{a.name}</strong>
-                            <small>
-                              {a.kind} ·{' '}
-                              {snapshot.members.find((m) => m.user_id === a.owner_id)?.display_name}
-                            </small>
-                          </span>
-                          <span className="arrow">›</span>
-                        </button>
-                      ))}
-                    </div>
-                    {snapshot.actors.length === 0 && (
-                      <div className="empty">
-                        <span>♧</span>
-                        <h3>Your party starts here.</h3>
-                        <p>Create your first character sheet.</p>
-                      </div>
-                    )}
-                    {scene && (
-                      <details>
-                        <summary>Add character token to scene</summary>
-                        <form
-                          className="stack"
-                          onSubmit={async (e) => {
-                            e.preventDefault();
-                            setPending(true);
-                            setError('');
-                            const form = new FormData(e.currentTarget);
-                            try {
-                              const file = form.get('image') as File;
-                              const assetId = file?.size ? await imageUpload(file, 'token') : null;
-                              await run('token_create', {
-                                actor_id: form.get('actor_id'),
-                                scene_id: scene.id,
-                                asset_id: assetId,
-                              });
-                            } catch (err) {
-                              setError(err instanceof Error ? err.message : 'Upload failed.');
-                            } finally {
-                              setPending(false);
-                            }
-                          }}
-                        >
+                  </div>
+                  <p className="muted small">
+                    Double-click a character to open their sheet. Or focus a card and press Enter.
+                  </p>
+                  {createActor && (
+                    <form
+                      className="card stack"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        setPending(true);
+                        const form = new FormData(e.currentTarget);
+                        const template = snapshot.templates.find(
+                          (t) => t.id === form.get('template'),
+                        );
+                        const data = await run('actor_create', {
+                          name: form.get('name'),
+                          kind: form.get('kind') || 'character',
+                          owner_id: form.get('owner_id') || snapshot.userId,
+                          sheet:
+                            form.get('template') === 'srd-5.2.1'
+                              ? createDndSheet()
+                              : template?.sheet || emptySheet(),
+                        });
+                        if (data?.id) {
+                          openSheet(data.id);
+                          setCreateActor(false);
+                        }
+                        setPending(false);
+                      }}
+                    >
+                      <label>
+                        Name
+                        <input name="name" required maxLength={100} placeholder="A new hero…" />
+                      </label>
+                      {gm && (
+                        <>
                           <label>
-                            Actor
-                            <select name="actor_id" aria-label="Actor" required>
-                              <option value="">Choose character…</option>
-                              {snapshot.actors
-                                .filter((a) => gm || a.owner_id === snapshot.userId)
-                                .map((a) => (
-                                  <option key={a.id} value={a.id}>
-                                    {a.name}
-                                  </option>
-                                ))}
+                            Actor type
+                            <select name="kind">
+                              <option value="character">Player character</option>
+                              <option value="npc">NPC</option>
+                              <option value="enemy">Enemy</option>
                             </select>
                           </label>
                           <label>
-                            Token image (optional)
-                            <input
-                              name="image"
-                              type="file"
-                              accept="image/png,image/jpeg,image/webp"
-                            />
+                            Owner
+                            <select name="owner_id" defaultValue={snapshot.userId}>
+                              {snapshot.members.map((m) => (
+                                <option key={m.user_id} value={m.user_id}>
+                                  {m.display_name}
+                                </option>
+                              ))}
+                            </select>
                           </label>
-                          <button disabled={pending}>Place token</button>
-                          <p className="small muted">
-                            New tokens start near the map’s top-left. The GM may need to reveal that
-                            area.
-                          </p>
-                        </form>
-                      </details>
-                    )}
-                  </>
-                )}
+                        </>
+                      )}
+                      <label>
+                        Start from template
+                        <select name="template">
+                          <option value="">Blank sheet</option>
+                          <option value="srd-5.2.1">5.5e · SRD 5.2.1</option>
+                          {snapshot.templates.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button className="primary" disabled={pending}>
+                        Create actor
+                      </button>
+                    </form>
+                  )}
+                  <div className="actor-list">
+                    {snapshot.actors.map((a) => (
+                      <ActorCard
+                        key={a.id}
+                        actor={a}
+                        ownerName={
+                          snapshot.members.find((m) => m.user_id === a.owner_id)?.display_name
+                        }
+                        onOpen={() => openSheet(a.id)}
+                      />
+                    ))}
+                  </div>
+                  {snapshot.actors.length === 0 && (
+                    <div className="empty">
+                      <span>♧</span>
+                      <h3>Your party starts here.</h3>
+                      <p>Create your first character sheet.</p>
+                    </div>
+                  )}
+                  {scene && (
+                    <details>
+                      <summary>Add character token to scene</summary>
+                      <form
+                        className="stack"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setPending(true);
+                          setError('');
+                          const form = new FormData(e.currentTarget);
+                          try {
+                            const file = form.get('image') as File;
+                            const assetId = file?.size ? await imageUpload(file, 'token') : null;
+                            await run('token_create', {
+                              actor_id: form.get('actor_id'),
+                              scene_id: scene.id,
+                              asset_id: assetId,
+                            });
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Upload failed.');
+                          } finally {
+                            setPending(false);
+                          }
+                        }}
+                      >
+                        <label>
+                          Actor
+                          <select name="actor_id" aria-label="Actor" required>
+                            <option value="">Choose character…</option>
+                            {snapshot.actors
+                              .filter((a) => gm || a.owner_id === snapshot.userId)
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.name}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                        <label>
+                          Token image (optional)
+                          <input
+                            name="image"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                          />
+                        </label>
+                        <button disabled={pending}>Place token</button>
+                        <p className="small muted">
+                          New tokens start near the map’s top-left. The GM may need to reveal that
+                          area.
+                        </p>
+                      </form>
+                    </details>
+                  )}
+                </>
               </>
             )}
             {tab === 'dice' && (
@@ -862,6 +854,18 @@ export function Room({ initial }: { initial: Snapshot }) {
           <footer className="sidebar-footer">YOUR WORLD. YOUR RULES.</footer>
         </aside>
       </div>
+      {actor && (
+        <SheetWindow
+          key={actor.id}
+          actor={actor}
+          snapshot={snapshot}
+          run={run}
+          onRoll={prepareRoll}
+          onClose={() => setSelectedActor(undefined)}
+          error={error}
+          onDirtyChange={trackSheetDirty}
+        />
+      )}
     </main>
   );
 }
