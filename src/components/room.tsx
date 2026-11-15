@@ -7,6 +7,7 @@ import { supabaseBrowser } from '@/lib/supabase/browser';
 import type { Command } from '@/lib/commands';
 import type { Snapshot } from '@/lib/types';
 import { emptySheet } from '@/lib/sheets';
+import { createDndSheet } from '@/lib/dnd';
 import { defaultDiceStyle } from '@/lib/dice-style';
 import { selectedDiceSides } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
@@ -349,7 +350,10 @@ export function Room({ initial }: { initial: Snapshot }) {
                             name: form.get('name'),
                             kind: form.get('kind') || 'character',
                             owner_id: form.get('owner_id') || snapshot.userId,
-                            sheet: template?.sheet || emptySheet(),
+                            sheet:
+                              form.get('template') === 'srd-5.2.1'
+                                ? createDndSheet()
+                                : template?.sheet || emptySheet(),
                           });
                           if (data?.id) {
                             setSelectedActor(data.id);
@@ -388,6 +392,7 @@ export function Room({ initial }: { initial: Snapshot }) {
                           Start from template
                           <select name="template">
                             <option value="">Blank sheet</option>
+                            <option value="srd-5.2.1">5.5e · SRD 5.2.1</option>
                             {snapshot.templates.map((t) => (
                               <option key={t.id} value={t.id}>
                                 {t.name}

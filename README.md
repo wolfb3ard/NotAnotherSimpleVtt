@@ -12,6 +12,22 @@
 - Animated 3D polyhedral dice over the tabletop (d4/d6/d8/d10/d12/d20), anonymous private-player roll cues, and per-user dice material customization.
 - Public/private roll history, optimistic revision checks, reconnect reconciliation, and database-enforced access controls.
 
+## Physical dice & 5.5e sheets
+
+- Dice use fixed-step rigid-body physics: gravity, angular momentum, friction, bouncing, tray walls, and dice-to-dice collisions. Labels remain fixed throughout the throw; d4s use repeated vertex numbers and d10s print 10. Full-screen, click-through rendering and personal 100%–200% zoom are preserved.
+- Results remain cryptographically random and server-authoritative. Before playback, the client simulates a throw and applies a **constant rotational symmetry** to each die's complete trajectory to match the recorded result. This preserves the physical shape and conventional face layout without steering or changing numbers mid-flight. Motion can hint at the eventual face; it cannot predict future random rolls.
+- Up to eight dice are animated. Other die sizes show question marks; overflow stays in history. Reduced-motion/WebGL fallback retains the recorded result. Cocked throws are retried before playback, with a static result fallback if simulation fails.
+- Create a character → **Start from template → 5.5e · SRD 5.2.1**. Save edits, then prepare checks, saves, skills, weapon/spell attacks, damage, critical damage, or initiative directly from the sheet. D20 rolls offer advantage/disadvantage; the existing roll panel confirms visibility and situational modifiers.
+- Level (1–20), ability scores (1–30), selected proficiencies/expertise, bonuses, and exhaustion drive calculations. Derived modifiers are recalculated server-side from the saved sheet. Damage adds the configured ability and bonuses, never proficiency; criticals double dice, not modifiers. `max(0, expression)` prevents negative damage.
+- Configure class/subclass, species, background, saving throw and skill proficiencies, three attack slots, equipment, features, HP, hit dice, and spell-slot resources manually. Spellcasting ability and each attack's ability/proficiency/damage settings are explicit. This is a rules-aware template, **not a full character-builder or automated class/spell/condition engine**. Features, tool checks, additional damage dice, situational effects, and further attacks can use custom fields/abilities and roll expressions. Advantage and disadvantage together cancel; choose a normal roll.
+- Built-in sheets still use the existing version-1 document format, permissions, revision checks, and reusable/cross-game templates. No database migration is required.
+
+### SRD attribution
+
+This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+The rules have been adapted into an interactive sheet and calculations. Source: the supplied `SRD_CC_v5.2.1.pdf`, especially pp. 6–9 (D20 tests/proficiency), 13 (initiative), 16 (damage/critical hits), and the Exhaustion rules glossary entry.
+
 See [PLAN.md](PLAN.md) for the agreed scope and [docs/STATUS.md](docs/STATUS.md) for verification and remaining launch work.
 
 ## Requirements

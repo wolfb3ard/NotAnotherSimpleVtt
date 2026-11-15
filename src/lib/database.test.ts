@@ -3,6 +3,9 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { createDndSheet, dndId } from './dnd';
+import { numericFields, sheetSchema } from './sheets';
+import type { Sheet } from './types';
 
 const gm = randomUUID(),
   player = randomUUID(),
@@ -308,6 +311,38 @@ describe.sequential('database authorization and transactions', () => {
         randomUUID(),
       ]),
     ).rejects.toThrow(/permission denied/);
+  });
+  it('persists and templates SRD sheets under existing database validation and permissions', async () => {
+    await as(player);
+    const original = createDndSheet();
+    const id = (
+      await command('actor_create', {
+        name: 'SRD hero',
+        kind: 'character',
+        owner_id: player,
+        sheet: original,
+      })
+    ).id;
+    const saved = (await db.query<{ sheet: Sheet }>('select sheet from actors where id=$1', [id]))
+      .rows[0].sheet;
+    expect(sheetSchema.parse(saved)).toEqual(original);
+    saved.sections.flatMap((s) => s.fields).find((f) => f.id === dndId('level'))!.value = 5;
+    await command('actor_save', { id, name: 'SRD hero', sheet: saved, revision: 0 });
+    await expect(
+      command('actor_save', { id, name: 'Old', sheet: original, revision: 0 }),
+    ).rejects.toThrow();
+    await command('template_create', { actor_id: id, name: 'SRD template' });
+    const template = (
+      await db.query<{ sheet: Sheet }>('select sheet from templates where name=$1', [
+        'SRD template',
+      ])
+    ).rows[0].sheet;
+    expect(numericFields(template)[dndId('pb')]).toBe(3);
+    await as(other);
+    expect((await db.query('select sheet from actors where id=$1', [id])).rows).toHaveLength(0);
+    await expect(
+      command('actor_save', { id, name: 'Stolen', sheet: original, revision: 1 }),
+    ).rejects.toThrow();
   });
   it('stores bounded per-user appearance without cross-user writes', async () => {
     const style = {

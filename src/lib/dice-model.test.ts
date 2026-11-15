@@ -17,15 +17,17 @@ describe('polyhedral dice', () => {
           (f) => f.value === (sides === 10 && value === 10 ? 0 : value),
         )!;
         const up = face.normal.clone().applyQuaternion(landingRotation(model, value));
-        expect(up.distanceTo(new Vector3(0, 1, 0))).toBeLessThan(0.0001);
-        const labelRotation = new Quaternion().setFromUnitVectors(
-          new Vector3(0, 0, 1),
-          face.normal,
-        );
-        const labelUp = new Vector3(0, 1, 0)
-          .applyQuaternion(labelRotation)
-          .applyQuaternion(landingRotation(model, value));
-        expect(labelUp.distanceTo(new Vector3(0, 0, -1))).toBeLessThan(0.0001);
+        expect(up.distanceTo(new Vector3(0, sides === 4 ? -1 : 1, 0))).toBeLessThan(0.0001);
+        if (sides !== 4) {
+          const labelRotation = new Quaternion().setFromUnitVectors(
+            new Vector3(0, 0, 1),
+            face.normal,
+          );
+          const labelUp = new Vector3(0, 1, 0)
+            .applyQuaternion(labelRotation)
+            .applyQuaternion(landingRotation(model, value));
+          expect(labelUp.distanceTo(new Vector3(0, 0, -1))).toBeLessThan(0.0001);
+        }
       }
       if (sides !== 4)
         for (const face of model.faces) {

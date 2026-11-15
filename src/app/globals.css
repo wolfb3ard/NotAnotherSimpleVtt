@@ -835,7 +835,8 @@ summary {
   border: 2px solid #d9bd93;
   display: grid;
   place-items: center;
-  width: calc(84px * var(--dice-zoom, 1));
+  min-width: calc(84px * var(--dice-zoom, 1));
+  padding: 12px;
   height: calc(84px * var(--dice-zoom, 1));
   border-radius: 12px;
   background: #42665e;

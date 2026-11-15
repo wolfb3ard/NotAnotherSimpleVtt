@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Sheet } from './types';
+import { dndNumbers, validateDndSheet } from './dnd';
 
 const field = z
   .object({
@@ -55,15 +56,20 @@ export const sheetSchema = z
     ]);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: 'custom', message: 'Sheet identifiers must be unique' });
+    const error = validateDndSheet(sheet);
+    if (error) ctx.addIssue({ code: 'custom', message: error });
   });
 
 export function numericFields(sheet: Sheet): Record<string, number> {
-  return Object.fromEntries(
-    sheet.sections
-      .flatMap((s) => s.fields)
-      .filter((f) => f.kind !== 'text' && typeof f.value === 'number')
-      .map((f) => [f.id, Number(f.value)]),
-  );
+  return {
+    ...Object.fromEntries(
+      sheet.sections
+        .flatMap((s) => s.fields)
+        .filter((f) => f.kind !== 'text' && typeof f.value === 'number')
+        .map((f) => [f.id, Number(f.value)]),
+    ),
+    ...dndNumbers(sheet),
+  };
 }
 
 export function emptySheet(): Sheet {

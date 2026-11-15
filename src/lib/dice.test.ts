@@ -22,6 +22,14 @@ describe('dice expressions', () => {
     expect(high.dice[0].kept.filter(Boolean)).toHaveLength(2);
     expect(rollDice('2d20kl1', allowed, {}, rolls(18, 3)).total).toBe(3);
   });
+  it('bounds damage with max without hiding dice or modifier snapshots', () => {
+    const id = '550e8400-e29b-41d4-a716-446655440000';
+    const result = rollDice(`max(0, 1d6 + @{${id}})`, allowed, { [id]: -5 }, rolls(1));
+    expect(result.total).toBe(0);
+    expect(result.dice[0].values).toEqual([1]);
+    expect(result.modifiers[id]).toBe(-5);
+    expect(rollDice('max(0, max(1, 2) + 3) * 2', allowed).total).toBe(10);
+  });
   it('snapshots sheet modifiers using stable identifiers', () => {
     const id = '550e8400-e29b-41d4-a716-446655440000';
     const fields = { [id]: -4 };
@@ -44,6 +52,11 @@ describe('dice expressions', () => {
     '2(3)',
     '((1)',
     '1e12*2',
+    'max(0)',
+    'max(0,1,2)',
+    'max(0,1/0)',
+    'max(0,101d6)',
+    'max(0,'.repeat(33) + '1' + ')'.repeat(33),
     '('.repeat(33) + '1' + ')'.repeat(33),
   ])('rejects unsafe or invalid expression %s', (expression) => {
     expect(() => rollDice(expression, allowed)).toThrow();
