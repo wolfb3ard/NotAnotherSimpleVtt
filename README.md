@@ -259,11 +259,11 @@ Invitation links are generated on the server using the public site domain, not t
 
 Release order:
 
-1. Verify all deployment credentials; install locked application dependencies and a pinned Vercel CLI; verify access to the configured Vercel team/project. Invalid Vercel access fails before database changes.
+1. Verify all deployment credentials; install locked application dependencies and a pinned Vercel CLI; verify access to the configured Vercel team/project with `vercel pull`, using `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Invalid Vercel access fails before database changes. Avoid `vercel link` here: its user lookup can fail for the CI credentials even when project access works.
 2. Link production Supabase, show pending migrations with `db push --dry-run`, then apply them with `db push`.
 3. Submit that same checked-out commit with `vercel deploy --prod --yes`. Vercel builds it remotely with the real production environment and publishes only after a successful build.
 
-Do not replace this with `vercel pull` → local `vercel build` → `--prebuilt`: Secret variables are downloaded as `[SENSITIVE]` placeholders. Next.js inlines `NEXT_PUBLIC_*` values at build time, so a placeholder Supabase URL breaks every request in middleware.
+The access check downloads configuration under `.vercel`, which is excluded from deployment uploads. Do not use that downloaded environment for a local `vercel build` → `--prebuilt`: Secret variables are downloaded as `[SENSITIVE]` placeholders. Next.js inlines `NEXT_PUBLIC_*` values at build time, so a placeholder Supabase URL breaks every request in middleware. The remote build uses the actual hosted environment instead.
 
 Missing configuration, migration failures, or build failures stop the release before application deployment. `vercel.json` disables Vercel's independent Git deployments for `main`, closing the parallel-deployment race. Other branches retain automatic previews; PR checks never enter the production workflow. No-pending-migration runs still build/deploy the application.
 

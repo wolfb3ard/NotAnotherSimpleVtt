@@ -80,7 +80,9 @@ jobs:
         run: npm install --global vercel@65.16.0
       - name: Verify Vercel project access
         if: steps.revision.outputs.current == 'true'
-        run: vercel link --yes --scope "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN"
+        # Uses the configured project IDs without link's failing user lookup.
+        # Pulled Secret placeholders must never be used for a local build.
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         if: steps.revision.outputs.current == 'true'
         with:
