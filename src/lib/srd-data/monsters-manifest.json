@@ -1,0 +1,17 @@
+{
+  "source": "SRD_CC_v5.2.1.pdf",
+  "version": "5.2.1",
+  "sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87",
+  "count": 336,
+  "statBlockHeadings": 336,
+  "independentTypeAndAcCount": 336,
+  "outsideMonstersChapter": [
+    "monster-animated-object",
+    "monster-otherworldly-steed",
+    "monster-giant-insect",
+    "monster-draconic-spirit",
+    "monster-giant-fly",
+    "monster-avatar-of-death"
+  ],
+  "verification": "Every printed 14.8pt stat-block heading and independent type/AC pair counted; raw text retained, controls derived separately. PDF line wrapping retained in source."
+}

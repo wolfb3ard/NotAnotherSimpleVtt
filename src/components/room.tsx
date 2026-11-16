@@ -19,12 +19,14 @@ import { RoomShortcuts } from './room-shortcuts';
 import { useDiceZoom } from './use-dice-zoom';
 import { TokenQuickActions } from './token-quick-actions';
 import { useTabletopEdits } from './use-tabletop-edits';
+import { monsterId } from '@/lib/monster-sheet';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
   loading: () => <div className="canvas-empty">Loading tabletop…</div>,
 });
 const DiceOverlay = dynamic(() => import('./dice-overlay'), { ssr: false });
+const MonsterLibrary = dynamic(() => import('./monster-library'));
 type Tab = 'party' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
 export function Room({ initial }: { initial: Snapshot }) {
@@ -92,6 +94,12 @@ export function Room({ initial }: { initial: Snapshot }) {
       !window.confirm('Discard unsaved character sheet changes and open another sheet?')
     )
       return false;
+    if (
+      gm &&
+      id !== selectedActor &&
+      monsterId(snapshot.actors.find((a) => a.id === id)?.sheet ?? emptySheet())
+    )
+      setVisibility('private');
     setSelectedActor(id);
     setInitialBuilderActor(startBuilder ? id : undefined);
     return true;
@@ -448,6 +456,12 @@ export function Room({ initial }: { initial: Snapshot }) {
                   <p className="muted small">
                     Click a character to open their sheet. Or focus a card and press Enter.
                   </p>
+                  {gm && (
+                    <details>
+                      <summary>SRD monsters · Add independent creatures</summary>
+                      <MonsterLibrary snapshot={snapshot} run={run} />
+                    </details>
+                  )}
                   {createActor && (
                     <form
                       className="card stack"
@@ -574,6 +588,13 @@ export function Room({ initial }: { initial: Snapshot }) {
                         <p className="small muted">
                           Uses the portrait and ring saved on the character sheet.
                         </p>
+                        {gm && (
+                          <p className="small">
+                            This places a linked token: all tokens of this actor share its sheet, HP
+                            and resources. Use SRD monsters or Duplicate as independent creature for
+                            separate enemies. Player character state stays shared across scenes.
+                          </p>
+                        )}
                         <button disabled={pending}>Place token</button>
                         <p className="small muted">
                           New tokens start near the map’s top-left. The GM may need to reveal that

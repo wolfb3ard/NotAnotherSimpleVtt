@@ -1,5 +1,6 @@
 import { dndId, isDndSheet } from './dnd';
 import type { Field, Sheet } from './types';
+import { monsterId, monsterHpId, monsterTemporaryHpId } from './monster-sheet';
 
 export type ResourceChange = { id: string; value: number; target?: 'feature' };
 export type PlayResource = Field & { target?: 'feature' };
@@ -100,9 +101,11 @@ export function healthChanges(
   if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1e12)
     throw new Error('Enter a whole amount between 0 and 1,000,000,000,000.');
   const fields = playResources(sheet);
-  const hp = fields.find((f) => f.id === dndId('hp'));
-  const temp = fields.find((f) => f.id === temporaryHpId);
-  if (!isDndSheet(sheet) || !hp) throw new Error('No D&D hit points available.');
+  const monster = !!monsterId(sheet);
+  const hp = fields.find((f) => f.id === (monster ? monsterHpId : dndId('hp')));
+  const tempId = monster ? monsterTemporaryHpId : temporaryHpId;
+  const temp = fields.find((f) => f.id === tempId);
+  if ((!isDndSheet(sheet) && !monster) || !hp) throw new Error('No D&D hit points available.');
   const absorbed =
     mode === 'damage' && useTemporary ? Math.min(Number(temp?.value ?? 0), amount) : 0;
   return [
@@ -113,6 +116,6 @@ export function healthChanges(
           ? Math.min(hp.max ?? 0, Number(hp.value) + amount)
           : Math.max(0, Number(hp.value) - (amount - absorbed)),
     },
-    ...(absorbed ? [{ id: temporaryHpId, value: Number(temp!.value) - absorbed }] : []),
+    ...(absorbed ? [{ id: tempId, value: Number(temp!.value) - absorbed }] : []),
   ];
 }

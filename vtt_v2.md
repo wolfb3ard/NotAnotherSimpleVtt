@@ -73,17 +73,28 @@ Local verification: 361 unit/database/component tests, lint, TypeScript, product
 
 ## Phase 2 — Encounter-ready play
 
-### Epic 04 — Independent monster instances
+### Epic 04 — SRD monster library and independent encounter creatures
 
-Status: Planned. Dependencies: E02.
+Status: Implemented; review handoff pending. Dependencies: E02 (merged).
 
-- [ ] E04-T01: Define reusable monster definitions versus independent encounter actors; keep PC state shared across scenes.
-- [ ] E04-T02: Add backward-compatible instance creation with independent HP/resources/conditions and linked appearance.
-- [ ] E04-T03: Provide Add N creatures, automatic unique labels, and Duplicate as independent creature.
-- [ ] E04-T04: Make shared versus independent state explicit; do not silently reinterpret existing linked tokens.
-- [ ] E04-T05: Test six goblins taking independent damage, template changes, deletion, retries, RLS, and reconnect.
+- [x] E04-T01: Define reusable monster definitions versus independent encounter actors; keep PC state shared across scenes.
+- [x] E04-T02: Add backward-compatible instance creation with independent HP/resources/conditions and linked appearance.
+- [x] E04-T03: Provide Add N creatures, automatic unique labels, and Duplicate as independent creature.
+- [x] E04-T04: Make shared versus independent state explicit; do not silently reinterpret existing linked tokens.
+- [x] E04-T05: Test six goblins taking independent damage, template changes, deletion, retries, RLS, and reconnect.
+- [x] E04-T06: Build a complete, versioned monster library from `SRD_CC_v5.2.1.pdf`; retain source/page references and required CC attribution. Verify every monster and stat-block variant against the document, not another SRD edition.
+- [x] E04-T07: Preserve each published stat block in full: names, descriptive fields, statistics, defenses, senses, languages, challenge/XP, traits, actions, bonus actions, reactions, legendary actions, spellcasting, and any other printed sections. Retain exact rules text, values, formulas, and special limitations; do not silently simplify unsupported mechanics.
+- [x] E04-T08: Let the GM search/filter the complete SRD monster library, inspect a stat block, and add one or multiple independent creatures directly to the current board. This basic library-to-board flow ships in Phase 2, not Phase 4.
+- [x] E04-T09: Open a monster's sheet from its token with the same applicable play/edit capabilities as a player sheet: change portrait/token image, edit statistics, adjust HP/resources, roll ability checks/saves, roll attacks and damage, and use traits/actions. Preserve a source-accurate base definition; clearly distinguish encounter edits and image overrides from library content and other instances.
+- [x] E04-T10: Make every monster's printed spells accessible from its sheet with rules text and immediate casting/attack/damage/save-DC controls as applicable. Support the monster's actual casting rules, including at-will, limited-use, and slot-based casting where printed; track uses/recharge independently and provide manual overrides. Do not require a PC class/level or defer basic monster casting to E14's advanced assistance.
+- [x] E04-T11: Keep monster sheets, unrevealed tokens, and private rolls GM-only by default; honor explicit sheet-access/control grants and existing roll audiences without revealing full stat blocks merely because a token is visible.
+- [x] E04-T12: Validate library completeness and exact stat-block fidelity against the PDF; test representative spellcasters, multiattack, recharge/limited-use abilities, unusual/legendary actions, image changes, attack/damage/casting controls, permissions, and independent resources across reload/reconnect. Keep unsupported automation explicitly manual while retaining the complete printed rules.
 
-Acceptance: adding a group never requires manually creating six sheets; damaging one goblin does not damage the others.
+Acceptance: the GM can select any monster/stat-block variant in `SRD_CC_v5.2.1.pdf`, add it directly to the board, and open a source-accurate, fully usable monster sheet. Applicable player-sheet controls work for monsters, including image changes, attack/damage rolls, and spellcasting. Adding a group never requires manually creating six sheets; damaging or spending a use on one creature does not affect the others. Exact stat-block content is required; full rules automation is not.
+
+Implementation policy: all 336 printed blocks (including six spell/item creatures) are imported with raw text, source pages and a PDF fingerprint; an independent type/AC inventory verifies the count. GM group creation adds 1–20 hidden, independently owned actor/token pairs with unique labels and durable idempotency receipts. Existing linked placements and cross-scene PCs are unchanged. Custom definitions propagate only appearance until an instance override; sheets/grants never propagate. Cast/action declarations are recorded explicitly; use expenditure, recovery, targeting and conditional rules remain manual. Printed spell DCs/attacks and simple explicitly printed higher-level damage scaling are supported. Summoner/size-dependent formulas remain intact and require configuration before play; unresolved HP starts at 0. See README for operating limits.
+
+Local verification: 407 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, PDF import/check and full formatting with `--end-of-line auto` passed. All 336 generated sheets pass application and Postgres validation. Migration: `20261116202045_encounter_creatures.sql`. No hosted migration applied. Authenticated multiplayer scenarios are extended but remain unrun; local Docker/Supabase and advisors are unavailable.
 
 ### Epic 05 — Initiative and encounter lifecycle
 
@@ -186,7 +197,7 @@ Status: Planned. Dependencies: E04, E05, E08.
 
 - [ ] E12-T01: Add scene thumbnails and separate Prepare from Show to players.
 - [ ] E12-T02: Allow GM editing/inspection of an inactive scene without changing players' active scene.
-- [ ] E12-T03: Add searchable/filterable NPC and monster browsing using available licensed/custom data.
+- [ ] E12-T03: Extend E04's SRD monster browsing with available licensed/custom NPC and monster data and scene-preparation workflows; do not defer the SRD library or basic board placement to this epic.
 - [ ] E12-T04: Save encounter groups; drag/drop independent creatures into a prepared scene.
 - [ ] E12-T05: Add explicit scene publication and party-transfer behavior with preserved PC resources.
 - [ ] E12-T06: Test prepared-scene secrecy, encounter reuse, concurrent GMs if supported, and safe scene transitions.

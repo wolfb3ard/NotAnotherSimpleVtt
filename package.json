@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "srd:import": "python scripts/import-srd.py",
     "srd:migration": "node scripts/generate-srd-migration.cjs",
+    "srd:monsters": "python scripts/import-srd-monsters.py",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
