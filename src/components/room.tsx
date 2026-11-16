@@ -20,6 +20,7 @@ import { useDiceZoom } from './use-dice-zoom';
 import { TokenQuickActions } from './token-quick-actions';
 import { useTabletopEdits } from './use-tabletop-edits';
 import { monsterId } from '@/lib/monster-sheet';
+import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -27,7 +28,7 @@ const Tabletop = dynamic(() => import('./tabletop'), {
 });
 const DiceOverlay = dynamic(() => import('./dice-overlay'), { ssr: false });
 const MonsterLibrary = dynamic(() => import('./monster-library'));
-type Tab = 'party' | 'dice' | 'scenes' | 'settings' | 'appearance';
+type Tab = 'party' | 'encounter' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
 export function Room({ initial }: { initial: Snapshot }) {
   const [diceZoom, setDiceZoom] = useDiceZoom();
@@ -345,6 +346,7 @@ export function Room({ initial }: { initial: Snapshot }) {
           openSheet(id);
         }}
       />
+      <EncounterTurnCue snapshot={snapshot} />
       <div className="room-body">
         <Tabletop
           key={scene?.id ?? 'empty'}
@@ -408,17 +410,24 @@ export function Room({ initial }: { initial: Snapshot }) {
         )}
         <aside className="sidebar">
           <nav className="tabs" aria-label="Room panels">
-            {(['party', 'dice', ...(gm ? ['scenes'] : []), 'appearance', 'settings'] as Tab[]).map(
-              (t) => (
-                <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-                  {t === 'settings'
-                    ? 'Room'
-                    : t === 'appearance'
-                      ? 'Style'
-                      : t[0].toUpperCase() + t.slice(1)}
-                </button>
-              ),
-            )}
+            {(
+              [
+                'party',
+                'encounter',
+                'dice',
+                ...(gm ? ['scenes'] : []),
+                'appearance',
+                'settings',
+              ] as Tab[]
+            ).map((t) => (
+              <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+                {t === 'settings'
+                  ? 'Room'
+                  : t === 'appearance'
+                    ? 'Style'
+                    : t[0].toUpperCase() + t.slice(1)}
+              </button>
+            ))}
           </nav>
           {error && (
             <div className="error-banner" role="alert">
@@ -429,6 +438,17 @@ export function Room({ initial }: { initial: Snapshot }) {
             </div>
           )}
           <div className="panel">
+            {tab === 'encounter' && (
+              <EncounterPanel
+                key={`${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`}
+                snapshot={snapshot}
+                run={run}
+                refresh={refresh}
+                onSheet={(id) => {
+                  openSheet(id);
+                }}
+              />
+            )}
             {tab === 'appearance' && (
               <DiceStyleEditor
                 initial={

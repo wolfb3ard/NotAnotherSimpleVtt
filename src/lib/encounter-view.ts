@@ -1,0 +1,33 @@
+import type { Encounter, Snapshot } from './types';
+
+/** Intersect separately fetched projections with the current authorized board. */
+export function boardEncounter(snapshot: Snapshot): Encounter | null {
+  const encounter = snapshot.encounter;
+  if (!encounter || encounter.scene_id !== snapshot.game.active_scene_id) return null;
+  const tokens = new Map(
+    snapshot.tokens.filter((t) => t.scene_id === encounter.scene_id).map((t) => [t.id, t]),
+  );
+  const participants = encounter.participants
+    .filter((p) => tokens.has(p.token_id))
+    .map((p) => ({ ...p, label: tokens.get(p.token_id)!.label }));
+  return {
+    ...encounter,
+    participants,
+    active_token_id: participants.some((p) => p.token_id === encounter.active_token_id)
+      ? encounter.active_token_id
+      : null,
+  };
+}
+export function encounterTurn(snapshot: Snapshot) {
+  const encounter = boardEncounter(snapshot);
+  const token =
+    encounter?.status === 'active'
+      ? snapshot.tokens.find((t) => t.id === encounter.active_token_id)
+      : undefined;
+  const yours =
+    !!token &&
+    snapshot.role === 'player' &&
+    (token.controller_id === snapshot.userId ||
+      snapshot.actors.some((a) => a.id === token.actor_id && a.owner_id === snapshot.userId));
+  return { encounter, token, yours };
+}

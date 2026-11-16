@@ -10,11 +10,15 @@ vi.mock('react-konva', () => {
     children?: React.ReactNode;
     onContextMenu?: (e: unknown) => void;
     onClick?: (e: unknown) => void;
+    text?: string;
+    stroke?: string;
   }) =>
     createElement(
       'div',
       {
         'data-token': props.onContextMenu ? 'true' : undefined,
+        'data-text': props.text,
+        'data-stroke': props.stroke,
         onContextMenu: (e: React.MouseEvent) =>
           props.onContextMenu?.({ evt: e.nativeEvent, cancelBubble: false }),
         onClick: (e: React.MouseEvent) => props.onClick?.({ evt: e.nativeEvent }),
@@ -84,6 +88,18 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
     rolls: [],
     rollCues: [],
     diceStyles: [],
+    encounter: {
+      id: 'encounter',
+      scene_id: 'scene',
+      status: 'active',
+      round: 1,
+      revision: 1,
+      active_token_id: 'secret',
+      participants: [
+        { token_id: 'token', label: 'Hero', initiative: 10 },
+        { token_id: 'secret', label: 'Secret enemy', initiative: 15 },
+      ],
+    },
   };
   const open = vi.fn(),
     sheet = vi.fn();
@@ -126,11 +142,17 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
       .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 2 })),
   );
   expect(sheet).not.toHaveBeenCalled();
+  expect(
+    container.querySelector('[data-text="Secret enemy · hidden · current turn"]'),
+  ).not.toBeNull();
+  expect(container.querySelectorAll('[data-stroke="#fff4bf"]')).toHaveLength(1);
   await act(async () =>
     [...container.querySelectorAll('button')].find((b) => b.textContent === 'Player view')!.click(),
   );
   const chooser = container.querySelector<HTMLSelectElement>('[aria-label="Token quick actions"]')!;
   expect([...chooser.options].map((o) => o.textContent)).not.toContain('Secret enemy');
+  expect(container.querySelector('[data-text="Secret enemy · hidden · current turn"]')).toBeNull();
+  expect(container.querySelectorAll('[data-stroke="#fff4bf"]')).toHaveLength(0);
   await act(async () => {
     chooser.value = 'token';
     chooser.dispatchEvent(new Event('change', { bubbles: true }));

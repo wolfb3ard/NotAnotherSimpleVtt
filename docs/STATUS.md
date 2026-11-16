@@ -2,7 +2,9 @@
 
 ## Built
 
-- VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) ready for review, not merged. Epic 05 waits for Epic 04 review/merge.
+- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. Review handoff pending; Epic 06 waits for review/merge.
+
+- VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) merged on 2026-11-16.
 
 - Token quick-actions follow-up: removed the character sheet's Play resources panel; token right-click opens a condensed resource/health card with a keyboard chooser, movable/clamped window, permission filtering, immediate-save/retry feedback and cross-window draft guards. Existing sheet Use/Recover buttons remain immediate. [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) ready for review; not merged.
 
@@ -22,6 +24,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- VTT v2 Epic 05: 446 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests and full formatting with `--end-of-line auto` passed. Tests cover hidden/fogged projections, denied raw table/forged roll access, GM-only advancement, concurrent/stale turns, source/dice-setting races with batch rollback, idempotent rolls, manual/tie ordering, removal/deletion reconciliation, paused/ended states, per-scene persistence, same-tab retries and late-response isolation. The authenticated multiplayer scenario is extended but not run; local Docker/Supabase and advisors are unavailable. No hosted migration applied.
 
 - VTT v2 Epic 04: 407 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, PDF import/check and full formatting with `--end-of-line auto` passed. PDF inventory counts all 336 headings and type/AC pairs, including six spell/item creatures, and retains raw text. All generated sheets pass application and Postgres validation. Tests cover six goblins, independent damage/uses, permissions, stale revisions, creation/resource retries, same-tab reload, GM-role loss, appearance inheritance/override, source/game deletion and casting controls. Multiplayer browser coverage is extended but not run; Docker/Supabase advisors are unavailable locally. No hosted migration applied.
 

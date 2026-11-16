@@ -102,6 +102,15 @@ export type DiceStyle = {
 };
 export type RollCue = { roll_id: string; private: boolean; created_at: string };
 export type DiceStyleRecord = { user_id: string; style: DiceStyle };
+export type Encounter = {
+  id: string;
+  scene_id: string;
+  status: 'active' | 'paused' | 'ended';
+  round: number;
+  revision: number; // Zero in player projections; only GMs can mutate.
+  active_token_id: string | null;
+  participants: { token_id: string; label: string; initiative: number }[];
+};
 export type Snapshot = {
   game: Game;
   role: Role;
@@ -115,4 +124,5 @@ export type Snapshot = {
   rolls: Roll[];
   rollCues: RollCue[];
   diceStyles: DiceStyleRecord[];
+  encounter?: Encounter | null;
 };

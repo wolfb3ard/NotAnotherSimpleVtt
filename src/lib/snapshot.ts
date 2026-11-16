@@ -10,24 +10,28 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
   if (!user) throw new Error('Login required');
   const { data: game, error } = await db.from('games').select('*').eq('id', gameId).single();
   if (error || !game) throw new Error('Game access denied');
-  const queries = await Promise.all([
-    db.from('memberships').select('user_id,role,display_name').eq('game_id', gameId),
-    db.from('actors').select('*').eq('game_id', gameId).order('name'),
-    db.from('scenes').select('*').eq('game_id', gameId).order('name'),
-    db
-      .from('tokens')
-      .select('*')
-      .eq('game_id', gameId)
-      .eq('scene_id', game.active_scene_id ?? '00000000-0000-0000-0000-000000000000'),
-    db.from('templates').select('*').eq('game_id', gameId).order('name'),
-    db
-      .from('roll_cues')
-      .select('roll_id,private,created_at')
-      .eq('game_id', gameId)
-      .order('created_at', { ascending: false })
-      .limit(50),
+  const [queries, encounterQuery] = await Promise.all([
+    Promise.all([
+      db.from('memberships').select('user_id,role,display_name').eq('game_id', gameId),
+      db.from('actors').select('*').eq('game_id', gameId).order('name'),
+      db.from('scenes').select('*').eq('game_id', gameId).order('name'),
+      db
+        .from('tokens')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('scene_id', game.active_scene_id ?? '00000000-0000-0000-0000-000000000000'),
+      db.from('templates').select('*').eq('game_id', gameId).order('name'),
+      db
+        .from('roll_cues')
+        .select('roll_id,private,created_at')
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]),
+    db.rpc('encounter_snapshot', { p_game: gameId, p_scene: game.active_scene_id }),
   ]);
-  for (const q of queries) if (q.error) throw new Error('Unable to load room data.');
+  for (const q of [...queries, encounterQuery])
+    if (q.error) throw new Error('Unable to load room data.');
   const [members, actors, scenes, tokens, templates, rollCues] = queries.map((q) => q.data ?? []);
   // Read the results after the cues: a newly committed cue must not outrun
   // its authorized roll because these requests use separate DB transactions.
@@ -67,5 +71,6 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
     diceStyles: styles.data ?? [],
     rollCues,
     grants: grants.data ?? [],
+    encounter: encounterQuery.data ?? null,
   } as Snapshot;
 }

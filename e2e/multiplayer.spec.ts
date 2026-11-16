@@ -18,7 +18,7 @@ test.skip(
 test('GM and eight players share a persistent scene, sheets, fog, and permission-filtered rolls', async ({
   browser,
 }) => {
-  test.setTimeout(240000);
+  test.setTimeout(300000);
   const admin = createClient(url!, service!, { auth: { persistSession: false } });
   const users: string[] = [];
   const contexts: BrowserContext[] = [];
@@ -441,6 +441,56 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     expect(
       privatePlayerState.rolls.some((r: { actor_id: string }) => r.actor_id === first.id),
     ).toBe(false);
+    // Scene-scoped initiative: private automatic rolls, omitted enemies and
+    // authoritative turns survive refresh without granting players advancement.
+    const builtHero = builderSnapshot.actors.find(
+      (a: { name: string }) => a.name === 'Builder hero',
+    );
+    const placement = await player.client.rpc('place_actor_token', {
+      p_game: gameId,
+      p_actor: builtHero.id,
+      p_scene: monsters.game.active_scene_id,
+    });
+    if (placement.error) throw placement.error;
+    await gm.page.reload();
+    await gm.page.getByRole('button', { name: 'Encounter', exact: true }).click();
+    const tracker = gm.page.getByRole('region', { name: 'Encounter tracker' });
+    for (const name of ['Builder hero', 'Incubus 1', 'Incubus 2'])
+      await tracker
+        .getByRole('checkbox', { name: `Include ${name} in encounter`, exact: true })
+        .check();
+    await tracker.getByLabel('Manual initiative for Builder hero', { exact: true }).fill('-100000');
+    await tracker.getByLabel('Manual initiative for Incubus 1', { exact: true }).fill('99999');
+    await tracker.getByRole('button', { name: 'Start encounter', exact: true }).click();
+    await expect(tracker.getByRole('button', { name: 'Next turn', exact: true })).toBeEnabled();
+    const started = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+    expect(started.encounter.participants.map((p: { label: string }) => p.label)).toEqual([
+      'Builder hero',
+    ]);
+    expect(started.encounter.active_token_id).toBeNull();
+    expect(JSON.stringify(started.encounter)).not.toContain(first.id);
+    expect(JSON.stringify(started.encounter)).not.toContain(second.id);
+    expect(
+      started.rolls.some((r: { roll_type: string }) => r.roll_type === 'Encounter initiative'),
+    ).toBe(false);
+    await tracker.getByRole('button', { name: 'Next turn', exact: true }).click();
+    await tracker.getByRole('button', { name: 'Next turn', exact: true }).click();
+    await expect(player.page.locator('.encounter-turn')).toContainText('Your turn');
+    await player.page.reload();
+    await expect(player.page.locator('.encounter-turn')).toContainText('Your turn');
+    await player.page.getByRole('button', { name: 'Encounter', exact: true }).click();
+    const playerTracker = player.page.getByRole('region', { name: 'Encounter tracker' });
+    await expect(playerTracker).not.toContainText('Incubus');
+    await expect(playerTracker.getByRole('button', { name: 'Next turn', exact: true })).toHaveCount(
+      0,
+    );
+    await tracker.getByRole('button', { name: 'Pause encounter', exact: true }).click();
+    await expect(player.page.locator('.encounter-turn')).toContainText('Encounter paused');
+    await tracker.getByRole('button', { name: 'Resume encounter', exact: true }).click();
+    await expect(player.page.locator('.encounter-turn')).toContainText('Your turn');
+    gm.page.once('dialog', (dialog) => dialog.accept());
+    await tracker.getByRole('button', { name: 'End encounter', exact: true }).click();
+    await expect(player.page.locator('.encounter-turn')).toContainText('Encounter ended');
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {

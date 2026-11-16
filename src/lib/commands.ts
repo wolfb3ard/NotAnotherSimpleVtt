@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sheetSchema } from './sheets';
 import { tokenRings } from './token-appearance';
+import { encounterCommandSchema } from './encounter-commands';
 
 const id = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -17,6 +18,7 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  encounter: encounterCommandSchema,
   invite: z.object({}),
   revoke_invites: z.object({}),
   dice: z.object({ dice: z.array(z.number().int().min(2).max(1000000)).min(1).max(30) }),
