@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { Actor, Sheet, Snapshot, Token } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import { QuickResources } from './quick-resources';
+import { CreatureAdder } from './creature-adder';
 
 export function TokenQuickActions({
   token,
@@ -153,6 +154,26 @@ export function TokenQuickActions({
         {actor ? (
           <>
             <button onClick={onSheet}>Open character sheet</button>
+            {snapshot.role === 'gm' && actor.kind !== 'character' && (
+              <details>
+                <summary>Duplicate as independent creature</summary>
+                <p className="small">
+                  {actor.encounter_instance
+                    ? 'Independent encounter creature.'
+                    : 'Definition / legacy linked actor.'}{' '}
+                  Copies current sheet state, not sheet grants. Existing tokens remain unchanged.
+                </p>
+                <CreatureAdder
+                  key={`${token.scene_id}:${actor.id}`}
+                  gameId={snapshot.game.id}
+                  sceneId={token.scene_id}
+                  source={{ kind: 'actor', actor_id: actor.id, revision: actor.revision }}
+                  disabled={blocked || busy}
+                  run={run}
+                  label="Duplicate as independent creature"
+                />
+              </details>
+            )}
             {!editable && (
               <p className="small">Read only. Token control does not grant sheet editing.</p>
             )}

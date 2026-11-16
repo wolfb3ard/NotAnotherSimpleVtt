@@ -6,6 +6,7 @@
 
 - Google sign-in through Supabase, multiple games, game-scoped GM/player roles, and expiring/revocable invitations.
 - Custom character/NPC/enemy sheets, sections, text/numeric/resource fields, abilities, sheet permissions, and reusable templates.
+- Complete SRD 5.2.1 monster library, source-faithful stat blocks, and independent encounter creatures with usable attacks, spells and resources.
 - Multiple saved scenes, uploaded maps/tokens, pan/zoom, assigned token control, reversible committed moves/fog edits, scene calibration, and a straight-line ruler.
 - Manual reveal/conceal fog, GM-hidden tokens, and player-view previews. Concealed background pixels are removed server-side.
 - Server-generated dice rolls: custom die sizes, mixed dice, arithmetic, parentheses, keep-highest/lowest, modifiers, and saved rolls using sheet fields.
@@ -41,6 +42,19 @@ The rules have been adapted into an interactive sheet and calculations. Source: 
 - Builder decisions are optional versioned sheet data, validated by both application and database. Apply `supabase/migrations/202611150004_srd_builder.sql` after earlier migrations. Old manual sheets and templates remain valid. New source data/migrations are checked in; normal application startup does not fetch an external rules API.
 
 To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMuPDF`), provide the source PDF, then run `npm run srd:import`. The source fingerprint and attribution are in `src/lib/srd-data/manifest.json`. After changing builder rules, run `npm run srd:migration` and the application/database tests. Generation never applies hosted changes; review generated migrations before merge, when the production workflow applies them.
+
+### GM monsters and independent creatures
+
+- **Party → SRD monsters · Add independent creatures** opens all **336 printed stat blocks**, including six creatures in spell/item sections. Search by name/type, filter CR, inspect the full source, then add **1–20 creatures** to the active board. No external rules API or alternate SRD edition is used.
+- Each creature gets its own GM-owned sheet, HP, temporary HP, conditions/notes and use counters. Tokens start **hidden** near the board center; reveal them explicitly. Sheet grants are separate from token visibility/control. Opening an SRD monster sheet as GM defaults the shared roll audience to **Only me**; you can explicitly select Everyone.
+- Use the token's **Open character sheet** to roll printed attacks, individual damage components, checks/saves, recharge or spells. **Declare** records a manual action/cast in roll history with a zero total (no invented dice). Spell entries show full rules, monster-specific casting restrictions, printed save DCs and applicable spell attacks/dice. Casting and resource expenditure are separate explicit actions, like existing player spell sheets; Spend/Recover use controls save immediately.
+- **Portrait & token appearance** changes images/rings through the existing image uploader. **Customize monster sheet** edits statistics, expressions, notes and resource maxima; **Save sheet** commits the draft. The complete, unmodified published stat block remains available separately from encounter edits.
+- An existing NPC/enemy sheet can be a reusable definition. Choose **Existing NPC / enemy sheet**, or right-click its token → **Duplicate as independent creature**. Copies use the source's **current** sheet state, including spent resources; grants are not copied. Definition sheet edits never change existing instances. Appearance follows the definition until explicitly overridden on an instance; deleting a definition preserves independent creatures.
+- Legacy **Add character token to scene / Place token** still places a **linked token**, not a new creature. Tokens of the same actor continue sharing a sheet; PCs stay shared across scenes. No existing tokens are silently converted.
+- Creation is atomic and GM-only. Lost responses retain the operation ID for safe retry, including same-tab reload when session storage is available. **Dismiss unconfirmed creation** does not undo creation; check the board before adding another group.
+- Multiattack sequencing, targeting, save outcomes, conditions, resistance, concentration, legendary/lair variants, rest recovery and complex spell scaling remain manual. Simple explicitly printed higher-level spell damage scaling is supported; no caster class/level is inferred. Summoner/size-dependent creatures retain their complete formulas; configure their unresolved HP/AC/expressions before play (unresolved HP starts at 0). Generic resource fields can represent custom spell-slot pools; SRD monster casting uses its printed at-will/per-day rules, not PC slot progression.
+- Reproduce/verify with `npm run srd:monsters` / `npm run srd:monsters -- --check`. `src/lib/srd-data/monsters-manifest.json` records the source hash, count and independent type/AC inventory. Raw source text is retained with PDF pages; VTT controls/formatting are adaptations under the attribution above.
+- Apply `supabase/migrations/20261116202045_encounter_creatures.sql` after earlier migrations before deployment. No hosted migration is applied by the importer or application startup.
 
 ## Character sheet windows & access
 
@@ -78,7 +92,7 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 
 - Open any sheet → **Token appearance**. Owners and GMs can upload a PNG/JPEG/WebP portrait (up to 4 MB), choose one of six ring presets, and **Save appearance**. Portraits are center-cropped, not stretched. This save is separate from sheet-stat edits.
 - **Add token to scene** places the saved appearance in the active scene. Players can place their own actors; GMs can place any actor, including multiple instances of a monster. Player placement retries do not create duplicates.
-- Appearance changes update existing placements in every scene. Tokens link to the same live sheet: HP, resources, and other stats are not copied or reset on placement or scene changes. Multiple instances of the same monster sheet share stats; create separate sheets for independent monsters.
+- Appearance changes update existing placements in every scene. Linked tokens share the same live sheet: HP, resources, and other stats are not copied or reset on ordinary placement or scene changes. Use **SRD monsters** or **Duplicate as independent creature** for separate monsters rather than placing another linked token.
 - Placement starts near the map’s top-left. Existing fog/hidden-token rules still apply; a GM may need to reveal that area. Party placement remains a shortcut, but appearance is managed on the sheet.
 
 ### Undo tabletop edits

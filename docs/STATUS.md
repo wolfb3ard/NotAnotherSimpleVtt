@@ -2,6 +2,8 @@
 
 ## Built
 
+- VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. Epic 05 waits for Epic 04 review/merge.
+
 - Token quick-actions follow-up: removed the character sheet's Play resources panel; token right-click opens a condensed resource/health card with a keyboard chooser, movable/clamped window, permission filtering, immediate-save/retry feedback and cross-window draft guards. Existing sheet Use/Recover buttons remain immediate. [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) ready for review; not merged.
 
 - VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
@@ -20,6 +22,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- VTT v2 Epic 04: 407 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, PDF import/check and full formatting with `--end-of-line auto` passed. PDF inventory counts all 336 headings and type/AC pairs, including six spell/item creatures, and retains raw text. All generated sheets pass application and Postgres validation. Tests cover six goblins, independent damage/uses, permissions, stale revisions, creation/resource retries, same-tab reload, GM-role loss, appearance inheritance/override, source/game deletion and casting controls. Multiplayer browser coverage is extended but not run; Docker/Supabase advisors are unavailable locally. No hosted migration applied.
 
 - Token quick-actions follow-up: 372 unit/database/component tests, lint, TypeScript, production build, full formatting with `--end-of-line auto`, and six Edge auth/smoke tests passed after reconciling merged Epic 03. Coverage includes right-click versus left-click, keyboard access, condensed layout, GM/owner/edit-grant permissions, controller/view-only denial, revoked access, immediate saves/retries, dirty-sheet guards, pending close/switch warnings, and scene/token removal. Updated multiplayer resource/reload checks were not run. No schema changes.
 

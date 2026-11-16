@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { Room } from './room';
 import { createDndSheet, dndId } from '@/lib/dnd';
 import type { Snapshot } from '@/lib/types';
+import { monsterSourceId } from '@/lib/monster-sheet';
 
 const { roll, mutate } = vi.hoisted(() => ({ roll: vi.fn(), mutate: vi.fn() }));
 vi.mock('@/app/actions', () => ({ roll, mutate, uploadAsset: vi.fn() }));
@@ -27,6 +28,72 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.resetAllMocks();
+});
+
+it('defaults GM monster sheet rolls to private while keeping an explicit public override', async () => {
+  const snapshot: Snapshot = {
+    userId: 'gm',
+    role: 'gm',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [20] },
+    actors: [
+      {
+        id: 'monster',
+        game_id: 'game',
+        owner_id: 'gm',
+        name: 'Aboleth 1',
+        kind: 'enemy',
+        revision: 0,
+        sheet: {
+          version: 1,
+          sections: [
+            {
+              id: 'source',
+              title: 'Source',
+              abilities: [],
+              fields: [
+                {
+                  id: monsterSourceId,
+                  label: 'SRD monster ID',
+                  kind: 'text',
+                  value: 'monster-aboleth',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    grants: [],
+    tokens: [],
+    members: [],
+    scenes: [],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+  );
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Room, { initial: snapshot })));
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Open Aboleth 1 character sheet"]')!
+      .click(),
+  );
+  const visibility = container.querySelector<HTMLSelectElement>(
+    '[aria-label="Quick roll visibility"]',
+  )!;
+  expect(visibility.value).toBe('private');
+  await act(async () => {
+    visibility.value = 'public';
+    visibility.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(visibility.value).toBe('public');
 });
 
 it('routes both full-scene fog controls through the shared reversible operation queue', async () => {

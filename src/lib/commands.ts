@@ -67,6 +67,17 @@ export const commandSchemas = {
     unit: z.string().trim().min(1).max(20).optional(),
   }),
   token_create: z.object({ actor_id: id, scene_id: id }),
+  creature_add: z
+    .object({
+      scene_id: id,
+      operation_id: id,
+      count: z.number().int().min(1).max(20),
+      source: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('srd'), monster_id: z.string().min(1).max(120) }).strict(),
+        z.object({ kind: z.literal('actor'), actor_id: id, revision }).strict(),
+      ]),
+    })
+    .strict(),
   tabletop_history: z.object({ scene_id: id }),
   tabletop_undo: z.object({ scene_id: id, operation_id: id }),
   tabletop_move: z.object({

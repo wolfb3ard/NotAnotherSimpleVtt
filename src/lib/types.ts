@@ -24,6 +24,9 @@ export type Actor = {
   token_asset_id?: string | null;
   token_ring?: import('./token-appearance').TokenRing;
   appearance_revision?: number;
+  encounter_instance?: boolean;
+  definition_actor_id?: string | null;
+  appearance_source_id?: string | null;
 };
 export type Game = {
   id: string;

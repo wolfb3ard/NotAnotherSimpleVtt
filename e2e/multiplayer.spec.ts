@@ -18,7 +18,7 @@ test.skip(
 test('GM and eight players share a persistent scene, sheets, fog, and permission-filtered rolls', async ({
   browser,
 }) => {
-  test.setTimeout(180000);
+  test.setTimeout(240000);
   const admin = createClient(url!, service!, { auth: { persistSession: false } });
   const users: string[] = [];
   const contexts: BrowserContext[] = [];
@@ -385,6 +385,62 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       builderSnapshot.actors.find((a: { name: string }) => a.name === 'Builder hero').sheet
         .character.builder.levels,
     ).toHaveLength(2);
+    // Phase 2: library-to-board, private monster sheets and independent uses.
+    await gm.page.getByRole('button', { name: 'Party', exact: true }).click();
+    await gm.page.getByText('SRD monsters · Add independent creatures', { exact: true }).click();
+    const library = gm.page.getByRole('region', { name: 'GM monster library' });
+    await library.getByLabel('Search monsters', { exact: true }).fill('Incubus');
+    await library.getByLabel('Monster', { exact: true }).selectOption('monster-incubus');
+    await library.getByLabel('Number of creatures', { exact: true }).fill('2');
+    await library.getByRole('button', { name: 'Add creatures', exact: true }).click();
+    await expect(library.getByRole('status')).toContainText(
+      '2 independent creature(s) added hidden',
+    );
+    await gm.page.reload();
+    await gm.page
+      .getByRole('button', { name: 'Open Incubus 1 character sheet', exact: true })
+      .click();
+    const monsterSheet = gm.page.getByRole('dialog', { name: 'Incubus 1', exact: true });
+    await expect(monsterSheet.getByRole('heading', { name: 'Dream', exact: true })).toBeVisible();
+    await monsterSheet.getByRole('button', { name: 'Spend Dream use', exact: true }).click();
+    await expect(gm.page.getByRole('status').filter({ hasText: 'Resources:' })).toHaveCount(0);
+    await monsterSheet
+      .getByRole('button', { name: 'Roll Restless Touch · Attack', exact: true })
+      .click();
+    await expect
+      .poll(async () => {
+        const current = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+        return current.rolls[0]?.visibility;
+      })
+      .toBe('private');
+    const monsters = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+    const first = monsters.actors.find((a: { name: string }) => a.name === 'Incubus 1');
+    const second = monsters.actors.find((a: { name: string }) => a.name === 'Incubus 2');
+    const uses = (actor: {
+      sheet: { sections: { fields: { label: string; value: number }[] }[] };
+    }) =>
+      actor.sheet.sections.flatMap((s) => s.fields).find((f) => f.label === 'Dream uses')?.value;
+    expect(uses(first)).toBe(0);
+    expect(uses(second)).toBe(1);
+    expect(
+      monsters.tokens
+        .filter((t: { actor_id: string; hidden: boolean }) =>
+          [first.id, second.id].includes(t.actor_id),
+        )
+        .every((t: { hidden: boolean }) => t.hidden),
+    ).toBe(true);
+    const privatePlayerState = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+    expect(
+      privatePlayerState.actors.some((a: { id: string }) => [first.id, second.id].includes(a.id)),
+    ).toBe(false);
+    expect(
+      privatePlayerState.tokens.some((t: { actor_id: string }) =>
+        [first.id, second.id].includes(t.actor_id),
+      ),
+    ).toBe(false);
+    expect(
+      privatePlayerState.rolls.some((r: { actor_id: string }) => r.actor_id === first.id),
+    ).toBe(false);
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {

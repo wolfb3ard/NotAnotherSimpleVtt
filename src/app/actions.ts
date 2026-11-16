@@ -12,6 +12,7 @@ import { numericFields, sheetSchema } from '@/lib/sheets';
 import { diceStyleSchema } from '@/lib/dice-style';
 import { invitationUrl } from '@/lib/invitations';
 import { authCallbackPath, authNextCookie, safeAuthNext } from '@/lib/auth-redirect';
+import { createMonsterSheet, monsterById } from '@/lib/srd-monsters';
 
 const uuid = z.string().uuid();
 const title = z.string().trim().min(1).max(100);
@@ -121,6 +122,24 @@ export async function mutate(
     const deletion =
       command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
+    if (command === 'creature_add') {
+      const request = commandSchemas.creature_add.parse(validated);
+      const source = request.source;
+      const monster = source.kind === 'srd' ? monsterById.get(source.monster_id) : undefined;
+      if (source.kind === 'srd' && !monster) throw new Error('Unknown SRD 5.2.1 monster.');
+      const { data, error } = await db.rpc('create_encounter_creatures', {
+        p_game: gameId,
+        p_scene: request.scene_id,
+        p_operation: request.operation_id,
+        p_count: request.count,
+        p_source: source.kind === 'actor' ? source.actor_id : null,
+        p_revision: source.kind === 'actor' ? source.revision : null,
+        p_name: monster?.name ?? null,
+        p_sheet: monster ? sheetSchema.parse(createMonsterSheet(monster.id)) : null,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     const appearance =
       command === 'actor_appearance' ? commandSchemas.actor_appearance.parse(validated) : null;
     const placement =

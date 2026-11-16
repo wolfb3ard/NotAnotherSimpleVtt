@@ -6,6 +6,7 @@ import type { Command } from '@/lib/commands';
 import { dndId, isDndSheet } from '@/lib/dnd';
 import { healthChanges, playResources, previewResources, temporaryHpId } from '@/lib/resources';
 import { ResourceWriter, type ResourceState } from '@/lib/resource-writer';
+import { monsterId, monsterHpId, monsterTemporaryHpId } from '@/lib/monster-sheet';
 
 export function QuickResources({
   actor,
@@ -126,8 +127,12 @@ export function QuickResources({
         {feedback}
       </div>
     );
-  const primary = isDndSheet(state.sheet)
-    ? resources.filter((r) => r.id === dndId('hp') || r.id === temporaryHpId)
+  const monster = !!monsterId(state.sheet);
+  const health = isDndSheet(state.sheet) || monster;
+  const hpId = monster ? monsterHpId : dndId('hp');
+  const tempId = monster ? monsterTemporaryHpId : temporaryHpId;
+  const primary = health
+    ? resources.filter((r) => r.id === hpId || r.id === tempId)
     : resources.slice(0, 3);
   const secondary = resources.filter((r) => !primary.includes(r));
   const counters = (items: typeof resources) => (
@@ -171,7 +176,7 @@ export function QuickResources({
         </p>
       )}
       {counters(primary)}
-      {isDndSheet(state.sheet) && (
+      {health && (
         <details open className="quick-health">
           <summary>Damage / Heal</summary>
           <div className="stack">
@@ -212,8 +217,8 @@ export function QuickResources({
             )}
             {preview ? (
               <p role="status">
-                HP {hp(state.sheet, dndId('hp'))} → {hp(preview, dndId('hp'))}; temporary HP{' '}
-                {hp(state.sheet, temporaryHpId)} → {hp(preview, temporaryHpId)}.
+                HP {hp(state.sheet, hpId)} → {hp(preview, hpId)}; temporary HP{' '}
+                {hp(state.sheet, tempId)} → {hp(preview, tempId)}.
               </p>
             ) : (
               <p>Enter a nonnegative whole amount to preview.</p>

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { DndSheet } from './dnd-sheet';
 import { SrdBuilder } from './srd-builder';
 import { TokenAppearanceEditor } from './token-appearance-editor';
@@ -17,6 +18,9 @@ import {
 import { numericFields } from '@/lib/sheets';
 import { QuickResources } from './quick-resources';
 import type { ResourceWriter } from '@/lib/resource-writer';
+import { monsterId } from '@/lib/monster-sheet';
+
+const MonsterSheet = dynamic(() => import('./monster-sheet'));
 
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
 export function SheetEditor({
@@ -57,6 +61,7 @@ export function SheetEditor({
     setSavedRevision(actor.revision);
   }
   const dnd = isDndSheet(sheet);
+  const monster = !!monsterId(sheet);
   const computed = dndNumbers(sheet);
   const builtInRolls = new Set(
     dnd ? createDndSheet().sections.flatMap((s) => s.abilities.map((a) => a.id)) : [],
@@ -144,6 +149,13 @@ export function SheetEditor({
                 snapshot={snapshot}
                 run={run}
               />
+              {actor.encounter_instance && (
+                <p className="small">
+                  {actor.appearance_source_id
+                    ? 'Appearance follows the source definition. Saving appearance here creates an instance override.'
+                    : 'This creature has its own appearance; changing it does not change other creatures.'}
+                </p>
+              )}
             </details>
             {(snapshot.role === 'gm' || actor.owner_id === snapshot.userId) && (
               <button
@@ -206,6 +218,11 @@ export function SheetEditor({
                 </details>
               </>
             )}
+            {monster && (
+              <button onClick={() => setCustomize(!customize)} aria-pressed={customize}>
+                {customize ? 'Monster play view' : 'Customize monster sheet'}
+              </button>
+            )}
             {editable && (
               <button
                 disabled={dirty}
@@ -215,6 +232,12 @@ export function SheetEditor({
               >
                 Save as reusable template
               </button>
+            )}
+            {monster && editable && (
+              <p className="small">
+                Saving a reusable template shares its complete sheet with all campaign members.
+                Encounter creatures stay private unless you explicitly grant access.
+              </p>
             )}
           </div>
         </details>
@@ -232,7 +255,19 @@ export function SheetEditor({
             />
           </label>
         )}
-        {dnd && !customize ? (
+        {monster && !customize ? (
+          <MonsterSheet
+            sheet={sheet}
+            editable={editable}
+            rollable={rollable}
+            blocked={dirty || conflict || saving || resourceBusy || externalBusy}
+            quickEditable={
+              editable && !dirty && !conflict && !saving && !resourceBusy && !externalBusy
+            }
+            quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
+            onRoll={(expression, label) => onRoll(actor.id, expression, label)}
+          />
+        ) : dnd && !customize ? (
           <DndSheet
             portrait={
               <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />

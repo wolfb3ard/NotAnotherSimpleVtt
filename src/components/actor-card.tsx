@@ -30,6 +30,8 @@ export function ActorCard({
         <strong>{actor.name}</strong>
         <small>
           {actor.kind} · {ownerName ?? 'Unknown owner'}
+          {actor.kind !== 'character' &&
+            (actor.encounter_instance ? ' · independent creature' : ' · definition / linked actor')}
         </small>
       </span>
       <span className="arrow" aria-hidden="true">
