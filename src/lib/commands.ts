@@ -26,6 +26,7 @@ export const commandSchemas = {
     sheet: sheetSchema,
   }),
   actor_save: z.object({ id, name, sheet: sheetSchema, revision }),
+  actor_delete: z.object({ id, revision }),
   actor_owner: z.object({ actor_id: id, owner_id: id, revision }),
   grant: z.object({ actor_id: id, user_id: id, access: z.enum(['none', 'view', 'edit']) }),
   template_create: z.object({ actor_id: id, name }),

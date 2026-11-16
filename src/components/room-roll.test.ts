@@ -6,8 +6,8 @@ import { Room } from './room';
 import { createDndSheet, dndId } from '@/lib/dnd';
 import type { Snapshot } from '@/lib/types';
 
-const { roll } = vi.hoisted(() => ({ roll: vi.fn() }));
-vi.mock('@/app/actions', () => ({ roll, mutate: vi.fn(), uploadAsset: vi.fn() }));
+const { roll, mutate } = vi.hoisted(() => ({ roll: vi.fn(), mutate: vi.fn() }));
+vi.mock('@/app/actions', () => ({ roll, mutate, uploadAsset: vi.fn() }));
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
 vi.mock('@/lib/supabase/browser', () => ({
   supabaseBrowser: () => ({
@@ -25,6 +25,7 @@ afterEach(async () => {
   if (root) await act(async () => root.unmount());
   document.body.replaceChildren();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.resetAllMocks();
 });
 
@@ -108,6 +109,7 @@ it.each(['public', 'private'] as const)(
       id: expect.any(String),
       actor_id: 'actor',
       expression: `1d20 + @{${dndId('weapon-total:0')}}`,
+      roll_type: 'Attack roll with Longsword',
       visibility,
     });
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
@@ -115,3 +117,257 @@ it.each(['public', 'private'] as const)(
     expect(container.querySelector('[role="dialog"]')!.textContent).toContain('Roll rejected');
   },
 );
+
+it('pops out, moves, maximizes and docks one shared dice panel without losing roll settings', async () => {
+  const snapshot: Snapshot = {
+    userId: 'owner',
+    role: 'player',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [6, 20] },
+    actors: [],
+    grants: [],
+    tokens: [],
+    members: [],
+    scenes: [],
+    templates: [],
+    rollCues: [],
+    diceStyles: [],
+    rolls: [
+      {
+        id: 'historical',
+        game_id: 'game',
+        author_id: 'owner',
+        author_name: 'Player',
+        actor_id: null,
+        actor_name: 'Deleted hero',
+        roll_type: 'Athletics check',
+        expression: '1d20',
+        visibility: 'public',
+        created_at: new Date().toISOString(),
+        result: { total: 12, resolvedExpression: '1d20', dice: [], modifiers: {} },
+      },
+    ],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+  );
+  roll.mockResolvedValue({ success: true });
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Room, { initial: snapshot })));
+  const click = async (label: string) =>
+    act(async () => {
+      [...container.querySelectorAll('button')]
+        .find((b) => b.getAttribute('aria-label') === label || b.textContent === label)!
+        .click();
+    });
+  await click('Dice');
+  expect(container.querySelector('.roll-card')!.textContent).toContain('Deleted hero');
+  expect(container.querySelector('.roll-card')!.textContent).toContain('Athletics check');
+  const labelInput = (label: string) =>
+    [...container.querySelectorAll('label')]
+      .find((l) => l.firstChild?.textContent?.trim() === label)!
+      .querySelector('input')!;
+  await act(async () => {
+    for (const [label, value] of [
+      ['Expression', '2d6'],
+      ['Roll type', 'Fire damage'],
+    ]) {
+      const input = labelInput(label);
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const visibility = [...container.querySelectorAll('select')].find((s) =>
+      s.parentElement?.textContent?.includes('Visibility'),
+    )!;
+    visibility.value = 'private';
+    visibility.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await click('Pop out roll window');
+  const dialog = container.querySelector<HTMLElement>('.roll-window')!;
+  expect(dialog.getAttribute('aria-modal')).toBe('false');
+  expect(document.activeElement).toBe(dialog);
+  await act(async () => {
+    dialog
+      .querySelector('[aria-label="Move roll window"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  });
+  expect(dialog.style.left).toBe('60px');
+  await click('Maximize roll window');
+  expect(dialog.classList.contains('is-maximized')).toBe(true);
+  await click('Restore roll window');
+  expect(dialog.classList.contains('is-maximized')).toBe(false);
+  await click('Party');
+  expect(container.querySelectorAll('.roll-window')).toHaveLength(1);
+  expect(labelInput('Expression').value).toBe('2d6');
+  await click('◇ Roll dice');
+  expect(roll).toHaveBeenCalledExactlyOnceWith('game', {
+    id: expect.any(String),
+    actor_id: null,
+    expression: '2d6',
+    visibility: 'private',
+    roll_type: 'Fire damage',
+  });
+  await act(async () => {
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+  expect(container.querySelector('.roll-window')).toBeNull();
+  expect(document.activeElement?.getAttribute('aria-label')).toBe('Pop out roll window');
+  expect(labelInput('Expression').value).toBe('2d6');
+  expect(labelInput('Roll type').value).toBe('Fire damage');
+  expect(container.querySelectorAll('.roll-button')).toHaveLength(1);
+});
+
+it('clears a deleted roll target and permits another manual roll without reloading', async () => {
+  let snapshot: Snapshot = {
+    userId: 'owner',
+    role: 'player',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [20] },
+    actors: [
+      {
+        id: 'actor',
+        game_id: 'game',
+        owner_id: 'owner',
+        name: 'Hero',
+        kind: 'character',
+        revision: 0,
+        sheet: createDndSheet(),
+      },
+    ],
+    grants: [],
+    tokens: [],
+    members: [],
+    scenes: [],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+  );
+  mutate.mockResolvedValue({ data: {} });
+  roll.mockResolvedValue({ success: true });
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Room, { initial: snapshot })));
+  const click = async (label: string) =>
+    act(async () => {
+      [...container.querySelectorAll('button')].find((b) => b.textContent === label)!.click();
+    });
+  await click('Dice');
+  const target = [...container.querySelectorAll('select')].find((s) =>
+    s.parentElement?.textContent?.includes('Roll for'),
+  )!;
+  await act(async () => {
+    target.value = 'actor';
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await click('Party');
+  await act(async () =>
+    container
+      .querySelector('.actor-card')!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true })),
+  );
+  snapshot = { ...snapshot, actors: [] };
+  await click('Delete character');
+  expect(container.querySelector('[role="dialog"]')).toBeNull();
+  await click('Dice');
+  await click('◇ Roll dice');
+  expect(roll).toHaveBeenCalledExactlyOnceWith(
+    'game',
+    expect.objectContaining({
+      actor_id: null,
+      expression: '1d20',
+      roll_type: 'Manual roll',
+    }),
+  );
+});
+
+it('starts guided creation for the built-in SRD template, but not on later manual sheet opens', async () => {
+  let snapshot: Snapshot = {
+    userId: 'owner',
+    role: 'player',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [20] },
+    actors: [],
+    grants: [],
+    tokens: [],
+    members: [],
+    scenes: [],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  const oldShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+    );
+    mutate.mockImplementation(async (_game, command, payload) => {
+      expect(command).toBe('actor_create');
+      snapshot = {
+        ...snapshot,
+        actors: [
+          {
+            id: 'new-hero',
+            game_id: 'game',
+            owner_id: 'owner',
+            kind: 'character',
+            name: payload.name,
+            sheet: payload.sheet,
+            revision: 0,
+          },
+        ],
+      };
+      return { data: { id: 'new-hero' } };
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root.render(createElement(Room, { initial: snapshot })));
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Create character"]')!.click(),
+    );
+    const template = container.querySelector<HTMLSelectElement>('select[name="template"]')!;
+    template.value = 'srd-5.2.1';
+    container.querySelector<HTMLInputElement>('input[name="name"]')!.value = 'New hero';
+    await act(async () =>
+      container
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+    );
+    expect(container.querySelector('dialog')?.open).toBe(true);
+    expect(container.querySelector('dialog')?.textContent).toContain('Origin & ability generation');
+    await act(async () =>
+      [...container.querySelectorAll('button')]
+        .find((b) => b.textContent === 'Cancel draft')!
+        .click(),
+    );
+    expect(container.querySelector('dialog')).toBeNull();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Close character sheet"]')!.click(),
+    );
+    await act(async () =>
+      container
+        .querySelector('.actor-card')!
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true })),
+    );
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(container.querySelector('dialog')).toBeNull();
+  } finally {
+    if (oldShowModal) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', oldShowModal);
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+  }
+});

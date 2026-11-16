@@ -2,6 +2,9 @@ import { expect, test, type Browser, type BrowserContext } from '@playwright/tes
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import sharp from 'sharp';
+import { createDndSheet } from '../src/lib/dnd';
+import { applySrdBuilder } from '../src/lib/srd-engine';
+import { fighterBuilder } from '../src/lib/srd-test-fixtures';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -263,6 +266,85 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
           .faceColor;
       })
       .toBe('#aabbcc');
+    // A detached dice session stays live while the party panel is active.
+    await player.page.getByRole('button', { name: 'Dice', exact: true }).click();
+    await player.page.getByLabel('Roll for', { exact: true }).selectOption({ label: 'Aria' });
+    await player.page.getByLabel('Roll type', { exact: true }).fill('Athletics check');
+    await player.page.getByLabel('Expression', { exact: true }).fill('1d20');
+    await player.page.getByRole('button', { name: 'Pop out roll window' }).click();
+    const rolls = player.page.getByRole('dialog', { name: 'Rolls', exact: true });
+    await expect(rolls).toBeVisible();
+    await expect(rolls).toHaveCSS('resize', 'both');
+    await player.page.getByRole('button', { name: 'Party', exact: true }).click();
+    await expect(rolls).toBeVisible();
+    await rolls.getByRole('button', { name: 'Roll dice', exact: false }).click();
+    await expect(rolls.locator('.roll-card').first()).toContainText('Aria');
+    await expect(rolls.locator('.roll-card').first()).toContainText('Athletics check');
+    await rolls.getByRole('button', { name: 'Maximize roll window' }).click();
+    await expect(rolls).toHaveClass(/is-maximized/);
+    await rolls.getByRole('button', { name: 'Restore roll window' }).click();
+    await rolls.getByRole('button', { name: 'Dock roll window' }).click();
+    await expect(rolls).toHaveCount(0);
+    await player.page.getByRole('button', { name: 'Party', exact: true }).click();
+    await card.dblclick();
+    player.page.once('dialog', (dialog) => dialog.accept());
+    await player.page.getByRole('button', { name: 'Delete character', exact: true }).click();
+    await expect(card).toHaveCount(0);
+    const afterDeletion = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+    expect(afterDeletion.tokens).toHaveLength(0);
+    expect(afterDeletion.rolls[0]).toMatchObject({
+      actor_id: null,
+      actor_name: 'Aria',
+      roll_type: 'Athletics check',
+    });
+    await player.page.reload();
+    await player.page.getByRole('button', { name: 'Dice', exact: true }).click();
+    await expect(player.page.locator('.roll-card').first()).toContainText('Aria');
+    await expect(player.page.locator('.roll-card').first()).toContainText('Athletics check');
+    // Real RPC persistence plus native-dialog level-up, not a mocked save.
+    const createdBuilder = await player.client.rpc('mutate_game', {
+      p_game: gameId,
+      p_command: 'actor_create',
+      p: {
+        name: 'Builder hero',
+        kind: 'character',
+        owner_id: player.id,
+        sheet: applySrdBuilder(createDndSheet(), fighterBuilder()),
+      },
+    });
+    if (createdBuilder.error) throw createdBuilder.error;
+    await player.page.reload();
+    await player.page
+      .getByRole('button', { name: 'Open Builder hero character sheet', exact: true })
+      .dblclick();
+    await player.page
+      .getByRole('button', { name: 'Progress / level up character', exact: true })
+      .click();
+    const builder = player.page.getByRole('dialog', {
+      name: 'SRD 5.2.1 character builder',
+      exact: true,
+    });
+    await expect(builder).toBeVisible();
+    await builder.getByRole('button', { name: 'Add level 2', exact: true }).click();
+    await builder
+      .getByRole('button', { name: 'Apply builder to unsaved sheet', exact: true })
+      .click();
+    await expect(builder).toHaveCount(0);
+    await player.page.getByRole('button', { name: 'Save sheet', exact: true }).click();
+    await expect(
+      player.page.getByRole('button', { name: 'Save sheet', exact: true }),
+    ).toBeDisabled();
+    await player.page.reload();
+    await player.page
+      .getByRole('button', { name: 'Open Builder hero character sheet', exact: true })
+      .dblclick();
+    await expect(player.page.getByLabel('Level', { exact: true })).toHaveValue('2');
+    await expect(player.page.getByLabel('Level', { exact: true })).toBeDisabled();
+    const builderSnapshot = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+    expect(
+      builderSnapshot.actors.find((a: { name: string }) => a.name === 'Builder hero').sheet
+        .character.builder.levels,
+    ).toHaveLength(2);
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {

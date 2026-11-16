@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { srdBuilderSchema } from './srd-state';
 
 export const actionTypes = ['Action', 'Bonus action', 'Reaction', 'Other', 'Passive'] as const;
 export const rarities = [
@@ -18,11 +19,24 @@ const entry = z.object({
 const action = entry.extend({ actionType: z.enum(actionTypes) });
 export const characterDetailsSchema = z
   .object({
+    builder: srdBuilderSchema.optional(),
     spells: z
       .array(
         action.extend({
           level: z.number().int().min(0).max(9),
           prepared: z.boolean(),
+          casting: z
+            .array(
+              z
+                .object({
+                  sourceId: z.string().min(1).max(120),
+                  ability: z.number().int().min(0).max(5),
+                  label: z.string().min(1).max(120),
+                })
+                .strict(),
+            )
+            .max(30)
+            .optional(),
         }),
       )
       .max(200),
@@ -62,8 +76,15 @@ export const characterDetailsSchema = z
     const ids = [...details.spells, ...details.items, ...details.features].map((entry) => entry.id);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: 'custom', message: 'Character entry identifiers must be unique' });
-    if (details.items.filter((item) => item.attuned).length > 3)
-      ctx.addIssue({ code: 'custom', message: 'A character can attune to at most three items' });
+    const attunementLimit =
+      (details.builder?.levels.filter((level) => level.className === 'Rogue').length ?? 0) >= 13
+        ? 4
+        : 3;
+    if (details.items.filter((item) => item.attuned).length > attunementLimit)
+      ctx.addIssue({
+        code: 'custom',
+        message: `A character can attune to at most ${attunementLimit === 3 ? 'three' : 'four'} items`,
+      });
   });
 
 export type CharacterDetails = z.infer<typeof characterDetailsSchema>;

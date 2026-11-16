@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Sheet } from './types';
 import { dndNumbers, validateDndSheet } from './dnd';
 import { characterDetailsSchema } from './character-details';
+import { validateSrdSheet } from './srd-engine';
 
 const field = z
   .object({
@@ -60,6 +61,8 @@ export const sheetSchema = z
       ctx.addIssue({ code: 'custom', message: 'Sheet identifiers must be unique' });
     const error = validateDndSheet(sheet);
     if (error) ctx.addIssue({ code: 'custom', message: error });
+    const builderError = validateSrdSheet(sheet);
+    if (builderError) ctx.addIssue({ code: 'custom', message: builderError });
   });
 
 export function numericFields(sheet: Sheet): Record<string, number> {

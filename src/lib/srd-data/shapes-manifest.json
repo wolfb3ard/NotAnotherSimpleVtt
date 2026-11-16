@@ -1,0 +1,11 @@
+{
+  "source": "SRD_CC_v5.2.1.pdf",
+  "sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87",
+  "sourcePages": "SRD Monsters pp.258–364 and Giant Fly stat block p.222; class limits p.42, Find Familiar description and Pact of the Chain p.74",
+  "counts": {
+    "beastStatBlocks": 91,
+    "pactChainSpecials": 7,
+    "totalDistinct": 97
+  },
+  "verification": "Printed stat-block headings, CR and Fly Speed are retained and regression-tested. Not independent proof of catalog completeness. Swarms are exposed as source records but excluded from strict single-Beast Wild Shape selection; ask the GM about ambiguous eligibility."
+}

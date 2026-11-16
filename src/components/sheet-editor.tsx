@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { DndSheet } from './dnd-sheet';
+import { SrdBuilder } from './srd-builder';
 import type { Actor, Sheet, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import {
@@ -20,12 +21,14 @@ export function SheetEditor({
   run,
   onRoll,
   onDirtyChange,
+  initialBuilderOpen,
 }: {
   actor: Actor;
   snapshot: Snapshot;
   run: Run;
-  onRoll: (actorId: string, expression: string) => void;
+  onRoll: (actorId: string, expression: string, rollType?: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  initialBuilderOpen?: boolean;
 }) {
   const [sheet, setSheet] = useState<Sheet>(() => structuredClone(actor.sheet));
   const [name, setName] = useState(actor.name);
@@ -85,6 +88,28 @@ export function SheetEditor({
           </button>
         )}
       </div>
+      {(snapshot.role === 'gm' || actor.owner_id === snapshot.userId) && (
+        <button
+          className="danger"
+          disabled={saving}
+          onClick={async () => {
+            if (
+              !window.confirm(
+                `Permanently delete ${actor.name} and all their tokens? This cannot be undone. Past rolls and saved templates will remain.`,
+              )
+            )
+              return;
+            setSaving(true);
+            try {
+              await run('actor_delete', { id: actor.id, revision: savedRevision });
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          Delete character
+        </button>
+      )}
       {actor.revision !== savedRevision && (
         <div className="notice">
           This sheet changed. Reload to get the latest version.{' '}
@@ -114,12 +139,19 @@ export function SheetEditor({
               {customize ? 'Character sheet layout' : 'Customize sheet'}
             </button>
           </div>
+          <SrdBuilder
+            sheet={sheet}
+            editable={editable && actor.revision === savedRevision}
+            update={update}
+            initialOpen={initialBuilderOpen}
+          />
           <details className="sheet-help">
             <summary>Rules guidance & SRD attribution</summary>
             <p>
-              Modifiers update from level, scores, and selected proficiencies. Configure class
-              features, equipment, spell slots, and situational bonuses yourself. Save changes
-              before rolling.
+              Use the SRD builder for creation and class/multiclass progression. Apply its draft,
+              then save the sheet before rolling. Manual/homebrew sheets remain available; detach
+              the builder before overriding its level or ability scores. Conditional effects still
+              require reviewing the source rules.
             </p>
             <p>
               Weapon attacks add the chosen ability and proficiency; damage never adds proficiency.
@@ -148,7 +180,7 @@ export function SheetEditor({
           rollable={rollable}
           dirty={dirty || actor.revision !== savedRevision}
           update={update}
-          onRoll={(expression) => onRoll(actor.id, expression)}
+          onRoll={(expression, rollType) => onRoll(actor.id, expression, rollType)}
         />
       ) : (
         sheet.sections.map((section, si) => (
@@ -286,9 +318,21 @@ export function SheetEditor({
             ))}
             {section.abilities.map((savedAbility, ai) => {
               const ability = { ...savedAbility };
+              if (dnd && ability.id === dndId('roll:initiative'))
+                ability.expression = `1d20 + @{${dndId('initiative')}}`;
               if (dnd)
                 for (let i = 0; i < 3; i++) {
                   const critical = ability.id === dndId(`roll:weapon-critical:${i}`);
+                  if (
+                    critical ||
+                    ability.id === dndId(`roll:weapon-damage:${i}`) ||
+                    ability.id === dndId(`roll:weapon-hit:${i}`)
+                  ) {
+                    const weapon = sheet.sections
+                      .flatMap((s) => s.fields)
+                      .find((f) => f.id === dndId(`weapon-name:${i}`))?.value;
+                    ability.name = `${critical ? 'Critical damage' : ability.id === dndId(`roll:weapon-hit:${i}`) ? 'Attack roll' : 'Damage'} with ${weapon || 'unnamed attack'}`;
+                  }
                   if (critical || ability.id === dndId(`roll:weapon-damage:${i}`)) {
                     const dice = sheet.sections
                       .flatMap((s) => s.fields)
@@ -315,7 +359,7 @@ export function SheetEditor({
                           disabled={
                             dirty || actor.revision !== savedRevision || !ability.expression
                           }
-                          onClick={() => onRoll(actor.id, ability.expression)}
+                          onClick={() => onRoll(actor.id, ability.expression, ability.name)}
                         >
                           ◇ Roll
                         </button>
@@ -324,7 +368,11 @@ export function SheetEditor({
                             <button
                               disabled={dirty || actor.revision !== savedRevision}
                               onClick={() =>
-                                onRoll(actor.id, ability.expression.replace('1d20', '2d20kh1'))
+                                onRoll(
+                                  actor.id,
+                                  ability.expression.replace('1d20', '2d20kh1'),
+                                  ability.name,
+                                )
                               }
                             >
                               Advantage
@@ -332,7 +380,11 @@ export function SheetEditor({
                             <button
                               disabled={dirty || actor.revision !== savedRevision}
                               onClick={() =>
-                                onRoll(actor.id, ability.expression.replace('1d20', '2d20kl1'))
+                                onRoll(
+                                  actor.id,
+                                  ability.expression.replace('1d20', '2d20kl1'),
+                                  ability.name,
+                                )
                               }
                             >
                               Disadvantage
@@ -418,7 +470,7 @@ export function SheetEditor({
                   {rollable && ability.expression && (
                     <button
                       disabled={dirty || actor.revision !== savedRevision}
-                      onClick={() => onRoll(actor.id, ability.expression)}
+                      onClick={() => onRoll(actor.id, ability.expression, ability.name)}
                     >
                       ◇ Roll
                     </button>

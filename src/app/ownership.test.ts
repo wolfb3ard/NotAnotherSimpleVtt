@@ -51,3 +51,20 @@ it('does not permit ownership changes through sheet saves', async () => {
     p: { id: actor, name: 'Hero', sheet, revision: 0 },
   });
 });
+
+it('dispatches deletion to the authenticated RPC with the observed revision', async () => {
+  expect(await mutate(game, 'actor_delete', { id: actor, revision: 3 })).toEqual({ data: {} });
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('delete_actor', {
+    p_game: game,
+    p_actor: actor,
+    p_revision: 3,
+  });
+});
+
+it.each([{ id: actor }, { id: actor, revision: -1 }, { id: 'invalid', revision: 0 }])(
+  'rejects malformed deletion requests',
+  async (payload) => {
+    expect(await mutate(game, 'actor_delete', payload)).toHaveProperty('error');
+    expect(rpc).not.toHaveBeenCalled();
+  },
+);

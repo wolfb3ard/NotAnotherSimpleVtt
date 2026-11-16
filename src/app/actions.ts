@@ -118,19 +118,27 @@ export async function mutate(
     const validated = commandSchemas[command].parse(payload);
     const ownership =
       command === 'actor_owner' ? commandSchemas.actor_owner.parse(validated) : null;
+    const deletion =
+      command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
-    const { data, error } = ownership
-      ? await db.rpc('transfer_actor_owner', {
+    const { data, error } = deletion
+      ? await db.rpc('delete_actor', {
           p_game: gameId,
-          p_actor: ownership.actor_id,
-          p_owner: ownership.owner_id,
-          p_revision: ownership.revision,
+          p_actor: deletion.id,
+          p_revision: deletion.revision,
         })
-      : await db.rpc('mutate_game', {
-          p_game: gameId,
-          p_command: command,
-          p: validated,
-        });
+      : ownership
+        ? await db.rpc('transfer_actor_owner', {
+            p_game: gameId,
+            p_actor: ownership.actor_id,
+            p_owner: ownership.owner_id,
+            p_revision: ownership.revision,
+          })
+        : await db.rpc('mutate_game', {
+            p_game: gameId,
+            p_command: command,
+            p: validated,
+          });
     if (error) throw new Error(error.message);
     if (command === 'invite' && data?.token) {
       const headerList = await headers();
@@ -211,6 +219,7 @@ export async function roll(gameId: string, payload: unknown) {
         id: uuid,
         actor_id: uuid.nullable(),
         expression: z.string().min(1).max(500),
+        roll_type: z.string().trim().min(1).max(160).default('Manual roll'),
         visibility: z.enum(['public', 'private']),
       })
       .parse(payload);
@@ -243,6 +252,7 @@ export async function roll(gameId: string, payload: unknown) {
       p_expression: input.expression,
       p_visibility: input.visibility,
       p_result: result,
+      p_roll_type: input.roll_type,
     });
     if (error) throw new Error(error.message);
     return { success: true, result };

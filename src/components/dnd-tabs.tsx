@@ -9,6 +9,8 @@ import {
 } from '@/lib/character-details';
 import { dndId } from '@/lib/dnd';
 import type { Sheet } from '@/lib/types';
+import { srdCastingSources } from '@/lib/srd-casting';
+import { dndNumbers } from '@/lib/dnd';
 
 const tabs = [
   'Actions',
@@ -25,7 +27,8 @@ type Props = {
   rollable: boolean;
   dirty: boolean;
   update: (edit: (sheet: Sheet) => void) => void;
-  onRoll: (expression: string) => void;
+  onRoll: (expression: string, rollType?: string) => void;
+  d20?: string;
   input: (key: string, label?: string, multiline?: boolean) => ReactNode;
   spellAttack: ReactNode;
   abilityPanel: ReactNode;
@@ -39,6 +42,7 @@ export function DndTabs({
   dirty,
   update,
   onRoll,
+  d20 = '1d20',
   input,
   spellAttack,
   abilityPanel,
@@ -47,6 +51,12 @@ export function DndTabs({
   const [tab, setTab] = useState<Tab>('Actions');
   const id = useId();
   const details = sheet.character ?? emptyCharacterDetails();
+  const castingSources = details.builder ? srdCastingSources(details.builder) : [];
+  const computed = dndNumbers(sheet);
+  const attunementLimit =
+    (details.builder?.levels.filter((level) => level.className === 'Rogue').length ?? 0) >= 13
+      ? 4
+      : 3;
   function edit(fn: (details: CharacterDetails) => void) {
     if (!editable) return;
     update((copy) => {
@@ -252,7 +262,7 @@ export function DndTabs({
                   {ability.expression && (
                     <button
                       disabled={!rollable || dirty}
-                      onClick={() => onRoll(ability.expression)}
+                      onClick={() => onRoll(ability.expression, ability.name)}
                     >
                       Roll {ability.name}
                     </button>
@@ -338,6 +348,32 @@ export function DndTabs({
                     .filter((s) => s.level === level)
                     .map((spell) => (
                       <article className="dnd-entry" key={spell.id}>
+                        {spell.casting?.map((casting) => {
+                          const source = castingSources.find(
+                            (source) => source.id === casting.sourceId,
+                          );
+                          if (!source) return null;
+                          return (
+                            <div key={source.id} className="wrap">
+                              <span className="small">
+                                {source.label} · Save DC {computed[dndId(source.dcKey)]}
+                              </span>
+                              {/spell attack/i.test(spell.description) && (
+                                <button
+                                  disabled={!rollable || dirty}
+                                  onClick={() =>
+                                    onRoll(
+                                      `${d20} + @{${dndId(source.attackKey)}}`,
+                                      `Spell attack with ${spell.name} (${source.label})`,
+                                    )
+                                  }
+                                >
+                                  Roll {spell.name} ({source.label})
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                         {text('Spell name', spell.name, (v) =>
                           edit((d) => {
                             d.spells.find((s) => s.id === spell.id)!.name = v;
@@ -393,7 +429,9 @@ export function DndTabs({
           )}
           {label === 'Inventory' && (
             <>
-              <p>Attuned: {details.items.filter((i) => i.attuned).length} / 3</p>
+              <p>
+                Attuned: {details.items.filter((i) => i.attuned).length} / {attunementLimit}
+              </p>
               {editable && (
                 <button
                   disabled={details.items.length >= 200}
@@ -452,7 +490,8 @@ export function DndTabs({
                         edit((d) => {
                           d.items.find((i) => i.id === item.id)!.attuned = v;
                         }),
-                      !item.attuned && details.items.filter((i) => i.attuned).length >= 3,
+                      !item.attuned &&
+                        details.items.filter((i) => i.attuned).length >= attunementLimit,
                     )}
                   {text(
                     `${item.name} description`,

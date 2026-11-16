@@ -13,6 +13,7 @@ import { selectedDiceSides } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
 import { DiceStyleEditor } from './dice-style-editor';
 import { SheetWindow } from './sheet-window';
+import { RollWindow } from './roll-window';
 import { ActorCard } from './actor-card';
 import { useDiceZoom } from './use-dice-zoom';
 
@@ -28,6 +29,7 @@ export function Room({ initial }: { initial: Snapshot }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [tab, setTab] = useState<Tab>('party');
   const [selectedActor, setSelectedActor] = useState<string>();
+  const [initialBuilderActor, setInitialBuilderActor] = useState<string>();
   const sheetDirtyRef = useRef(false);
   const trackSheetDirty = useCallback((dirty: boolean) => {
     sheetDirtyRef.current = dirty;
@@ -38,6 +40,8 @@ export function Room({ initial }: { initial: Snapshot }) {
   const [pending, setPending] = useState(false);
   const [invite, setInvite] = useState('');
   const [expression, setExpression] = useState('1d20');
+  const [rollType, setRollType] = useState('Manual roll');
+  const [diceDetached, setDiceDetached] = useState(false);
   const [rollActor, setRollActor] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [diceSetting, setDiceSetting] = useState(initial.game.dice.join(', '));
@@ -54,7 +58,7 @@ export function Room({ initial }: { initial: Snapshot }) {
   const selectedDice = selectedDiceSides(expression);
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
   const actor = snapshot.actors.find((a) => a.id === selectedActor);
-  function openSheet(id: string) {
+  function openSheet(id: string, startBuilder = false) {
     if (
       id !== selectedActor &&
       sheetDirtyRef.current &&
@@ -62,6 +66,7 @@ export function Room({ initial }: { initial: Snapshot }) {
     )
       return false;
     setSelectedActor(id);
+    setInitialBuilderActor(startBuilder ? id : undefined);
     return true;
   }
   const controlledActors = snapshot.actors.filter(
@@ -104,6 +109,19 @@ export function Room({ initial }: { initial: Snapshot }) {
         setSnapshot(updated);
         setSelectedActor((current) =>
           updated.actors.some((a) => a.id === current) ? current : undefined,
+        );
+        setRollActor((current) =>
+          updated.actors.some(
+            (a) =>
+              a.id === current &&
+              (updated.role === 'gm' ||
+                a.owner_id === updated.userId ||
+                updated.tokens.some(
+                  (t) => t.actor_id === a.id && t.controller_id === updated.userId,
+                )),
+          )
+            ? current
+            : '',
         );
         setSync('Connected');
       } while (refreshAgain.current);
@@ -178,7 +196,7 @@ export function Room({ initial }: { initial: Snapshot }) {
       setError('Connection lost. Your change was not confirmed. Reload before retrying.');
     }
   }
-  async function sendRoll(sheetRoll?: { actorId: string; expression: string }) {
+  async function sendRoll(sheetRoll?: { actorId: string; expression: string; rollType: string }) {
     if (rollPending.current) return;
     rollPending.current = true;
     setPending(true);
@@ -189,7 +207,8 @@ export function Room({ initial }: { initial: Snapshot }) {
       : Number(modifier)
         ? `(${expression}) + (${Number(modifier)})`
         : expression;
-    const key = JSON.stringify([finalExpression, actorId, visibility]);
+    const type = (sheetRoll?.rollType ?? rollType).slice(0, 160);
+    const key = JSON.stringify([finalExpression, actorId, visibility, type]);
     if (rollAttempt.current?.key !== key) rollAttempt.current = { key, id: crypto.randomUUID() };
     try {
       const result = await roll(snapshot.game.id, {
@@ -197,6 +216,7 @@ export function Room({ initial }: { initial: Snapshot }) {
         actor_id: actorId || null,
         expression: finalExpression,
         visibility,
+        roll_type: type,
       });
       if (result.error) {
         setError(result.error);
@@ -229,11 +249,12 @@ export function Room({ initial }: { initial: Snapshot }) {
       setPending(false);
     }
   }
-  function rollFromSheet(actorId: string, value: string) {
+  function rollFromSheet(actorId: string, value: string, type = 'Manual roll') {
     setRollActor(actorId);
     setExpression(value);
     setModifier('0');
-    void sendRoll({ actorId, expression: value });
+    setRollType(type);
+    void sendRoll({ actorId, expression: value, rollType: type });
   }
   async function imageUpload(file: File, kind: 'background' | 'token') {
     const form = new FormData();
@@ -365,7 +386,7 @@ export function Room({ initial }: { initial: Snapshot }) {
                               : template?.sheet || emptySheet(),
                         });
                         if (data?.id) {
-                          openSheet(data.id);
+                          openSheet(data.id, form.get('template') === 'srd-5.2.1');
                           setCreateActor(false);
                         }
                         setPending(false);
@@ -490,170 +511,209 @@ export function Room({ initial }: { initial: Snapshot }) {
                 </>
               </>
             )}
-            {tab === 'dice' && (
-              <div className="stack">
-                <div className="panel-heading">
-                  <div>
-                    <span className="eyebrow">LET FATE DECIDE</span>
-                    <h2>Roll the dice</h2>
+            {tab === 'dice' && diceDetached && (
+              <p className="muted">
+                Rolls are open in a separate VTT window.{' '}
+                <button onClick={() => setDiceDetached(false)}>Dock rolls</button>
+              </p>
+            )}
+            {(tab === 'dice' || diceDetached) && (
+              <RollWindow
+                detached={diceDetached}
+                onDock={() => {
+                  setDiceDetached(false);
+                  setTab('dice');
+                }}
+              >
+                <div className="stack">
+                  {diceDetached && error && (
+                    <p className="error-banner" role="alert">
+                      {error}
+                    </p>
+                  )}
+                  <div className="panel-heading">
+                    <div>
+                      <span className="eyebrow">LET FATE DECIDE</span>
+                      <h2>Roll the dice</h2>
+                    </div>
+                    {!diceDetached && (
+                      <button
+                        onClick={() => setDiceDetached(true)}
+                        aria-label="Pop out roll window"
+                      >
+                        ↗
+                      </button>
+                    )}
                   </div>
-                  <span className="dice-icon">◇</span>
-                </div>
-                <div className="dice-types">
-                  {snapshot.game.dice.map((d) => (
-                    <button
-                      key={d}
-                      aria-pressed={selectedDice.has(d)}
-                      onClick={() => setExpression(`1d${d}`)}
-                    >
-                      d{d}
-                    </button>
-                  ))}
-                </div>
-                <label>
-                  Dice zoom: {Math.round(diceZoom * 100)}%
-                  <input
-                    type="range"
-                    min={1}
-                    max={2}
-                    step={0.05}
-                    value={diceZoom}
-                    onChange={(e) => setDiceZoom(Number(e.target.value))}
-                  />
-                  <span className="small muted">Your view only · 100%–200%</span>
-                </label>
-                <label>
-                  Roll for
-                  <select value={rollActor} onChange={(e) => setRollActor(e.target.value)}>
-                    <option value="">Me · manual roll</option>
-                    {controlledActors.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
+                  <div className="dice-types">
+                    {snapshot.game.dice.map((d) => (
+                      <button
+                        key={d}
+                        aria-pressed={selectedDice.has(d)}
+                        onClick={() => setExpression(`1d${d}`)}
+                      >
+                        d{d}
+                      </button>
                     ))}
-                  </select>
-                </label>
-                <label>
-                  Expression
-                  <input
-                    value={expression}
-                    maxLength={500}
-                    onChange={(e) => setExpression(e.target.value)}
-                    placeholder="2d6 + 3"
-                  />
-                </label>
-                <div className="row">
-                  <button
-                    disabled={!snapshot.game.dice.includes(20)}
-                    onClick={() => setExpression('2d20kh1')}
-                  >
-                    Advantage
-                  </button>
-                  <button
-                    disabled={!snapshot.game.dice.includes(20)}
-                    onClick={() => setExpression('2d20kl1')}
-                  >
-                    Disadvantage
-                  </button>
-                </div>
-                {rollActor && (
+                  </div>
                   <label>
-                    Sheet modifier
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        if (e.target.value) setExpression((v) => `${v} + @{${e.target.value}}`);
-                      }}
-                    >
-                      <option value="">Insert numeric field…</option>
-                      {snapshot.actors
-                        .find((a) => a.id === rollActor)
-                        ?.sheet.sections.flatMap((s) => s.fields)
-                        .filter((f) => f.kind !== 'text')
-                        .map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.label} ({f.value})
-                          </option>
-                        ))}
+                    Dice zoom: {Math.round(diceZoom * 100)}%
+                    <input
+                      type="range"
+                      min={1}
+                      max={2}
+                      step={0.05}
+                      value={diceZoom}
+                      onChange={(e) => setDiceZoom(Number(e.target.value))}
+                    />
+                    <span className="small muted">Your view only · 100%–200%</span>
+                  </label>
+                  <label>
+                    Roll for
+                    <select value={rollActor} onChange={(e) => setRollActor(e.target.value)}>
+                      <option value="">Me · manual roll</option>
+                      {controlledActors.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
-                )}
-                <div className="two-cols">
                   <label>
-                    Extra modifier
+                    Roll type
                     <input
-                      type="number"
-                      value={modifier}
-                      onChange={(e) => setModifier(e.target.value)}
+                      value={rollType}
+                      maxLength={160}
+                      onChange={(e) => setRollType(e.target.value)}
+                      placeholder="Athletics check, attack with Longsword…"
                     />
                   </label>
                   <label>
-                    Visibility
-                    <select
-                      value={visibility}
-                      onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
-                    >
-                      <option value="public">Everyone</option>
-                      <option value="private">{gm ? 'Only me' : 'Me and GM'}</option>
-                    </select>
+                    Expression
+                    <input
+                      value={expression}
+                      maxLength={500}
+                      onChange={(e) => setExpression(e.target.value)}
+                      placeholder="2d6 + 3"
+                    />
                   </label>
-                </div>
-                <button
-                  className="primary roll-button"
-                  disabled={pending || !expression}
-                  onClick={() => void sendRoll()}
-                >
-                  {pending ? 'Rolling…' : '◇ Roll dice'}
-                </button>
-                <details>
-                  <summary>Expression guide</summary>
-                  <p className="small muted">
-                    Use + − * / and parentheses. Try (2d6 + 3) / 2. Keep highest: 4d6kh3; lowest:
-                    2d20kl1. Up to 100 dice per roll. Division keeps decimals. Sheet fields use
-                    stable references inserted above.
-                  </p>
-                </details>
-                <div className="section-divider">
-                  <span>RECENT ROLLS</span>
-                  <span>LAST 50</span>
-                </div>
-                {snapshot.rolls.map((r) => (
-                  <article className="roll-card" key={r.id}>
-                    <div className="row">
-                      <strong>{r.author_name}</strong>
-                      <span className="small muted">
-                        {r.visibility === 'private'
-                          ? '🔒 Private'
-                          : new Date(r.created_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                      </span>
-                    </div>
-                    <div className="roll-result">
-                      <code>{r.result.resolvedExpression}</code>
-                      <strong>{Number(r.result.total.toFixed(4))}</strong>
-                    </div>
-                    <div className="wrap">
-                      {r.result.dice.map((d, i) => (
-                        <span className="small muted" key={i}>
-                          d{d.sides} [
-                          {d.values.map((value, j) => (
-                            <span key={j} className={d.kept[j] ? '' : 'discarded'}>
-                              {j > 0 ? ', ' : ''}
-                              {value}
-                            </span>
+                  <div className="row">
+                    <button
+                      disabled={!snapshot.game.dice.includes(20)}
+                      onClick={() => setExpression('2d20kh1')}
+                    >
+                      Advantage
+                    </button>
+                    <button
+                      disabled={!snapshot.game.dice.includes(20)}
+                      onClick={() => setExpression('2d20kl1')}
+                    >
+                      Disadvantage
+                    </button>
+                  </div>
+                  {rollActor && (
+                    <label>
+                      Sheet modifier
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) setExpression((v) => `${v} + @{${e.target.value}}`);
+                        }}
+                      >
+                        <option value="">Insert numeric field…</option>
+                        {snapshot.actors
+                          .find((a) => a.id === rollActor)
+                          ?.sheet.sections.flatMap((s) => s.fields)
+                          .filter((f) => f.kind !== 'text')
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.label} ({f.value})
+                            </option>
                           ))}
-                          ]
+                      </select>
+                    </label>
+                  )}
+                  <div className="two-cols">
+                    <label>
+                      Extra modifier
+                      <input
+                        type="number"
+                        value={modifier}
+                        onChange={(e) => setModifier(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Visibility
+                      <select
+                        value={visibility}
+                        onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
+                      >
+                        <option value="public">Everyone</option>
+                        <option value="private">{gm ? 'Only me' : 'Me and GM'}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    className="primary roll-button"
+                    disabled={pending || !expression || !rollType.trim()}
+                    onClick={() => void sendRoll()}
+                  >
+                    {pending ? 'Rolling…' : '◇ Roll dice'}
+                  </button>
+                  <details>
+                    <summary>Expression guide</summary>
+                    <p className="small muted">
+                      Use + − * / and parentheses. Try (2d6 + 3) / 2. Keep highest: 4d6kh3; lowest:
+                      2d20kl1. Up to 100 dice per roll. Division keeps decimals. Sheet fields use
+                      stable references inserted above.
+                    </p>
+                  </details>
+                  <div className="section-divider">
+                    <span>RECENT ROLLS</span>
+                    <span>LAST 50</span>
+                  </div>
+                  {snapshot.rolls.map((r) => (
+                    <article className="roll-card" key={r.id}>
+                      <div className="row">
+                        <strong>{r.actor_name || r.author_name}</strong>
+                        <span className="small muted">
+                          {r.visibility === 'private'
+                            ? '🔒 Private'
+                            : new Date(r.created_at).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
                         </span>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-                {snapshot.rolls.length === 0 && (
-                  <p className="muted small">Your story’s first roll is still to come.</p>
-                )}
-              </div>
+                      </div>
+                      <div className="small">
+                        {r.roll_type || 'Manual roll'}
+                        {r.actor_name && <span className="muted"> · {r.author_name}</span>}
+                      </div>
+                      <div className="roll-result">
+                        <code>{r.result.resolvedExpression}</code>
+                        <strong>{Number(r.result.total.toFixed(4))}</strong>
+                      </div>
+                      <div className="wrap">
+                        {r.result.dice.map((d, i) => (
+                          <span className="small muted" key={i}>
+                            d{d.sides} [
+                            {d.values.map((value, j) => (
+                              <span key={j} className={d.kept[j] ? '' : 'discarded'}>
+                                {j > 0 ? ', ' : ''}
+                                {value}
+                              </span>
+                            ))}
+                            ]
+                          </span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                  {snapshot.rolls.length === 0 && (
+                    <p className="muted small">Your story’s first roll is still to come.</p>
+                  )}
+                </div>
+              </RollWindow>
             )}
             {tab === 'scenes' && gm && (
               <div className="stack">
@@ -871,6 +931,7 @@ export function Room({ initial }: { initial: Snapshot }) {
           onClose={() => setSelectedActor(undefined)}
           error={error}
           onDirtyChange={trackSheetDirty}
+          initialBuilderOpen={initialBuilderActor === actor.id}
         />
       )}
     </main>
