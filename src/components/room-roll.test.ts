@@ -83,13 +83,24 @@ it.each(['public', 'private'] as const)(
       select.value = visibility;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    const partyTab = [...container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Party',
+    const quickVisibility = container.querySelector<HTMLSelectElement>(
+      '[aria-label="Quick roll visibility"]',
     )!;
-    await act(async () => partyTab.click());
-    const card = container.querySelector<HTMLElement>('.actor-card')!;
+    expect(quickVisibility.value).toBe(visibility);
+    await act(async () => {
+      quickVisibility.value = visibility === 'public' ? 'private' : 'public';
+      quickVisibility.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => {
+      quickVisibility.value = visibility;
+      quickVisibility.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const diceVisibility = [...container.querySelectorAll('select')].find((select) =>
+      select.parentElement?.textContent?.includes('Visibility'),
+    )!;
+    expect(diceVisibility.value).toBe(visibility);
     await act(async () =>
-      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+      container.querySelector<HTMLButtonElement>('[aria-label="My character"]')!.click(),
     );
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
     let finish!: (result: { error: string }) => void;
@@ -117,6 +128,69 @@ it.each(['public', 'private'] as const)(
     expect(container.querySelector('[role="dialog"]')!.textContent).toContain('Roll rejected');
   },
 );
+
+it('guards shortcut sheet switches and removes shortcuts when refreshed ownership/access changes', async () => {
+  let snapshot: Snapshot = {
+    userId: 'owner',
+    role: 'player',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [20] },
+    actors: ['Aria', 'Bryn'].map((name) => ({
+      id: name,
+      name,
+      game_id: 'game',
+      owner_id: 'owner',
+      kind: 'character',
+      revision: 0,
+      sheet: createDndSheet(),
+    })),
+    grants: [],
+    tokens: [],
+    members: [],
+    scenes: [],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+  );
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Room, { initial: snapshot })));
+  const choose = async (value: string) => {
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="My character"]')!;
+    await act(async () => {
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  };
+  await choose('Aria');
+  const hp = container.querySelector<HTMLInputElement>('[aria-label="Hit Points"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '1');
+    hp.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  await choose('Bryn');
+  expect(confirm).toHaveBeenCalledWith(
+    'Discard unsaved character sheet changes and open another sheet?',
+  );
+  expect(container.querySelector('.sheet-window-header h2')!.textContent).toBe('Aria');
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Hit Points"]')!.value).toBe('1');
+  confirm.mockReturnValue(true);
+  await choose('Bryn');
+  expect(container.querySelector('.sheet-window-header h2')!.textContent).toBe('Bryn');
+  snapshot = { ...snapshot, actors: [{ ...snapshot.actors[0], owner_id: 'other' }] };
+  await act(async () => window.dispatchEvent(new Event('online')));
+  expect(container.querySelector('.sheet-window')).toBeNull();
+  expect(container.querySelector('[aria-label="My character"]')).toBeNull();
+  expect(container.querySelector('.room-shortcuts')!.textContent).toContain(
+    'Create a character in Party or ask the GM to assign one.',
+  );
+});
 
 it('pops out, moves, maximizes and docks one shared dice panel without losing roll settings', async () => {
   const snapshot: Snapshot = {
@@ -271,7 +345,7 @@ it('clears a deleted roll target and permits another manual roll without reloadi
   await act(async () =>
     container
       .querySelector('.actor-card')!
-      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true })),
+      .dispatchEvent(new MouseEvent('click', { bubbles: true })),
   );
   snapshot = { ...snapshot, actors: [] };
   await click('Delete character');
@@ -362,7 +436,7 @@ it('starts guided creation for the built-in SRD template, but not on later manua
     await act(async () =>
       container
         .querySelector('.actor-card')!
-        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true })),
+        .dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
     expect(container.querySelector('dialog')).toBeNull();

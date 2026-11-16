@@ -15,6 +15,7 @@ import { DiceStyleEditor } from './dice-style-editor';
 import { SheetWindow } from './sheet-window';
 import { RollWindow } from './roll-window';
 import { ActorCard } from './actor-card';
+import { RoomShortcuts } from './room-shortcuts';
 import { useDiceZoom } from './use-dice-zoom';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
@@ -292,6 +293,17 @@ export function Room({ initial }: { initial: Snapshot }) {
           Leave table ↗
         </Link>
       </header>
+      <RoomShortcuts
+        actors={snapshot.actors}
+        userId={snapshot.userId}
+        gm={gm}
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
+        onParty={() => setTab('party')}
+        onOpen={(id) => {
+          openSheet(id);
+        }}
+      />
       <div className="room-body">
         <Tabletop
           key={scene?.id ?? 'empty'}
@@ -364,7 +376,7 @@ export function Room({ initial }: { initial: Snapshot }) {
                     </button>
                   </div>
                   <p className="muted small">
-                    Double-click a character to open their sheet. Or focus a card and press Enter.
+                    Click a character to open their sheet. Or focus a card and press Enter.
                   </p>
                   {createActor && (
                     <form

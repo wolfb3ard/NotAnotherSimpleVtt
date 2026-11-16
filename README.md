@@ -44,7 +44,9 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 
 ## Character sheet windows & access
 
-- Party cards stay compact. **Double-click** a card (or focus it and press **Enter/Space**) to open its sheet in a separate, non-modal window within the VTT. Tokens can also open the sheet.
+- Party cards stay compact. **Click** a card (or focus it and press **Enter/Space**) to open its sheet in a separate, non-modal window within the VTT. Tokens can also open the sheet.
+- The persistent **My character** shortcut opens your owned character from any panel. If you own several characters, choose one from its dropdown. With none, **My characters** opens Party with guidance to create a character or ask the GM to assign one. Switching sheets still protects unsaved changes.
+- **Roll visibility** stays visible above the tabletop and shares the Dice panel's setting, including when rolls are popped out. It applies to both sheet and manual rolls: **Everyone**, **Me and GM** for private player rolls, or **Only me** for private GM rolls. Set this before clicking a sheet roll.
 - Drag the window header, use arrow keys on its focused move handle, resize from the corner, or maximize/restore. Close with × or Escape. Unsaved edits require confirmation before closing/switching; a saved sheet roll opens the existing dice panel. The window closes if a refreshed snapshot removes sheet access.
 - Built-in 5.5e sheets keep combat and HP visible alongside six keyboard-accessible tabs. “Customize sheet” retains the generic section/field/ability editor.
 - GMs use **Manage sheet access → Sheet owner / member access** to assign ownership, no access, view-only, or view-and-edit grants. The owner can edit and roll; the GM always has full access. No-access sheets/cards are filtered by database row-level security, not merely hidden in the UI.
@@ -77,6 +79,8 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - Apply `supabase/migrations/202611150003_character_deletion_roll_context.sql` before deployment. Existing rolls receive their character's name at migration time; their previously unrecorded purpose is labelled **Unspecified roll**. Public/private roll access and anonymous private-roll cues are unchanged. No hosted migration is applied automatically.
 
 See [PLAN.md](PLAN.md) for the agreed scope and [docs/STATUS.md](docs/STATUS.md) for verification and remaining launch work.
+
+See [vtt_v2.md](vtt_v2.md) for the phased remote-D&D usability roadmap, epic tasks, dependencies, and review gates.
 
 ## Requirements
 

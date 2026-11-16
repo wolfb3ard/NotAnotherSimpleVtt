@@ -199,7 +199,7 @@ describe('character sheet window', () => {
     );
     expect(container.querySelectorAll('.dnd-attack')).toHaveLength(3);
   });
-  it('keeps a compact card; opens only on double-click or keyboard activation', async () => {
+  it('keeps a compact card; opens on one click or keyboard activation', async () => {
     const { actor } = fixture();
     const open = vi.fn();
     await act(async () =>
@@ -207,10 +207,6 @@ describe('character sheet window', () => {
     );
     const card = button('Open Aria character sheet');
     await click(card);
-    expect(open).not.toHaveBeenCalled();
-    await act(async () => {
-      card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    });
     expect(open).toHaveBeenCalledTimes(1);
     for (const key of ['Enter', ' '])
       await act(async () => {
