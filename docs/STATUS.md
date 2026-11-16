@@ -2,7 +2,7 @@
 
 ## Built
 
-- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. Review handoff pending; Epic 06 waits for review/merge.
+- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) ready for review, not merged. Epic 06 waits for review/merge.
 
 - VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) merged on 2026-11-16.
 

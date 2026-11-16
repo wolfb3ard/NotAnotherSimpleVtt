@@ -98,7 +98,7 @@ Local verification: 407 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 05 — Initiative and encounter lifecycle
 
-Status: Implemented; review handoff pending. Dependencies: E04 (merged).
+Status: Implemented; [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) ready for review, not merged. Dependencies: E04 (merged).
 
 - [x] E05-T01: Model encounters, participants, initiative, round, and active turn with authorized server operations.
 - [x] E05-T02: Start an encounter from selected tokens; roll initiative through the existing authoritative dice service.
