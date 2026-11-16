@@ -40,7 +40,7 @@ Local verification: 294 unit/database tests, lint, typecheck, production build, 
 
 ### Epic 02 — Reliable quick updates and play-focused resources
 
-Status: Implemented; preparing review PR. Dependencies: E01 (merged).
+Status: Implemented; [PR #23](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/23) ready for human review/merge. Dependencies: E01 (merged).
 
 - [x] E02-T01: Inventory existing quick-edit and configuration paths; define which changes save immediately.
 - [x] E02-T02: Add atomic, authorized resource adjustments with revision checks; preserve generic sheets.
