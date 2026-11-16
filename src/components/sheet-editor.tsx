@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DndSheet } from './dnd-sheet';
 import { SrdBuilder } from './srd-builder';
 import { TokenAppearanceEditor } from './token-appearance-editor';
+import { TokenPortrait } from './token-portrait';
 import type { Actor, Sheet, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import {
@@ -72,58 +73,115 @@ export function SheetEditor({
   }
   return (
     <div className="stack sheet-editor">
-      <div className="row">
-        <span className="eyebrow">{actor.kind} sheet</span>
-        <span className="badge">{editable ? 'Can edit' : 'Read only'}</span>
-        {snapshot.role === 'gm' && (
-          <button
-            className="ghost"
-            onClick={() => {
-              if (accessRef.current) {
-                accessRef.current.open = true;
-                accessRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
-              }
-            }}
-          >
-            Manage sheet access
-          </button>
-        )}
-      </div>
-      <TokenAppearanceEditor
-        key={`${actor.id}-${actor.appearance_revision ?? 0}`}
-        actor={actor}
-        snapshot={snapshot}
-        run={run}
-      />
-      {(snapshot.role === 'gm' || actor.owner_id === snapshot.userId) && (
-        <button
-          className="danger"
-          disabled={saving}
-          onClick={async () => {
-            if (
-              !window.confirm(
-                `Permanently delete ${actor.name} and all their tokens? This cannot be undone. Past rolls and saved templates will remain.`,
-              )
-            )
-              return;
-            setSaving(true);
-            try {
-              await run('actor_delete', { id: actor.id, revision: savedRevision });
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          Delete character
-        </button>
-      )}
       {actor.revision !== savedRevision && (
-        <div className="notice">
+        <div className="notice" role="alert">
           This sheet changed. Reload to get the latest version.{' '}
           {dirty && 'Your unsaved edits will be replaced.'}
           <button onClick={reload}>Reload sheet</button>
         </div>
       )}
+      <details className="sheet-tools" open={initialBuilderOpen || undefined}>
+        <summary>Character settings & tools</summary>
+        <div className="stack">
+          <div className="row">
+            <span className="eyebrow">{actor.kind} sheet</span>
+            <span className="badge">{editable ? 'Can edit' : 'Read only'}</span>
+            {snapshot.role === 'gm' && (
+              <button
+                className="ghost"
+                onClick={() => {
+                  if (accessRef.current) {
+                    accessRef.current.open = true;
+                    accessRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                  }
+                }}
+              >
+                Manage sheet access
+              </button>
+            )}
+          </div>
+          <details>
+            <summary>Portrait & token appearance</summary>
+            <TokenAppearanceEditor
+              key={`${actor.id}-${actor.appearance_revision ?? 0}`}
+              actor={actor}
+              snapshot={snapshot}
+              run={run}
+            />
+          </details>
+          {(snapshot.role === 'gm' || actor.owner_id === snapshot.userId) && (
+            <button
+              className="danger"
+              disabled={saving}
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    `Permanently delete ${actor.name} and all their tokens? This cannot be undone. Past rolls and saved templates will remain.`,
+                  )
+                )
+                  return;
+                setSaving(true);
+                try {
+                  await run('actor_delete', { id: actor.id, revision: savedRevision });
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              Delete character
+            </button>
+          )}
+          {dnd && (
+            <>
+              <div className="row sheet-mode">
+                <strong>5.5e · Character sheet</strong>
+                <button aria-pressed={customize} onClick={() => setCustomize(!customize)}>
+                  {customize ? 'Character sheet layout' : 'Customize sheet'}
+                </button>
+              </div>
+              <SrdBuilder
+                sheet={sheet}
+                editable={editable && actor.revision === savedRevision}
+                update={update}
+                initialOpen={initialBuilderOpen}
+              />
+              <details className="sheet-help">
+                <summary>Rules guidance & SRD attribution</summary>
+                <p>
+                  Use the SRD builder for creation and class/multiclass progression. Apply its
+                  draft, then save the sheet before rolling. Manual/homebrew sheets remain
+                  available; detach the builder before overriding its level or ability scores.
+                  Conditional effects still require reviewing the source rules.
+                </p>
+                <p>
+                  Weapon attacks add the chosen ability and proficiency; damage never adds
+                  proficiency. For spell damage, choose “No” for adding ability unless a feature
+                  allows it.
+                </p>
+                <small>
+                  This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”)
+                  by Wizards of the Coast LLC, available at{' '}
+                  <a href="https://www.dndbeyond.com/srd">dndbeyond.com/srd</a>. The SRD 5.2.1 is
+                  licensed under the Creative Commons Attribution 4.0 International License,
+                  available at{' '}
+                  <a href="https://creativecommons.org/licenses/by/4.0/legalcode">CC BY 4.0</a>.
+                  Adapted as an interactive template.
+                </small>
+              </details>
+            </>
+          )}
+          {editable && (
+            <button
+              disabled={dirty}
+              onClick={() =>
+                run('template_create', { actor_id: actor.id, name: `${name} template` })
+              }
+            >
+              Save as reusable template
+            </button>
+          )}
+        </div>
+      </details>
       {(!dnd || customize) && (
         <label>
           Name
@@ -138,45 +196,11 @@ export function SheetEditor({
           />
         </label>
       )}
-      {dnd && (
-        <>
-          <div className="row sheet-mode">
-            <strong>5.5e · Character sheet</strong>
-            <button aria-pressed={customize} onClick={() => setCustomize(!customize)}>
-              {customize ? 'Character sheet layout' : 'Customize sheet'}
-            </button>
-          </div>
-          <SrdBuilder
-            sheet={sheet}
-            editable={editable && actor.revision === savedRevision}
-            update={update}
-            initialOpen={initialBuilderOpen}
-          />
-          <details className="sheet-help">
-            <summary>Rules guidance & SRD attribution</summary>
-            <p>
-              Use the SRD builder for creation and class/multiclass progression. Apply its draft,
-              then save the sheet before rolling. Manual/homebrew sheets remain available; detach
-              the builder before overriding its level or ability scores. Conditional effects still
-              require reviewing the source rules.
-            </p>
-            <p>
-              Weapon attacks add the chosen ability and proficiency; damage never adds proficiency.
-              For spell damage, choose “No” for adding ability unless a feature allows it.
-            </p>
-            <small>
-              This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by
-              Wizards of the Coast LLC, available at{' '}
-              <a href="https://www.dndbeyond.com/srd">dndbeyond.com/srd</a>. The SRD 5.2.1 is
-              licensed under the Creative Commons Attribution 4.0 International License, available
-              at <a href="https://creativecommons.org/licenses/by/4.0/legalcode">CC BY 4.0</a>.
-              Adapted as an interactive template.
-            </small>
-          </details>
-        </>
-      )}
       {dnd && !customize ? (
         <DndSheet
+          portrait={
+            <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
+          }
           name={name}
           onNameChange={(value) => {
             setName(value);
@@ -530,6 +554,13 @@ export function SheetEditor({
       )}
       {editable && (
         <div className="sheet-save-bar wrap">
+          <span className="sheet-save-status" role="status">
+            {actor.revision !== savedRevision
+              ? 'New version available — reload sheet'
+              : dirty
+                ? 'Unsaved changes'
+                : 'All changes saved'}
+          </span>
           {(!dnd || customize) && (
             <button
               onClick={() =>
@@ -565,12 +596,6 @@ export function SheetEditor({
             }}
           >
             {saving ? 'Saving…' : 'Save sheet'}
-          </button>
-          <button
-            disabled={dirty}
-            onClick={() => run('template_create', { actor_id: actor.id, name: `${name} template` })}
-          >
-            Save as reusable template
           </button>
         </div>
       )}

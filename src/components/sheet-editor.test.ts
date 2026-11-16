@@ -61,7 +61,7 @@ describe('SRD sheet controls', () => {
     expect(html).toContain('Advantage');
     expect(html).toContain('Disadvantage');
     expect(html).toContain('creativecommons.org/licenses/by/4.0/legalcode');
-    expect(html).toMatch(/aria-label="Proficiency bonus"[^>]*disabled=""[^>]*value="3"/);
+    expect(html).toContain('Level 5');
   });
   it('does not grant rolling or editing to a view-only member', () => {
     const { snapshot, render } = fixture();

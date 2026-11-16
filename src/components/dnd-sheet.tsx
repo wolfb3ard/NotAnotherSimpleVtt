@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   abilities,
   skills,
@@ -14,6 +14,7 @@ import { DndTabs } from './dnd-tabs';
 import { srdCastingSources } from '@/lib/srd-casting';
 
 type Props = {
+  portrait?: ReactNode;
   name: string;
   onNameChange: (name: string) => void;
   sheet: Sheet;
@@ -28,6 +29,7 @@ const ref = (key: string) => `@{${dndId(key)}}`;
 
 /** Compact combat dashboard; the version-1 document remains the source of truth. */
 export function DndSheet({
+  portrait,
   name,
   onNameChange,
   sheet,
@@ -38,6 +40,7 @@ export function DndSheet({
   onRoll,
 }: Props) {
   const [mode, setMode] = useState('normal');
+  const [editing, setEditing] = useState(false);
   const fields = new Map(sheet.sections.flatMap((s) => s.fields).map((f) => [f.id, f]));
   const computed = dndNumbers(sheet);
   const castingSources = sheet.character?.builder ? srdCastingSources(sheet.character.builder) : [];
@@ -64,7 +67,13 @@ export function DndSheet({
     return (
       <div className={`dnd-value ${multiline ? 'dnd-notes' : ''}`}>
         <label htmlFor={f.id}>{label ?? f.label}</label>
-        {options ? (
+        {!editing && f.kind !== 'resource' ? (
+          <output id={f.id} aria-label={label ?? f.label}>
+            {options?.find((option) => option.value === f.value)?.label ??
+              computed[f.id] ??
+              f.value}
+          </output>
+        ) : options ? (
           <select
             id={f.id}
             aria-label={label ?? f.label}
@@ -121,19 +130,22 @@ export function DndSheet({
             }
           />
         )}
-        {f.kind === 'resource' && (
-          <label className="dnd-resource-max">
-            Maximum
-            <input
-              aria-label={`${label ?? f.label} maximum`}
-              type="number"
-              min={0}
-              value={f.max ?? 0}
-              disabled={!editable || (!!sheet.character?.builder && key === 'hit-dice')}
-              onChange={(e) => change(key, Number(e.target.value), true)}
-            />
-          </label>
-        )}
+        {f.kind === 'resource' &&
+          (editing ? (
+            <label className="dnd-resource-max">
+              Maximum
+              <input
+                aria-label={`${label ?? f.label} maximum`}
+                type="number"
+                min={0}
+                value={f.max ?? 0}
+                disabled={!editable || (!!sheet.character?.builder && key === 'hit-dice')}
+                onChange={(e) => change(key, Number(e.target.value), true)}
+              />
+            </label>
+          ) : (
+            <span className="dnd-resource-limit">/ {f.max ?? 0}</span>
+          ))}
       </div>
     );
   }
@@ -215,24 +227,53 @@ export function DndSheet({
   return (
     <div className="dnd-sheet">
       <div className="dnd-identity">
-        <label className="dnd-character-name">
-          Name
-          <input
-            aria-label="Name"
-            value={name}
-            maxLength={100}
-            disabled={!editable}
-            onChange={(e) => onNameChange(e.target.value)}
-          />
-        </label>
-        {['class', 'level', 'species', 'alignment', 'pb'].map((key) => (
-          <div
-            className={['class', 'species', 'background'].includes(key) ? 'dnd-identity-wide' : ''}
-            key={key}
+        {portrait}
+        <div className="dnd-identity-main">
+          {editing ? (
+            <label className="dnd-character-name">
+              Name
+              <input
+                aria-label="Name"
+                value={name}
+                maxLength={100}
+                disabled={!editable}
+                onChange={(e) => onNameChange(e.target.value)}
+              />
+            </label>
+          ) : (
+            <>
+              <h2>{name}</h2>
+              <p className="muted">
+                Level {field('level')?.value} · {field('class')?.value || 'Adventurer'}
+                {field('species')?.value ? ` · ${field('species')?.value}` : ''}
+              </p>
+            </>
+          )}
+          {editing && (
+            <div className="dnd-identity-fields">
+              {['class', 'level', 'species', 'alignment', 'pb'].map((key) => (
+                <div
+                  className={
+                    ['class', 'species', 'background'].includes(key) ? 'dnd-identity-wide' : ''
+                  }
+                  key={key}
+                >
+                  {input(key)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {editable && (
+          <button
+            className="dnd-edit-toggle"
+            aria-pressed={editing}
+            onClick={() => setEditing(!editing)}
           >
-            {input(key)}
-          </div>
-        ))}
+            {editing ? 'Done editing' : 'Edit sheet'}
+          </button>
+        )}
+        {!editable && <span className="dnd-read-only">Read only</span>}
       </div>
       <div className="dnd-roll-toolbar">
         <label>
@@ -253,6 +294,22 @@ export function DndSheet({
             : '◇ rolls immediately using dice panel visibility.'}
         </span>
       </div>
+      <section className="dnd-box dnd-combat-dashboard" aria-label="Combat essentials">
+        <div className="dnd-health">{input('hp')}</div>
+        <div className="dnd-combat-stats">
+          {input('ac')}
+          {input('speed')}
+          <div className="dnd-initiative">
+            {input('initiative')}
+            {rollButton('Initiative', 'initiative', undefined, 'Roll')}
+          </div>
+        </div>
+        <div className="dnd-resource-grid">
+          {input('hit-dice')}
+          {input('inspiration')}
+          {input('exhaustion')}
+        </div>
+      </section>
       <div className="dnd-ability-summary" role="group" aria-label="Quick ability checks">
         {abilities.map((name, i) => (
           <div key={name}>
@@ -265,20 +322,6 @@ export function DndSheet({
           </div>
         ))}
       </div>
-      <section className="dnd-box dnd-combat-dashboard" aria-label="Combat essentials">
-        <div className="dnd-combat-stats">
-          {input('ac')}
-          {input('speed')}
-          {input('initiative')}
-          {input('exhaustion')}
-          {rollButton('Initiative', 'initiative')}
-        </div>
-        <div className="dnd-resource-grid">
-          {input('hp')}
-          {input('hit-dice')}
-          {input('inspiration')}
-        </div>
-      </section>
       {sheet.sections.some((section) => section.id === dndId('srd-resources')) && (
         <details className="dnd-box">
           <summary>Class resources, grouped Hit Dice & spellcasting</summary>
@@ -366,7 +409,6 @@ export function DndSheet({
                       <output aria-label={`${name} modifier`}>
                         {signed(computed[dndId(`mod:${i}`)])}
                       </output>
-                      {rollButton(`${name} check`, `check:${i}`)}
                     </div>
                   ))}
                 </div>
@@ -418,13 +460,12 @@ export function DndSheet({
         <section className="dnd-box">
           <h3>Weapon & spell attacks</h3>
           {[0, 1, 2].map((i) => {
-            if (sheet.character?.builder && field(`weapon-name:${i}`)?.value === 'Unequipped')
-              return (
-                <p key={i} className="muted">
-                  Attack slot {i + 1} · Unequipped. Choose a ready weapon in the builder, or use
-                  Customize sheet for a manual attack.
-                </p>
-              );
+            if (
+              !editing &&
+              (!field(`weapon-name:${i}`)?.value ||
+                field(`weapon-name:${i}`)?.value === 'Unequipped')
+            )
+              return null;
             let damage = '',
               critical = '';
             try {
@@ -435,19 +476,23 @@ export function DndSheet({
             }
             return (
               <div className="dnd-attack" key={i}>
-                {input(`weapon-name:${i}`, `Attack ${i + 1} name`)}
-                <div className="dnd-inline">
-                  {input(`weapon-dice:${i}`, `Attack ${i + 1} damage dice`)}
-                  {input(`weapon-type:${i}`, `Attack ${i + 1} damage type`)}
+                <div className="dnd-attack-summary">
+                  <strong>{field(`weapon-name:${i}`)?.value || `Attack ${i + 1}`}</strong>
+                  <span className="muted">
+                    {signed(computed[dndId(`weapon-total:${i}`)])} to hit ·{' '}
+                    {field(`weapon-dice:${i}`)?.value}
+                    {` ${signed(computed[dndId(`weapon-damage-total:${i}`)])}`}{' '}
+                    {field(`weapon-type:${i}`)?.value}
+                  </span>
                 </div>
-                {rollButton(
-                  'Attack roll',
-                  `weapon-total:${i}`,
-                  undefined,
-                  undefined,
-                  `Attack roll with ${field(`weapon-name:${i}`)?.value}`,
-                )}
-                <div className="dnd-inline">
+                <div className="dnd-attack-rolls">
+                  {rollButton(
+                    'Attack roll',
+                    `weapon-total:${i}`,
+                    undefined,
+                    undefined,
+                    `Attack roll with ${field(`weapon-name:${i}`)?.value}`,
+                  )}
                   {rollButton(
                     'Damage',
                     `weapon-damage-total:${i}`,
@@ -464,16 +509,21 @@ export function DndSheet({
                   )}
                 </div>
                 {!damage && <p role="alert">Use damage dice such as 1d8 or 2d6.</p>}
-                <details>
-                  <summary>Attack {i + 1} configuration</summary>
-                  <div className="dnd-config">
-                    {input(`weapon-ability:${i}`, `Attack ${i + 1} ability`)}
-                    {input(`weapon-prof:${i}`, `Attack ${i + 1} proficiency`)}
-                    {input(`weapon-add:${i}`, `Attack ${i + 1} add ability to damage`)}
-                    {input(`weapon-hit:${i}`, `Attack ${i + 1} extra attack bonus`)}
-                    {input(`weapon-damage:${i}`, `Attack ${i + 1} extra damage bonus`)}
-                  </div>
-                </details>
+                {editing && (
+                  <details open>
+                    <summary>Attack {i + 1} configuration</summary>
+                    <div className="dnd-config">
+                      {input(`weapon-name:${i}`, `Attack ${i + 1} name`)}
+                      {input(`weapon-dice:${i}`, `Attack ${i + 1} damage dice`)}
+                      {input(`weapon-type:${i}`, `Attack ${i + 1} damage type`)}
+                      {input(`weapon-ability:${i}`, `Attack ${i + 1} ability`)}
+                      {input(`weapon-prof:${i}`, `Attack ${i + 1} proficiency`)}
+                      {input(`weapon-add:${i}`, `Attack ${i + 1} add ability to damage`)}
+                      {input(`weapon-hit:${i}`, `Attack ${i + 1} extra attack bonus`)}
+                      {input(`weapon-damage:${i}`, `Attack ${i + 1} extra damage bonus`)}
+                    </div>
+                  </details>
+                )}
               </div>
             );
           })}

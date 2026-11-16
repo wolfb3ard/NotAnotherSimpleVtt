@@ -50,9 +50,11 @@ function fixture(gm = false) {
   const run = vi.fn(async () => ({}));
   const onRoll = vi.fn();
   const onClose = vi.fn();
-  const render = async () => {
+  const render = async (initialBuilderOpen = false) => {
     await act(async () =>
-      root.render(createElement(SheetWindow, { actor, snapshot, run, onRoll, onClose })),
+      root.render(
+        createElement(SheetWindow, { actor, snapshot, run, onRoll, onClose, initialBuilderOpen }),
+      ),
     );
   };
   return { actor, snapshot, run, onRoll, onClose, render };
@@ -71,6 +73,10 @@ async function select(label: string, value: string) {
   });
 }
 async function typeName(value: string) {
+  const edit = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Edit sheet',
+  );
+  if (edit) await click(edit);
   const element = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value);
@@ -84,6 +90,115 @@ afterEach(async () => {
 });
 
 describe('character sheet window', () => {
+  it('keeps the creation builder accessible when a new sheet opens', async () => {
+    const previous = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const { render } = fixture();
+    try {
+      await render(true);
+      expect(container.querySelector<HTMLDetailsElement>('.sheet-tools')!.open).toBe(true);
+      expect(container.textContent).toContain('Apply');
+    } finally {
+      if (previous) Object.defineProperty(HTMLDialogElement.prototype, 'showModal', previous);
+      else Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+    }
+  });
+  it('shows revision conflicts even with settings collapsed', async () => {
+    const { actor, render } = fixture();
+    await render();
+    actor.revision++;
+    await render();
+    const notice = container.querySelector('[role="alert"]')!;
+    expect(notice.textContent).toContain('Reload sheet');
+    expect(notice.closest('details')).toBeNull();
+    expect(button('Roll Strength check').disabled).toBe(true);
+  });
+  it('saves quick HP edits without entering configuration mode', async () => {
+    const { actor, render, run } = fixture();
+    await render();
+    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Hit Points"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '0');
+      hp.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.querySelector('.sheet-save-status')!.textContent).toBe('Unsaved changes');
+    expect(button('Roll Strength check').disabled).toBe(true);
+    await click(
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save sheet')!,
+    );
+    expect(run).toHaveBeenCalledWith(
+      'actor_save',
+      expect.objectContaining({
+        id: actor.id,
+        name: 'Aria',
+        revision: 0,
+        sheet: expect.objectContaining({
+          sections: expect.arrayContaining([
+            expect.objectContaining({
+              fields: expect.arrayContaining([
+                expect.objectContaining({ id: dndId('hp'), value: 0 }),
+              ]),
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+  it('opens play-first with collapsed tools, readable identity and one set of quick checks', async () => {
+    const { render } = fixture();
+    await render();
+    expect(container.querySelector<HTMLDetailsElement>('.sheet-tools')!.open).toBe(false);
+    expect(container.querySelector('.dnd-identity h2')!.textContent).toBe('Aria');
+    expect(container.querySelector('.dnd-identity .token-portrait')).not.toBeNull();
+    expect(container.querySelector('input[aria-label="Name"]')).toBeNull();
+    expect(container.querySelectorAll('[aria-label="Roll Strength check"]')).toHaveLength(1);
+    expect(container.querySelector('.dnd-attack details')).toBeNull();
+    expect(container.querySelector('.sheet-save-status')!.textContent).toBe('All changes saved');
+  });
+  it('keeps resources editable during play and exposes configuration only when editing', async () => {
+    const { actor, render } = fixture();
+    actor.sheet.sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.id === dndId('level'))!.value = 5;
+    await render();
+    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Hit Points"]')!;
+    expect(hp.disabled).toBe(false);
+    expect(container.querySelector('input[aria-label="Hit Points maximum"]')).toBeNull();
+    const edit = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Edit sheet',
+    )!;
+    await click(edit);
+    expect(container.querySelector('input[aria-label="Hit Points maximum"]')).not.toBeNull();
+    expect(container.querySelector('input[aria-label="Name"]')).not.toBeNull();
+    const proficiency = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Proficiency bonus"]',
+    )!;
+    expect(proficiency.disabled).toBe(true);
+    expect(proficiency.value).toBe('3');
+    expect(container.querySelector<HTMLDetailsElement>('.dnd-attack details')!.open).toBe(true);
+    await typeName('Renamed');
+    await click(
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Done editing')!,
+    );
+    expect(container.querySelector('.dnd-identity h2')!.textContent).toBe('Renamed');
+    expect(container.querySelector('.sheet-save-status')!.textContent).toBe('Unsaved changes');
+    expect(button('Roll Strength check').disabled).toBe(true);
+  });
+  it('hides unequipped attacks during play but exposes their configuration in edit mode', async () => {
+    const { actor, render } = fixture();
+    actor.sheet.sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.id === dndId('weapon-name:1'))!.value = 'Unequipped';
+    await render();
+    expect(container.querySelectorAll('.dnd-attack')).toHaveLength(2);
+    await click(
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Edit sheet')!,
+    );
+    expect(container.querySelectorAll('.dnd-attack')).toHaveLength(3);
+  });
   it('keeps a compact card; opens only on double-click or keyboard activation', async () => {
     const { actor } = fixture();
     const open = vi.fn();
@@ -178,9 +293,10 @@ describe('character sheet window', () => {
     snapshot.userId = 'viewer';
     snapshot.grants = [{ actor_id: 'actor', user_id: 'viewer', can_edit: false }];
     await render();
-    expect(container.querySelector<HTMLInputElement>('[aria-label="Strength"]')!.disabled).toBe(
-      true,
-    );
+    expect(container.querySelector('output[aria-label="Strength"]')).not.toBeNull();
+    expect(
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Edit sheet'),
+    ).toBe(false);
     expect(button('Roll Strength check').disabled).toBe(true);
     await click(button('Roll Strength check'));
     expect(onRoll).not.toHaveBeenCalled();
