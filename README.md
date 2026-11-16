@@ -259,10 +259,11 @@ Invitation links are generated on the server using the public site domain, not t
 
 Release order:
 
-1. Verify all deployment credentials; install locked application dependencies and a pinned Vercel CLI; pull production project settings/environment. Invalid Vercel access fails before database changes.
+1. Verify all deployment credentials; install locked application dependencies and a pinned Vercel CLI; verify access to the configured Vercel team/project. Invalid Vercel access fails before database changes.
 2. Link production Supabase, show pending migrations with `db push --dry-run`, then apply them with `db push`.
-3. Build that same commit with `vercel build --prod`, using the pulled production environment.
-4. Deploy only the resulting artifact with `vercel deploy --prebuilt --prod`.
+3. Submit that same checked-out commit with `vercel deploy --prod --yes`. Vercel builds it remotely with the real production environment and publishes only after a successful build.
+
+Do not replace this with `vercel pull` → local `vercel build` → `--prebuilt`: Secret variables are downloaded as `[SENSITIVE]` placeholders. Next.js inlines `NEXT_PUBLIC_*` values at build time, so a placeholder Supabase URL breaks every request in middleware.
 
 Missing configuration, migration failures, or build failures stop the release before application deployment. `vercel.json` disables Vercel's independent Git deployments for `main`, closing the parallel-deployment race. Other branches retain automatic previews; PR checks never enter the production workflow. No-pending-migration runs still build/deploy the application.
 
@@ -279,7 +280,7 @@ Before merging the workflow, open **GitHub → Settings → Environments** and c
 
 Restrict the environment to `main` and enable required reviewers if you want a human approval gate. The job fails with a configuration message when values are missing; it **does not** fall back to a local or preview project. Configure all six values before merging: automatic Git production deploys will be disabled, so missing Vercel secrets intentionally prevent new releases (the existing production deployment remains live). Do not point the opt-in multiplayer test at production.
 
-This action deploys **versioned database migrations** and the **production application**, in that order. It does not configure hosted Auth URLs/SMTP, provision projects, deploy Edge Functions, or manage Vercel environment-variable values. Keep `NEXT_PUBLIC_SITE_URL` set to the stable public production origin: CLI prebuilt builds do not provide every Vercel system environment variable available to Git builds. PR previews must use an isolated database/project, not production.
+This action deploys **versioned database migrations** and the **production application**, in that order. It does not configure hosted Auth URLs/SMTP, provision projects, deploy Edge Functions, or manage Vercel environment-variable values. Keep `NEXT_PUBLIC_SITE_URL` set to the stable public production origin. PR previews must use an isolated database/project, not production.
 
 Keep migrations backward-compatible: the old application stays live while migrations/builds run. If a build/deploy fails after migrations succeed, the database changes remain; they are not automatically rolled back. Fix the failure and rerun the failed production workflow while its SHA is still current, or merge a fix and let its successful checks trigger the next release. Never mark an unapplied migration as applied to bypass a failure. If history drifts, verify the existing schema before repairing only already-applied versions. Back up the production database and review migrations before merge. Manual dashboard/CLI production deployments bypass this workflow; restrict those permissions operationally.
 
