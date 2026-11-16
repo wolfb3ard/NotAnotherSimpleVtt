@@ -221,6 +221,7 @@ describe('character tabs', () => {
 
   it('uses and recovers spell slots and clamps remaining slots when maximum is reduced', async () => {
     const { current } = await fixture();
+    await click('Edit sheet');
     await click('Spell');
     await value('Level 1 slots remaining maximum', '2');
     await click('Recover level 1 slot');
@@ -313,6 +314,7 @@ describe('character tabs', () => {
 
   it('stores biography and background in the reusable sheet document', async () => {
     const { current } = await fixture();
+    await click('Edit sheet');
     await click('Biography');
     await value('Background', 'Sage');
     await value('Physical description', 'Silver hair');
