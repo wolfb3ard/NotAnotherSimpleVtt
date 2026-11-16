@@ -40,7 +40,7 @@ The rules have been adapted into an interactive sheet and calculations. Source: 
 - **Play resources** adjusts class counters, Pact slots, and grouped Hit Dice. Expand **Class resources, grouped Hit Dice & spellcasting** to inspect their statistics or edit configuration. The Spell tab offers class/feat/species-specific attack rolls as well as the configurable default. Alert's proficiency bonus applies to initiative without increasing unrelated checks.
 - Builder decisions are optional versioned sheet data, validated by both application and database. Apply `supabase/migrations/202611150004_srd_builder.sql` after earlier migrations. Old manual sheets and templates remain valid. New source data/migrations are checked in; normal application startup does not fetch an external rules API.
 
-To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMuPDF`), provide the source PDF, then run `npm run srd:import`. The source fingerprint and attribution are in `src/lib/srd-data/manifest.json`. After changing builder rules, run `npm run srd:migration` and the application/database tests. Review generated migration changes before applying them; no hosted migration runs automatically.
+To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMuPDF`), provide the source PDF, then run `npm run srd:import`. The source fingerprint and attribution are in `src/lib/srd-data/manifest.json`. After changing builder rules, run `npm run srd:migration` and the application/database tests. Generation never applies hosted changes; review generated migrations before merge, when the production workflow applies them.
 
 ## Character sheet windows & access
 
@@ -61,7 +61,7 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - **Features & Traits:** class, species, background, feat or other features, descriptions, action types and limited-use counters. Zero maximum uses means unlimited/passive; configure a maximum, then recover uses as needed.
 - **Biography:** chosen background, physical description, personality/mental description, family history and notes.
 - Existing free-text spell, equipment and feature notes stay in their matching tabs. Configuration changes require **Save sheet** and are included in reusable templates; current resource/feature-use updates save immediately. View-only access remains read-only.
-- Apply `supabase/migrations/202611150002_character_tabs.sql` before deployment. This validates the optional character extension at the database boundary; older sheets remain valid. No hosted migration is applied automatically.
+- Apply `supabase/migrations/202611150002_character_tabs.sql` before deployment. This validates the optional character extension at the database boundary; older sheets remain valid. Application startup never migrates databases; the production workflow below applies pending migrations.
 
 ### Play resources and quick health updates
 
@@ -70,7 +70,7 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - **Reload resources** fetches a fresh authorized snapshot and discards unconfirmed queued intent; an offline reload stays Failed. After a concurrent edit, reload/review values rather than replaying stale intent. Ordinary refresh/reconnect synchronizes clean sheets; configuration drafts retain their conflict warning. Pending/failed updates participate in the existing close/switch warning.
 - **Damage / Heal** previews HP and temporary HP, then requires confirmation. Damage normally consumes temporary HP first; turn that off to override. Healing stops at maximum HP and does not change temporary HP. Direct resource inputs remain manual overrides. Resistance, vulnerability, concentration, death saves, and other conditional rules are not automated. Temporary HP is an optional resource added to old D&D sheets only when used; entering it replaces the current value, not stacks it.
 - Names, field definitions/maxima, generic numeric stats, exhaustion, inventory, biography, spell preparation, feature configuration, and builder decisions remain explicit drafts: **Apply** in the builder, then **Save sheet**. Save/reload dirty configuration before using quick updates. Configuration controls lock while a resource write is pending/unconfirmed; draft controls also lock during whole-sheet saves.
-- Apply `supabase/migrations/20261116152232_quick_actor_resources.sql` after earlier migrations before deploying. Its RPC authorizes current GM/owner/edit grants, serializes with room permission changes, revision-checks atomic multi-resource updates, and privately stores per-user operation receipts. Existing sheets/templates remain valid. No hosted migration is applied automatically.
+- Apply `supabase/migrations/20261116152232_quick_actor_resources.sql` after earlier migrations before deploying. Its RPC authorizes current GM/owner/edit grants, serializes with room permission changes, revision-checks atomic multi-resource updates, and privately stores per-user operation receipts. Existing sheets/templates remain valid. Application startup never migrates databases; the production workflow below applies pending migrations.
 
 ## Persistent token appearance
 
@@ -78,14 +78,14 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - **Add token to scene** places the saved appearance in the active scene. Players can place their own actors; GMs can place any actor, including multiple instances of a monster. Player placement retries do not create duplicates.
 - Appearance changes update existing placements in every scene. Tokens link to the same live sheet: HP, resources, and other stats are not copied or reset on placement or scene changes. Multiple instances of the same monster sheet share stats; create separate sheets for independent monsters.
 - Placement starts near the map’s top-left. Existing fog/hidden-token rules still apply; a GM may need to reveal that area. Party placement remains a shortcut, but appearance is managed on the sheet.
-- Apply `supabase/migrations/20261116120505_persistent_actor_tokens.sql` after earlier migrations before deploying. Existing actors inherit one deterministic existing token portrait (lowest token ID with an image); scene-specific portraits then share that character appearance. No hosted migration is applied automatically.
+- Apply `supabase/migrations/20261116120505_persistent_actor_tokens.sql` after earlier migrations before deploying. Existing actors inherit one deterministic existing token portrait (lowest token ID with an image); scene-specific portraits then share that character appearance. Application startup never migrates databases; the production workflow below applies pending migrations.
 
 ## Character deletion & roll windows
 
 - **Delete character** is available inside a sheet to its owner and the game's GM only. Sheet edit grants and token control do not grant deletion rights. Confirmation and a current sheet revision are required. Deletion removes the character, all their scene tokens, and access grants; saved templates remain.
 - Open **Dice → Pop out roll window** for a non-modal window within the VTT. Drag its header, move the focused handle with arrow keys, resize its corner, or maximize/restore. **Dock roll window** or Escape returns it to the Dice panel. It remains usable while another sidebar panel or character sheet is open; expression, character, purpose, modifiers, and visibility are shared rather than copied.
 - Sheet rolls record their purpose automatically (for example, **Attack roll with Longsword**, **Strength save**, or **Athletics check**). Manual rolls have an editable **Roll type**. History shows the character's recorded name, the purpose, and the player who rolled; renaming or deleting a character does not rewrite earlier attribution.
-- Apply `supabase/migrations/202611150003_character_deletion_roll_context.sql` before deployment. Existing rolls receive their character's name at migration time; their previously unrecorded purpose is labelled **Unspecified roll**. Public/private roll access and anonymous private-roll cues are unchanged. No hosted migration is applied automatically.
+- Apply `supabase/migrations/202611150003_character_deletion_roll_context.sql` before deployment. Existing rolls receive their character's name at migration time; their previously unrecorded purpose is labelled **Unspecified roll**. Public/private roll access and anonymous private-roll cues are unchanged. Application startup never migrates databases; the production workflow below applies pending migrations.
 
 See [PLAN.md](PLAN.md) for the agreed scope and [docs/STATUS.md](docs/STATUS.md) for verification and remaining launch work.
 
@@ -215,7 +215,7 @@ This suite creates temporary auth users, a game, an image, and gameplay data, th
 
 ## Deployment
 
-1. Configure the GitHub `production` environment for automated Supabase migrations (below). Review the project's existing migration history before the first deployment.
+1. Configure the GitHub `production` environment for the ordered production release (below), including Vercel credentials **before merging the workflow**. Review the project's existing migration history before the first deployment.
 2. Import the GitHub repository into Vercel using its Next.js preset and Node 22.
 3. Add the four environment variables above; use the production origin for `NEXT_PUBLIC_SITE_URL`.
 4. Set Supabase's site URL to the public production origin, add its `/auth/callback` URL to the allowed redirects, and enable/configure Google as described above. Use the stable public domain, not a deployment-specific Vercel URL that requires Vercel authentication.
@@ -229,9 +229,18 @@ OAuth requests use the exact `/auth/callback` URL without query parameters. Invi
 
 Invitation links are generated on the server using the public site domain, not the GM's browser alias. Set `NEXT_PUBLIC_SITE_URL` to the public domain. On Vercel production, `VERCEL_PROJECT_PRODUCTION_URL` supplies the project domain when the site URL is missing, local, or a Vercel alias; configured custom domains take precedence. Local invitations stay local, and isolated previews should configure their own site URL. An old invite with a protected hostname can be repaired by replacing only its hostname with the public app hostname; keep its token unchanged. Vercel protection runs before the app, so the app cannot redirect visitors arriving at a protected URL around that protection.
 
-### Automatic production database migrations
+### Ordered production releases
 
-`.github/workflows/deploy-supabase.yml` runs **only after a successful `Checks` workflow for a push to `main`**. It checks out the exact validated commit, links the production Supabase project, prints the pending migrations with `db push --dry-run`, and applies them with `db push`. Pull requests never deploy; subsequent runs are safe when there are no pending migrations. Deployments are serialized and never cancel one another. The `production` GitHub environment can require a reviewer before database access.
+`.github/workflows/deploy-supabase.yml` (**Deploy production**) runs **only after a successful `Checks` workflow for a push to `main`**. It checks out that exact validated SHA and skips stale runs if `main` has advanced. The entire release is serialized without cancelling an in-flight migration. The `production` GitHub environment can require a reviewer.
+
+Release order:
+
+1. Verify all deployment credentials; install locked application dependencies and a pinned Vercel CLI; pull production project settings/environment. Invalid Vercel access fails before database changes.
+2. Link production Supabase, show pending migrations with `db push --dry-run`, then apply them with `db push`.
+3. Build that same commit with `vercel build --prod`, using the pulled production environment.
+4. Deploy only the resulting artifact with `vercel deploy --prebuilt --prod`.
+
+Missing configuration, migration failures, or build failures stop the release before application deployment. `vercel.json` disables Vercel's independent Git deployments for `main`, closing the parallel-deployment race. Other branches retain automatic previews; PR checks never enter the production workflow. No-pending-migration runs still build/deploy the application.
 
 Before merging the workflow, open **GitHub → Settings → Environments** and create `production`. Add these **environment-level** values (not `.env`, code, or Vercel variables):
 
@@ -240,10 +249,15 @@ Before merging the workflow, open **GitHub → Settings → Environments** and c
 | `SUPABASE_ACCESS_TOKEN` | Secret   | Supabase account access token with access to the production project |
 | `SUPABASE_DB_PASSWORD`  | Secret   | Production project Postgres password                                |
 | `SUPABASE_PROJECT_REF`  | Variable | 20-character project ref from the Supabase dashboard URL            |
+| `VERCEL_TOKEN`          | Secret   | Vercel deployment token scoped to the production team/project       |
+| `VERCEL_ORG_ID`         | Secret   | Team ID from the linked project's `.vercel/project.json` (`orgId`)  |
+| `VERCEL_PROJECT_ID`     | Secret   | Project ID from `.vercel/project.json` (`projectId`)                |
 
-Restrict the environment to `main` and enable required reviewers if you want a human approval gate. The job fails with a configuration message when values are missing; it **does not** fall back to a local or preview project. Do not point the opt-in multiplayer test at production.
+Restrict the environment to `main` and enable required reviewers if you want a human approval gate. The job fails with a configuration message when values are missing; it **does not** fall back to a local or preview project. Configure all six values before merging: automatic Git production deploys will be disabled, so missing Vercel secrets intentionally prevent new releases (the existing production deployment remains live). Do not point the opt-in multiplayer test at production.
 
-This action deploys **versioned database migrations**, including their SQL-defined RLS policies, functions, and bucket setup. It does not configure hosted Auth URLs/SMTP, provision Supabase projects, deploy Edge Functions, or manage Vercel environment variables. Vercel's GitHub integration may deploy in parallel with this workflow; until production deployment is explicitly gated on migration completion, write backward-compatible migrations and avoid releasing application code that requires a new schema before it is applied. Back up the production database and review migrations before merge.
+This action deploys **versioned database migrations** and the **production application**, in that order. It does not configure hosted Auth URLs/SMTP, provision projects, deploy Edge Functions, or manage Vercel environment-variable values. Keep `NEXT_PUBLIC_SITE_URL` set to the stable public production origin: CLI prebuilt builds do not provide every Vercel system environment variable available to Git builds. PR previews must use an isolated database/project, not production.
+
+Keep migrations backward-compatible: the old application stays live while migrations/builds run. If a build/deploy fails after migrations succeed, the database changes remain; they are not automatically rolled back. Fix the failure and rerun the failed production workflow while its SHA is still current, or merge a fix and let its successful checks trigger the next release. Never mark an unapplied migration as applied to bypass a failure. If history drifts, verify the existing schema before repairing only already-applied versions. Back up the production database and review migrations before merge. Manual dashboard/CLI production deployments bypass this workflow; restrict those permissions operationally.
 
 ## Structure
 
