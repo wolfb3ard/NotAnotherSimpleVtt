@@ -15,6 +15,7 @@ export function QuickResources({
   onBusyChange,
   onCommitted,
   writerRef,
+  controls = true,
 }: {
   actor: Actor;
   editable: boolean;
@@ -23,6 +24,7 @@ export function QuickResources({
   onBusyChange: (busy: boolean) => void;
   onCommitted: (sheet: Sheet, revision: number, name?: string) => void;
   writerRef?: RefObject<ResourceWriter | null>;
+  controls?: boolean;
 }) {
   const [state, setState] = useState<ResourceState>({
     sheet: actor.sheet,
@@ -56,6 +58,7 @@ export function QuickResources({
     };
   }, [writer, writerRef]);
   useEffect(() => onBusyChange(state.status !== 'Saved'), [state.status, onBusyChange]);
+  useEffect(() => () => onBusyChange(false), [onBusyChange]);
   const resources = playResources(state.sheet);
   if (!resources.length) return null;
   const disabled = !editable || blocked || state.status === 'Failed';
@@ -71,110 +74,11 @@ export function QuickResources({
   }
   const hp = (sheet: Sheet, id: string) =>
     playResources(sheet).find((f) => f.id === id)?.value ?? 0;
-  return (
-    <section className="sheet-section stack" aria-label="Play resources">
-      <h3>Play resources</h3>
-      <p className="small">
-        Current values save immediately. Maximums, builder changes, and configuration require Save
-        sheet.
-      </p>
-      {blocked && (
-        <p role="status">Save or reload configuration edits before adjusting play resources.</p>
-      )}
-      <div className="dnd-resource-grid">
-        {resources.map((resource) => (
-          <label key={`${resource.target ?? 'field'}:${resource.id}`}>
-            {resource.label}
-            <input
-              aria-label={`Quick ${resource.label}`}
-              type="number"
-              min={0}
-              max={resource.max}
-              step={resource.target === 'feature' ? 1 : 'any'}
-              disabled={disabled}
-              value={resource.value}
-              onChange={(event) => {
-                try {
-                  writer.enqueue([
-                    {
-                      id: resource.id,
-                      value: Number(event.target.value),
-                      ...(resource.target ? { target: resource.target } : {}),
-                    },
-                  ]);
-                  setValidation('');
-                } catch (error) {
-                  setValidation((error as Error).message);
-                }
-              }}
-            />
-            {resource.id !== temporaryHpId && <span> / {resource.max}</span>}
-          </label>
-        ))}
-      </div>
-      {isDndSheet(state.sheet) && (
-        <details>
-          <summary>Damage / Heal</summary>
-          <div className="stack">
-            <label>
-              Action
-              <select
-                aria-label="Health action"
-                value={mode}
-                onChange={(e) => setMode(e.target.value as typeof mode)}
-              >
-                <option value="damage">Damage</option>
-                <option value="heal">Heal</option>
-              </select>
-            </label>
-            <label>
-              Amount
-              <input
-                aria-label="Health amount"
-                type="number"
-                min={0}
-                max={1e12}
-                step={1}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </label>
-            {mode === 'damage' && (
-              <label>
-                <input
-                  type="checkbox"
-                  checked={useTemporary}
-                  onChange={(e) => setUseTemporary(e.target.checked)}
-                />
-                Use temporary HP first
-              </label>
-            )}
-            {preview ? (
-              <p role="status">
-                HP {hp(state.sheet, dndId('hp'))} → {hp(preview, dndId('hp'))}; temporary HP{' '}
-                {hp(state.sheet, temporaryHpId)} → {hp(preview, temporaryHpId)}.
-              </p>
-            ) : (
-              <p>Enter a nonnegative whole amount to preview.</p>
-            )}
-            <p className="small">
-              Healing stops at maximum HP; temporary HP never stacks automatically. No resistance,
-              vulnerability, concentration, or death-save rules are applied. Override with direct
-              current-value controls above.
-            </p>
-            <button
-              disabled={disabled || state.status === 'Saving' || !preview || Number(amount) <= 0}
-              onClick={() => {
-                writer.enqueue(changes);
-                setAmount('0');
-              }}
-            >
-              Confirm {mode === 'damage' ? 'Damage' : 'Heal'}
-            </button>
-          </div>
-        </details>
-      )}
-      <span role="status">Resources: {state.status === 'Saving' ? 'Saving…' : state.status}</span>
+  const feedback = (
+    <>
+      <span className="small" role="status">
+        Resources: {state.status === 'Saving' ? 'Saving…' : state.status}
+      </span>
       {(validation || state.error) && <p role="alert">{validation || state.error}</p>}
       {state.status === 'Failed' && (
         <div className="wrap">
@@ -214,6 +118,133 @@ export function QuickResources({
           </button>
         </div>
       )}
+    </>
+  );
+  if (!controls)
+    return state.status === 'Saved' ? null : (
+      <div className="resource-feedback" aria-label="Resource update status">
+        {feedback}
+      </div>
+    );
+  const primary = isDndSheet(state.sheet)
+    ? resources.filter((r) => r.id === dndId('hp') || r.id === temporaryHpId)
+    : resources.slice(0, 3);
+  const secondary = resources.filter((r) => !primary.includes(r));
+  const counters = (items: typeof resources) => (
+    <div className="quick-resource-grid">
+      {items.map((resource) => (
+        <label key={`${resource.target ?? 'field'}:${resource.id}`}>
+          <span className="quick-resource-label">{resource.label}</span>
+          <input
+            aria-label={`Quick ${resource.label}`}
+            type="number"
+            min={0}
+            max={resource.max}
+            step={resource.target === 'feature' ? 1 : 'any'}
+            disabled={disabled}
+            value={resource.value}
+            onChange={(event) => {
+              try {
+                writer.enqueue([
+                  {
+                    id: resource.id,
+                    value: Number(event.target.value),
+                    ...(resource.target ? { target: resource.target } : {}),
+                  },
+                ]);
+                setValidation('');
+              } catch (error) {
+                setValidation((error as Error).message);
+              }
+            }}
+          />
+          {resource.id !== temporaryHpId && <span> / {resource.max}</span>}
+        </label>
+      ))}
+    </div>
+  );
+  return (
+    <section className="stack quick-resources" aria-label="Quick resources">
+      {blocked && (
+        <p className="small" role="status">
+          Save or reload sheet edits before using quick actions.
+        </p>
+      )}
+      {counters(primary)}
+      {isDndSheet(state.sheet) && (
+        <details open className="quick-health">
+          <summary>Damage / Heal</summary>
+          <div className="stack">
+            <div className="quick-health-inputs">
+              <label>
+                Action
+                <select
+                  aria-label="Health action"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value as typeof mode)}
+                >
+                  <option value="damage">Damage</option>
+                  <option value="heal">Heal</option>
+                </select>
+              </label>
+              <label>
+                Amount
+                <input
+                  aria-label="Health amount"
+                  type="number"
+                  min={0}
+                  max={1e12}
+                  step={1}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </label>
+            </div>
+            {mode === 'damage' && (
+              <label className="quick-temp-option">
+                <input
+                  type="checkbox"
+                  checked={useTemporary}
+                  onChange={(e) => setUseTemporary(e.target.checked)}
+                />
+                Use temporary HP first
+              </label>
+            )}
+            {preview ? (
+              <p role="status">
+                HP {hp(state.sheet, dndId('hp'))} → {hp(preview, dndId('hp'))}; temporary HP{' '}
+                {hp(state.sheet, temporaryHpId)} → {hp(preview, temporaryHpId)}.
+              </p>
+            ) : (
+              <p>Enter a nonnegative whole amount to preview.</p>
+            )}
+            <details className="small">
+              <summary>Manual overrides & limits</summary>
+              <p>
+                Healing stops at maximum HP; temporary HP never stacks automatically. No resistance,
+                vulnerability, concentration, or death-save rules are applied. Override with direct
+                current-value controls above.
+              </p>
+            </details>
+            <button
+              disabled={disabled || state.status === 'Saving' || !preview || Number(amount) <= 0}
+              onClick={() => {
+                writer.enqueue(changes);
+                setAmount('0');
+              }}
+            >
+              Confirm {mode === 'damage' ? 'Damage' : 'Heal'}
+            </button>
+          </div>
+        </details>
+      )}
+      {secondary.length > 0 && (
+        <details>
+          <summary>More resources ({secondary.length})</summary>
+          {counters(secondary)}
+        </details>
+      )}
+      {feedback}
     </section>
   );
 }

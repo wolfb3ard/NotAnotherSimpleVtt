@@ -41,11 +41,13 @@ function ActorToken({
   movable,
   move,
   select,
+  quickActions,
 }: {
   token: Token;
   movable: boolean;
   move: (x: number, y: number, revision: number) => Promise<boolean>;
   select: () => void;
+  quickActions: (x: number, y: number) => void;
 }) {
   const { image } = useImage(token.asset_id ? `/api/images/${token.asset_id}` : undefined);
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
@@ -56,8 +58,15 @@ function ActorToken({
       y={dragPosition?.y ?? token.y}
       draggable={movable}
       opacity={token.hidden ? 0.4 : 1}
-      onClick={select}
+      onClick={(e) => {
+        if (e.evt.button === 0) select();
+      }}
       onTap={select}
+      onContextMenu={(e) => {
+        e.evt.preventDefault();
+        e.cancelBubble = true;
+        quickActions(e.evt.clientX, e.evt.clientY);
+      }}
       onDragStart={(e) => {
         setDragPosition(e.target.position());
         draggingRevision.current = token.revision;
@@ -125,12 +134,14 @@ export default function Tabletop({
   edits,
   run,
   selectActor,
+  openQuickActions,
   children,
 }: {
   snapshot: Snapshot;
   edits: ReturnType<typeof useTabletopEdits>;
   run: Run;
   selectActor: (id: string) => void;
+  openQuickActions: (tokenId: string, anchor: Point) => void;
   children?: React.ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -220,6 +231,20 @@ export default function Tabletop({
   return (
     <div className="tabletop" ref={container}>
       <div className="canvas-tools">
+        <select
+          aria-label="Token quick actions"
+          value=""
+          onChange={(e) => {
+            if (e.target.value) openQuickActions(e.target.value, { x: 24, y: 140 });
+          }}
+        >
+          <option value="">Token quick actions…</option>
+          {renderedTokens.map((token) => (
+            <option key={token.id} value={token.id}>
+              {token.label}
+            </option>
+          ))}
+        </select>
         <button
           disabled={edits.blocked || !edits.entry}
           onClick={() => void edits.undo()}
@@ -323,6 +348,7 @@ export default function Tabletop({
                 <ActorToken
                   key={`${scene.id}:${token.id}`}
                   token={token}
+                  quickActions={(x, y) => openQuickActions(token.id, { x, y })}
                   movable={
                     !edits.blocked &&
                     mode === 'move' &&

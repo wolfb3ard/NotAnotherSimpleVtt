@@ -6,7 +6,6 @@ import { SheetWindow } from './sheet-window';
 import { ActorCard } from './actor-card';
 import { createDndSheet, dndId } from '@/lib/dnd';
 import type { Actor, Snapshot } from '@/lib/types';
-import { previewResources } from '@/lib/resources';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root;
@@ -118,37 +117,32 @@ describe('character sheet window', () => {
     expect(notice.closest('details')).toBeNull();
     expect(button('Roll Strength check').disabled).toBe(true);
   });
-  it('saves quick HP edits without entering configuration mode', async () => {
-    const { actor, render, run } = fixture();
-    run.mockResolvedValue({
-      sheet: JSON.stringify(previewResources(actor.sheet, [{ id: dndId('hp'), value: 0 }])),
-      revision: '1',
-    });
+  it('keeps the sheet free of the removed play resources section', async () => {
+    const { render, run } = fixture();
     await render();
-    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Quick Hit Points"]')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '0');
-      hp.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    expect(container.querySelector('[aria-label="Play resources"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Quick resources"]')).toBeNull();
+    expect(container.querySelector('input[aria-label="Quick Hit Points"]')).toBeNull();
     expect(container.querySelector('.sheet-save-status')!.textContent).toBe('All changes saved');
     expect(button('Roll Strength check').disabled).toBe(false);
-    expect(run).toHaveBeenCalledWith(
-      'actor_resources',
-      expect.objectContaining({
-        id: actor.id,
-        revision: 0,
-        changes: [{ id: dndId('hp'), value: 0 }],
-      }),
-    );
+    expect(run).not.toHaveBeenCalled();
   });
   it('guards closing a sheet with a failed or unconfirmed resource update', async () => {
-    const { render, onClose } = fixture();
+    const { actor, render, onClose } = fixture();
+    const slot = actor.sheet.sections
+      .flatMap((s) => s.fields)
+      .find((f) => f.id === dndId('slot:0'))!;
+    slot.max = 1;
+    slot.value = 1;
     await render();
-    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Quick Hit Points"]')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '4');
-      hp.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    await click(
+      [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+        (b) => b.textContent === 'Spell',
+      )!,
+    );
+    await click(
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Use level 1 slot')!,
+    );
     expect(container.textContent).toContain('Resources: Failed');
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     await click(button('Close character sheet'));
@@ -169,14 +163,13 @@ describe('character sheet window', () => {
     expect(container.querySelector('.dnd-attack details')).toBeNull();
     expect(container.querySelector('.sheet-save-status')!.textContent).toBe('All changes saved');
   });
-  it('keeps resources editable during play and exposes configuration only when editing', async () => {
+  it('shows resource summaries during play and exposes configuration only when editing', async () => {
     const { actor, render } = fixture();
     actor.sheet.sections
       .flatMap((section) => section.fields)
       .find((field) => field.id === dndId('level'))!.value = 5;
     await render();
-    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Quick Hit Points"]')!;
-    expect(hp.disabled).toBe(false);
+    expect(container.querySelector('output[aria-label="Hit Points"]')!.textContent).toBe('10');
     expect(container.querySelector('input[aria-label="Hit Points maximum"]')).toBeNull();
     const edit = [...container.querySelectorAll('button')].find(
       (b) => b.textContent === 'Edit sheet',

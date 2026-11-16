@@ -1,0 +1,139 @@
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+import type { Snapshot } from '@/lib/types';
+import Tabletop from './tabletop';
+
+vi.mock('react-konva', () => {
+  const node = (props: {
+    children?: React.ReactNode;
+    onContextMenu?: (e: unknown) => void;
+    onClick?: (e: unknown) => void;
+  }) =>
+    createElement(
+      'div',
+      {
+        'data-token': props.onContextMenu ? 'true' : undefined,
+        onContextMenu: (e: React.MouseEvent) =>
+          props.onContextMenu?.({ evt: e.nativeEvent, cancelBubble: false }),
+        onClick: (e: React.MouseEvent) => props.onClick?.({ evt: e.nativeEvent }),
+      },
+      props.children,
+    );
+  return Object.fromEntries(
+    ['Stage', 'Layer', 'Image', 'Circle', 'Text', 'Group', 'Line', 'Rect'].map((name) => [
+      name,
+      node,
+    ]),
+  );
+});
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+let root: Root;
+let container: HTMLDivElement;
+afterEach(async () => {
+  if (root) await act(async () => root.unmount());
+  document.body.replaceChildren();
+  vi.unstubAllGlobals();
+});
+it('opens right-click actions without opening a sheet and provides a keyboard token chooser filtered by player preview', async () => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const token = {
+    id: 'token',
+    game_id: 'game',
+    scene_id: 'scene',
+    actor_id: 'actor',
+    controller_id: 'gm',
+    label: 'Hero',
+    x: 20,
+    y: 20,
+    size: 50,
+    hidden: false,
+    revision: 0,
+    asset_id: null,
+  };
+  const snapshot: Snapshot = {
+    userId: 'gm',
+    role: 'gm',
+    game: { id: 'game', gm_id: 'gm', name: 'Game', active_scene_id: 'scene', dice: [20] },
+    tokens: [token, { ...token, id: 'secret', label: 'Secret enemy', hidden: true }],
+    scenes: [
+      {
+        id: 'scene',
+        game_id: 'game',
+        name: 'Map',
+        asset_id: 'asset',
+        width: 200,
+        height: 200,
+        unit: 'ft',
+        units_per_pixel: 1,
+        revision: 0,
+        fog: [{ x: 0, y: 0, width: 200, height: 200, reveal: true }],
+      },
+    ],
+    actors: [],
+    members: [],
+    grants: [],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  const open = vi.fn(),
+    sheet = vi.fn();
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () =>
+    root.render(
+      createElement(Tabletop, {
+        snapshot,
+        edits: {
+          blocked: false,
+          busy: false,
+          entry: undefined,
+          message: '',
+          uncertain: false,
+          commit: vi.fn(async () => true),
+          undo: vi.fn(async () => {}),
+          retry: vi.fn(),
+          dismiss: vi.fn(async () => {}),
+        },
+        run: vi.fn(),
+        selectActor: sheet,
+        openQuickActions: open,
+      }),
+    ),
+  );
+  const event = new MouseEvent('contextmenu', {
+    bubbles: true,
+    cancelable: true,
+    clientX: 240,
+    clientY: 180,
+  });
+  await act(async () => container.querySelector('[data-token="true"]')!.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true);
+  expect(open).toHaveBeenCalledWith('token', { x: 240, y: 180 });
+  await act(async () =>
+    container
+      .querySelector('[data-token="true"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 2 })),
+  );
+  expect(sheet).not.toHaveBeenCalled();
+  await act(async () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Player view')!.click(),
+  );
+  const chooser = container.querySelector<HTMLSelectElement>('[aria-label="Token quick actions"]')!;
+  expect([...chooser.options].map((o) => o.textContent)).not.toContain('Secret enemy');
+  await act(async () => {
+    chooser.value = 'token';
+    chooser.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(open).toHaveBeenLastCalledWith('token', { x: 24, y: 140 });
+});

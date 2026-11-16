@@ -26,6 +26,7 @@ export function SheetEditor({
   onRoll,
   onDirtyChange,
   initialBuilderOpen,
+  externalBusy = false,
 }: {
   actor: Actor;
   snapshot: Snapshot;
@@ -33,6 +34,7 @@ export function SheetEditor({
   onRoll: (actorId: string, expression: string, rollType?: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
   initialBuilderOpen?: boolean;
+  externalBusy?: boolean;
 }) {
   const [sheet, setSheet] = useState<Sheet>(() => structuredClone(actor.sheet));
   const [name, setName] = useState(actor.name);
@@ -85,6 +87,7 @@ export function SheetEditor({
   return (
     <div className="stack sheet-editor">
       <QuickResources
+        controls={false}
         actor={actor}
         editable={editable}
         blocked={dirty || saving}
@@ -97,7 +100,15 @@ export function SheetEditor({
           if (latestName !== undefined) setName(latestName);
         }}
       />
-      <fieldset className="sheet-configuration stack" disabled={resourceBusy || saving}>
+      {externalBusy && (
+        <p role="status">
+          Token quick actions saving or unconfirmed. Resolve them before editing this sheet.
+        </p>
+      )}
+      <fieldset
+        className="sheet-configuration stack"
+        disabled={resourceBusy || saving || externalBusy}
+      >
         {conflict && (
           <div className="notice" role="alert">
             This sheet changed. Reload to get the latest version.{' '}
@@ -584,7 +595,7 @@ export function SheetEditor({
           <div className="sheet-save-bar wrap">
             <span className="sheet-save-status" role="status">
               {resourceBusy
-                ? 'Play resources saving or unconfirmed — see status above'
+                ? 'Resource update saving or unconfirmed — see status above'
                 : conflict
                   ? 'New version available — reload sheet'
                   : dirty

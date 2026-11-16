@@ -2,6 +2,8 @@
 
 ## Built
 
+- Token quick-actions follow-up: removed the character sheet's Play resources panel; token right-click opens a condensed resource/health card with a keyboard chooser, movable/clamped window, permission filtering, immediate-save/retry feedback and cross-window draft guards. Existing sheet Use/Recover buttons remain immediate. [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) ready for review; not merged.
+
 - VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
 - VTT v2 Epic 02: immediate authorized resource/feature-use saves, atomic Damage/Heal previews with temporary HP, serialized rapid edits, revision/idempotency protection, visible failure/retry, and isolated configuration drafts. Apply the new resource migration before deployment.
 - VTT v2 Epic 03: bounded private server undo history, revision-checked inverses for committed token moves and painted/full-scene fog, Ctrl/Cmd+Z outside typing, and persisted uncertain-operation retries. Apply the reversible-tabletop migration before deployment. [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) ready for review; not merged.
@@ -18,6 +20,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- Token quick-actions follow-up: 372 unit/database/component tests, lint, TypeScript, production build, full formatting with `--end-of-line auto`, and six Edge auth/smoke tests passed after reconciling merged Epic 03. Coverage includes right-click versus left-click, keyboard access, condensed layout, GM/owner/edit-grant permissions, controller/view-only denial, revoked access, immediate saves/retries, dirty-sheet guards, pending close/switch warnings, and scene/token removal. Updated multiplayer resource/reload checks were not run. No schema changes.
 
 - VTT v2 Epic 03: 361 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, and full formatting with `--end-of-line auto` passed. Tests exercise private inverses, revisions, retry deduplication, bounded/expired history, revoked permissions/membership, concealed destinations, reconnect/reload, scene switching, shared fog controls, and typing-safe keyboard undo. Updated opt-in multiplayer Undo scenarios were not run. No hosted migration applied.
 
