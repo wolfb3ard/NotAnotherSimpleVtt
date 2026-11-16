@@ -11,6 +11,7 @@ import { dndId } from '@/lib/dnd';
 import type { Sheet } from '@/lib/types';
 import { srdCastingSources } from '@/lib/srd-casting';
 import { dndNumbers } from '@/lib/dnd';
+import type { QuickUpdate } from '@/lib/resources';
 
 const tabs = [
   'Actions',
@@ -33,6 +34,8 @@ type Props = {
   spellAttack: ReactNode;
   abilityPanel: ReactNode;
   children: ReactNode;
+  quickUpdate?: QuickUpdate;
+  quickEditable?: boolean;
 };
 
 export function DndTabs({
@@ -47,6 +50,8 @@ export function DndTabs({
   spellAttack,
   abilityPanel,
   children,
+  quickUpdate,
+  quickEditable = editable,
 }: Props) {
   const [tab, setTab] = useState<Tab>('Actions');
   const id = useId();
@@ -153,21 +158,25 @@ export function DndTabs({
           {feature.uses} / {feature.maxUses} uses remaining
         </span>
         <button
-          disabled={!editable || feature.uses === 0}
+          disabled={!editable || !quickEditable || feature.uses === 0}
           onClick={() =>
-            edit((d) => {
-              d.features.find((f) => f.id === feature.id)!.uses--;
-            })
+            quickUpdate
+              ? quickUpdate([{ id: feature.id, value: feature.uses - 1, target: 'feature' }])
+              : edit((d) => {
+                  d.features.find((f) => f.id === feature.id)!.uses--;
+                })
           }
         >
           Use {feature.name}
         </button>
         <button
-          disabled={!editable || feature.uses === feature.maxUses}
+          disabled={!editable || !quickEditable || feature.uses === feature.maxUses}
           onClick={() =>
-            edit((d) => {
-              d.features.find((f) => f.id === feature.id)!.uses++;
-            })
+            quickUpdate
+              ? quickUpdate([{ id: feature.id, value: feature.uses + 1, target: 'feature' }])
+              : edit((d) => {
+                  d.features.find((f) => f.id === feature.id)!.uses++;
+                })
           }
         >
           Recover {feature.name}
@@ -289,27 +298,33 @@ export function DndTabs({
                           {input(`slot:${level}`, `Level ${level + 1} slots remaining`)}
                           <div className="wrap">
                             <button
-                              disabled={!editable || Number(slot.value) <= 0}
+                              disabled={!editable || !quickEditable || Number(slot.value) <= 0}
                               onClick={() =>
-                                update((copy) => {
-                                  const f = copy.sections
-                                    .flatMap((s) => s.fields)
-                                    .find((f) => f.id === slot.id)!;
-                                  f.value = Number(f.value) - 1;
-                                })
+                                quickUpdate
+                                  ? quickUpdate([{ id: slot.id, value: Number(slot.value) - 1 }])
+                                  : update((copy) => {
+                                      const f = copy.sections
+                                        .flatMap((s) => s.fields)
+                                        .find((f) => f.id === slot.id)!;
+                                      f.value = Number(f.value) - 1;
+                                    })
                               }
                             >
                               Use level {level + 1} slot
                             </button>
                             <button
-                              disabled={!editable || Number(slot.value) >= (slot.max ?? 0)}
+                              disabled={
+                                !editable || !quickEditable || Number(slot.value) >= (slot.max ?? 0)
+                              }
                               onClick={() =>
-                                update((copy) => {
-                                  const f = copy.sections
-                                    .flatMap((s) => s.fields)
-                                    .find((f) => f.id === slot.id)!;
-                                  f.value = Number(f.value) + 1;
-                                })
+                                quickUpdate
+                                  ? quickUpdate([{ id: slot.id, value: Number(slot.value) + 1 }])
+                                  : update((copy) => {
+                                      const f = copy.sections
+                                        .flatMap((s) => s.fields)
+                                        .find((f) => f.id === slot.id)!;
+                                      f.value = Number(f.value) + 1;
+                                    })
                               }
                             >
                               Recover level {level + 1} slot

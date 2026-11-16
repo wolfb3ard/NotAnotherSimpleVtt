@@ -168,10 +168,16 @@ it('guards shortcut sheet switches and removes shortcuts when refreshed ownershi
     });
   };
   await choose('Aria');
-  const hp = container.querySelector<HTMLInputElement>('[aria-label="Hit Points"]')!;
+  await act(async () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Edit sheet')!.click(),
+  );
+  const name = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '1');
-    hp.dispatchEvent(new Event('input', { bubbles: true }));
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      name,
+      'Draft Aria',
+    );
+    name.dispatchEvent(new Event('input', { bubbles: true }));
   });
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
   await choose('Bryn');
@@ -179,7 +185,9 @@ it('guards shortcut sheet switches and removes shortcuts when refreshed ownershi
     'Discard unsaved character sheet changes and open another sheet?',
   );
   expect(container.querySelector('.sheet-window-header h2')!.textContent).toBe('Aria');
-  expect(container.querySelector<HTMLInputElement>('[aria-label="Hit Points"]')!.value).toBe('1');
+  expect(container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!.value).toBe(
+    'Draft Aria',
+  );
   confirm.mockReturnValue(true);
   await choose('Bryn');
   expect(container.querySelector('.sheet-window-header h2')!.textContent).toBe('Bryn');

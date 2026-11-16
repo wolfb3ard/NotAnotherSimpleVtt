@@ -125,38 +125,48 @@ export async function mutate(
       command === 'actor_appearance' ? commandSchemas.actor_appearance.parse(validated) : null;
     const placement =
       command === 'token_create' ? commandSchemas.token_create.parse(validated) : null;
-    const { data, error } = appearance
-      ? await db.rpc('save_actor_appearance', {
+    const resources =
+      command === 'actor_resources' ? commandSchemas.actor_resources.parse(validated) : null;
+    const { data, error } = resources
+      ? await db.rpc('adjust_actor_resources', {
           p_game: gameId,
-          p_actor: appearance.id,
-          p_asset: appearance.asset_id,
-          p_ring: appearance.ring,
-          p_revision: appearance.revision,
+          p_actor: resources.id,
+          p_revision: resources.revision,
+          p_operation: resources.operation_id,
+          p_changes: resources.changes,
         })
-      : placement
-        ? await db.rpc('place_actor_token', {
+      : appearance
+        ? await db.rpc('save_actor_appearance', {
             p_game: gameId,
-            p_actor: placement.actor_id,
-            p_scene: placement.scene_id,
+            p_actor: appearance.id,
+            p_asset: appearance.asset_id,
+            p_ring: appearance.ring,
+            p_revision: appearance.revision,
           })
-        : deletion
-          ? await db.rpc('delete_actor', {
+        : placement
+          ? await db.rpc('place_actor_token', {
               p_game: gameId,
-              p_actor: deletion.id,
-              p_revision: deletion.revision,
+              p_actor: placement.actor_id,
+              p_scene: placement.scene_id,
             })
-          : ownership
-            ? await db.rpc('transfer_actor_owner', {
+          : deletion
+            ? await db.rpc('delete_actor', {
                 p_game: gameId,
-                p_actor: ownership.actor_id,
-                p_owner: ownership.owner_id,
-                p_revision: ownership.revision,
+                p_actor: deletion.id,
+                p_revision: deletion.revision,
               })
-            : await db.rpc('mutate_game', {
-                p_game: gameId,
-                p_command: command,
-                p: validated,
-              });
+            : ownership
+              ? await db.rpc('transfer_actor_owner', {
+                  p_game: gameId,
+                  p_actor: ownership.actor_id,
+                  p_owner: ownership.owner_id,
+                  p_revision: ownership.revision,
+                })
+              : await db.rpc('mutate_game', {
+                  p_game: gameId,
+                  p_command: command,
+                  p: validated,
+                });
     if (error) throw new Error(error.message);
     if (command === 'invite' && data?.token) {
       const headerList = await headers();

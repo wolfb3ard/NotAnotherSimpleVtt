@@ -12,6 +12,7 @@ import {
 import type { Sheet } from '@/lib/types';
 import { DndTabs } from './dnd-tabs';
 import { srdCastingSources } from '@/lib/srd-casting';
+import type { QuickUpdate } from '@/lib/resources';
 
 type Props = {
   portrait?: ReactNode;
@@ -23,6 +24,8 @@ type Props = {
   dirty: boolean;
   update: (edit: (sheet: Sheet) => void) => void;
   onRoll: (expression: string, rollType?: string) => void;
+  quickUpdate?: QuickUpdate;
+  quickEditable?: boolean;
 };
 const signed = (n: number) => (n >= 0 ? `+${n}` : String(n));
 const ref = (key: string) => `@{${dndId(key)}}`;
@@ -38,6 +41,8 @@ export function DndSheet({
   dirty,
   update,
   onRoll,
+  quickUpdate,
+  quickEditable,
 }: Props) {
   const [mode, setMode] = useState('normal');
   const [editing, setEditing] = useState(false);
@@ -67,7 +72,7 @@ export function DndSheet({
     return (
       <div className={`dnd-value ${multiline ? 'dnd-notes' : ''}`}>
         <label htmlFor={f.id}>{label ?? f.label}</label>
-        {!editing && f.kind !== 'resource' ? (
+        {!editing ? (
           <output id={f.id} aria-label={label ?? f.label}>
             {options?.find((option) => option.value === f.value)?.label ??
               computed[f.id] ??
@@ -341,7 +346,7 @@ export function DndSheet({
                         type="number"
                         min={0}
                         max={resource.max}
-                        disabled={!editable}
+                        disabled={!editable || !editing}
                         value={resource.value}
                         onChange={(e) =>
                           update((copy) => {
@@ -382,6 +387,8 @@ export function DndSheet({
         editable={editable}
         rollable={rollable}
         dirty={dirty}
+        quickUpdate={quickUpdate}
+        quickEditable={quickEditable}
         update={update}
         onRoll={onRoll}
         d20={mode === 'advantage' ? '2d20kh1' : mode === 'disadvantage' ? '2d20kl1' : '1d20'}

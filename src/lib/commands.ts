@@ -27,6 +27,23 @@ export const commandSchemas = {
     sheet: sheetSchema,
   }),
   actor_save: z.object({ id, name, sheet: sheetSchema, revision }),
+  actor_resources: z.object({
+    id,
+    revision,
+    operation_id: id,
+    changes: z
+      .array(
+        z
+          .object({
+            id,
+            value: z.number().finite().min(0).max(1e12),
+            target: z.literal('feature').optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(40),
+  }),
   actor_appearance: z.object({
     id,
     asset_id: id.nullable(),

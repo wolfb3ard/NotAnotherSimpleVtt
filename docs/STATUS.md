@@ -3,6 +3,7 @@
 ## Built
 
 - VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
+- VTT v2 Epic 02: immediate authorized resource/feature-use saves, atomic Damage/Heal previews with temporary HP, serialized rapid edits, revision/idempotency protection, visible failure/retry, and isolated configuration drafts. Apply the new resource migration before deployment.
 
 - Phase 1: application foundation, Google authentication (Discord backend retained; button hidden), game-scoped roles, invitations, dashboard, and authorization migrations.
 - Phase 2: actor sheets, customizable fields/resources/abilities, grants, templates, copies, and revision checks.
@@ -16,6 +17,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- VTT v2 Epic 02: 327 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, and full formatting with `--end-of-line auto` passed. Tests cover rapid edits, stale editors, atomic rollback, deduplicated retries, revoked grants, controller-only denial, generic counters, feature uses, grouped Hit Dice, offline reload, remote renames, reconnect reconciliation, and dirty/pending sheet guards. Hosted resource/multiplayer verification remains outstanding; the opt-in browser scenario now checks immediate generic-counter saves across reload but was not run for this epic. No hosted migration applied.
 
 - VTT v2 Epic 01: 294 unit/database tests, lint, TypeScript, production build, and six browser auth/smoke tests (Edge) passed. Changed-file formatting passed; full formatting passed with `--end-of-line auto` (default check flags pre-existing CRLF files on Windows). Updated multiplayer single-click scenarios still require the opt-in isolated infrastructure run.
 

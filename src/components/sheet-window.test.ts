@@ -6,6 +6,7 @@ import { SheetWindow } from './sheet-window';
 import { ActorCard } from './actor-card';
 import { createDndSheet, dndId } from '@/lib/dnd';
 import type { Actor, Snapshot } from '@/lib/types';
+import { previewResources } from '@/lib/resources';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root;
@@ -109,6 +110,7 @@ describe('character sheet window', () => {
   it('shows revision conflicts even with settings collapsed', async () => {
     const { actor, render } = fixture();
     await render();
+    await typeName('Unsaved name');
     actor.revision++;
     await render();
     const notice = container.querySelector('[role="alert"]')!;
@@ -118,34 +120,43 @@ describe('character sheet window', () => {
   });
   it('saves quick HP edits without entering configuration mode', async () => {
     const { actor, render, run } = fixture();
+    run.mockResolvedValue({
+      sheet: JSON.stringify(previewResources(actor.sheet, [{ id: dndId('hp'), value: 0 }])),
+      revision: '1',
+    });
     await render();
-    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Hit Points"]')!;
+    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Quick Hit Points"]')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '0');
       hp.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(container.querySelector('.sheet-save-status')!.textContent).toBe('Unsaved changes');
-    expect(button('Roll Strength check').disabled).toBe(true);
-    await click(
-      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save sheet')!,
-    );
+    expect(container.querySelector('.sheet-save-status')!.textContent).toBe('All changes saved');
+    expect(button('Roll Strength check').disabled).toBe(false);
     expect(run).toHaveBeenCalledWith(
-      'actor_save',
+      'actor_resources',
       expect.objectContaining({
         id: actor.id,
-        name: 'Aria',
         revision: 0,
-        sheet: expect.objectContaining({
-          sections: expect.arrayContaining([
-            expect.objectContaining({
-              fields: expect.arrayContaining([
-                expect.objectContaining({ id: dndId('hp'), value: 0 }),
-              ]),
-            }),
-          ]),
-        }),
+        changes: [{ id: dndId('hp'), value: 0 }],
       }),
     );
+  });
+  it('guards closing a sheet with a failed or unconfirmed resource update', async () => {
+    const { render, onClose } = fixture();
+    await render();
+    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Quick Hit Points"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(hp, '4');
+      hp.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.textContent).toContain('Resources: Failed');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await click(button('Close character sheet'));
+    expect(confirm).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await click(button('Close character sheet'));
+    expect(onClose).toHaveBeenCalledOnce();
   });
   it('opens play-first with collapsed tools, readable identity and one set of quick checks', async () => {
     const { render } = fixture();
@@ -164,7 +175,7 @@ describe('character sheet window', () => {
       .flatMap((section) => section.fields)
       .find((field) => field.id === dndId('level'))!.value = 5;
     await render();
-    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Hit Points"]')!;
+    const hp = container.querySelector<HTMLInputElement>('input[aria-label="Quick Hit Points"]')!;
     expect(hp.disabled).toBe(false);
     expect(container.querySelector('input[aria-label="Hit Points maximum"]')).toBeNull();
     const edit = [...container.querySelectorAll('button')].find(
