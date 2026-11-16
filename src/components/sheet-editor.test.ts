@@ -73,6 +73,6 @@ describe('SRD sheet controls', () => {
         button.includes('disabled=""'),
       ),
     ).toBe(true);
-    expect(html).not.toContain('Save sheet');
+    expect(html).not.toMatch(/<button[^>]*>Save sheet<\/button>/);
   });
 });

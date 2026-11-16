@@ -97,6 +97,17 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(
       player.page.getByRole('button', { name: 'Save sheet', exact: true }),
     ).toBeDisabled();
+    // Generic resource use commits without another whole-sheet save and survives reload.
+    await player.page.getByLabel('Quick HP', { exact: true }).fill('6');
+    await expect(player.page.getByRole('status').filter({ hasText: 'Resources:' })).toHaveText(
+      'Resources: Saved',
+    );
+    await expect(
+      player.page.getByRole('button', { name: 'Save sheet', exact: true }),
+    ).toBeDisabled();
+    await player.page.reload();
+    await player.page.getByRole('button', { name: 'My character', exact: true }).click();
+    await expect(player.page.getByLabel('Quick HP', { exact: true })).toHaveValue('6');
     await gm.page.getByRole('button', { name: 'Scenes', exact: true }).click();
     await gm.page.getByLabel('Scene name').fill('Forest');
     const image = await sharp({

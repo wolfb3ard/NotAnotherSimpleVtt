@@ -40,16 +40,20 @@ Local verification: 294 unit/database tests, lint, typecheck, production build, 
 
 ### Epic 02 — Reliable quick updates and play-focused resources
 
-Status: Planned; next for implementation. Dependencies: E01 (merged).
+Status: Implemented; preparing review PR. Dependencies: E01 (merged).
 
-- [ ] E02-T01: Inventory existing quick-edit and configuration paths; define which changes save immediately.
-- [ ] E02-T02: Add atomic, authorized resource adjustments with revision checks; preserve generic sheets.
-- [ ] E02-T03: Persist play-mode HP/counter changes immediately; show Saving, Saved, Failed, and Retry states.
-- [ ] E02-T04: Preserve explicit Apply/Save for builder and configuration drafts; avoid overwriting unsaved edits.
-- [ ] E02-T05: Add Damage and Heal actions with previews, temporary HP handling, and manual overrides.
-- [ ] E02-T06: Test rapid edits, concurrent editors, rollback/retry, revoked access, reload, and reconnect.
+- [x] E02-T01: Inventory existing quick-edit and configuration paths; define which changes save immediately.
+- [x] E02-T02: Add atomic, authorized resource adjustments with revision checks; preserve generic sheets.
+- [x] E02-T03: Persist play-mode HP/counter changes immediately; show Saving, Saved, Failed, and Retry states.
+- [x] E02-T04: Preserve explicit Apply/Save for builder and configuration drafts; avoid overwriting unsaved edits.
+- [x] E02-T05: Add Damage and Heal actions with previews, temporary HP handling, and manual overrides.
+- [x] E02-T06: Test rapid edits, concurrent editors, rollback/retry, revoked access, reload, and reconnect.
 
 Acceptance: routine resource use does not require configuration mode or a whole-sheet save; failures never look saved.
+
+Inventory/save policy: `sheet-editor.tsx` previously drafted generic current/max values; `dnd-sheet.tsx` drafted HP, class counters and grouped Hit Dice; `dnd-tabs.tsx` drafted feature uses and spell-slot Use/Recover actions. Current values and feature uses now save through Play resources/the existing Use/Recover buttons. Field definitions/maxima, names, inventory, biography, preparation, exhaustion and builder configuration remain Apply/Save drafts. Dirty configuration blocks quick updates; pending/unconfirmed resources block configuration and participate in close/switch guards.
+
+Local verification: 327 unit/database/component tests, lint, TypeScript, production build, and six browser auth/smoke tests (Edge) passed. Full formatting passes with `--end-of-line auto`. Revision, permission, atomicity and retry tests run against all migrations in local PGlite; component tests cover rapid edits, rollback, dirty drafts, offline reload, remote renames and reconnect reconciliation. The opt-in multiplayer browser scenario now checks generic quick saves across reload, but was not run for this epic. No hosted migration was applied. Migration: `20261116152232_quick_actor_resources.sql`.
 
 ### Epic 03 — Reversible tabletop edits
 

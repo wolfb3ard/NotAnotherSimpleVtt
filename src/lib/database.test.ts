@@ -966,3 +966,225 @@ describe.sequential('database authorization and transactions', () => {
 });
 
 persistentActorTests();
+
+describe.sequential('atomic play resources', () => {
+  let hero: string;
+  const hp = dndId('hp'),
+    temp = dndId('temp-hp');
+  const adjust = (
+    changes: unknown,
+    revision: number | null = 0,
+    operation = randomUUID(),
+    id = hero,
+    g = game,
+  ) =>
+    db.query<{ value: Record<string, string> }>(
+      'select public.adjust_actor_resources($1,$2,$3,$4,$5::jsonb) as value',
+      [g, id, revision, operation, JSON.stringify(changes)],
+    );
+  const current = async () =>
+    (
+      await db.query<{ sheet: Sheet; revision: number }>(
+        'select sheet,revision from actors where id=$1',
+        [hero],
+      )
+    ).rows[0];
+  it('updates only current values atomically, retains old sheets, and survives reload', async () => {
+    await as(gm);
+    hero = (
+      await command('actor_create', {
+        name: 'Resource hero',
+        kind: 'character',
+        owner_id: player,
+        sheet: createDndSheet(),
+      })
+    ).id;
+    await as(player);
+    const changes = [
+      { id: hp, value: 6 },
+      { id: temp, value: 3 },
+    ];
+    const result = (await adjust(changes)).rows[0].value;
+    const saved = await current();
+    expect(saved.revision).toBe(1);
+    expect(JSON.parse(result.sheet)).toEqual(saved.sheet);
+    expect(numericFields(saved.sheet)[hp]).toBe(6);
+    expect(numericFields(saved.sheet)[temp]).toBe(3);
+    expect(sheetSchema.safeParse(saved.sheet).success).toBe(true);
+    await expect(
+      adjust(
+        [
+          { id: hp, value: 2 },
+          { id: dndId('ac'), value: 15 },
+        ],
+        1,
+      ),
+    ).rejects.toThrow(/Resource/);
+    expect(await current()).toEqual(saved);
+    await expect(adjust([{ id: hp, value: 2 }], 0)).rejects.toThrow(/changed/);
+    await expect(
+      command('actor_save', {
+        id: hero,
+        name: 'Stale draft',
+        sheet: createDndSheet(),
+        revision: 0,
+      }),
+    ).rejects.toThrow(/changed/);
+    expect(await current()).toEqual(saved);
+  });
+  it('deduplicates retry before revision checking but rejects changed payloads and revoked access', async () => {
+    const operation = randomUUID();
+    const changes = [{ id: hp, value: 5 }];
+    const first = await adjust(changes, 1, operation);
+    expect(await adjust(changes, 1, operation)).toEqual(first);
+    expect((await current()).revision).toBe(2);
+    await expect(adjust([{ id: hp, value: 1 }], 1, operation)).rejects.toThrow(/already used/);
+    await as(gm);
+    await command('grant', { actor_id: hero, user_id: player, access: 'edit' });
+    const owned = (
+      await command('actor_create', {
+        name: 'Granted pool',
+        kind: 'npc',
+        owner_id: gm,
+        sheet: createDndSheet(),
+      })
+    ).id;
+    await command('grant', { actor_id: owned, user_id: player, access: 'edit' });
+    await as(player);
+    const retry = randomUUID();
+    await adjust(changes, 0, retry, owned);
+    await as(gm);
+    await command('grant', { actor_id: owned, user_id: player, access: 'view' });
+    await command('token_create', { actor_id: owned, scene_id: scene });
+    const controlled = (
+      await db.query<{ id: string }>('select id from tokens where actor_id=$1 limit 1', [owned])
+    ).rows[0].id;
+    await command('token_update', { id: controlled, revision: 0, controller_id: player });
+    await as(player);
+    await expect(adjust(changes, 0, retry, owned)).rejects.toThrow(/denied/);
+    await expect(adjust(changes, 1, randomUUID(), owned)).rejects.toThrow(/denied/);
+  });
+  it('rejects direct RPC malformed values, foreign games, nonmembers and anonymous access', async () => {
+    await as(player);
+    for (const changes of [
+      [],
+      [{ id: hp, value: -1 }],
+      [{ id: hp, value: 11 }],
+      [{ id: hp, value: '2' }],
+      [{ id: hp, value: 2, max: 999 }],
+      [
+        { id: hp, value: 2 },
+        { id: hp, value: 3 },
+      ],
+      [{ value: 2 }],
+      [{ id: randomUUID(), value: 1 }],
+    ])
+      await expect(adjust(changes, 2)).rejects.toThrow();
+    await expect(adjust([{ id: hp, value: 1 }], null)).rejects.toThrow();
+    expect((await current()).revision).toBe(2);
+    await expect(adjust([{ id: hp, value: 1 }], 2, randomUUID(), hero, otherGame)).rejects.toThrow(
+      /denied/,
+    );
+    await expect(db.query('select * from actor_resource_receipts')).rejects.toThrow(
+      /permission denied/,
+    );
+    await as(other);
+    await expect(adjust([{ id: hp, value: 1 }], 2)).rejects.toThrow(/denied/);
+    await db.exec('reset role; set role anon');
+    await expect(adjust([{ id: hp, value: 1 }], 2)).rejects.toThrow(/permission denied/);
+  });
+  it('serializes same-revision editors: exactly one succeeds and the loser cannot overwrite it', async () => {
+    await as(player);
+    const results = await Promise.allSettled([
+      adjust([{ id: hp, value: 3 }], 2),
+      adjust([{ id: hp, value: 4 }], 2),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect((await current()).revision).toBe(3);
+  });
+  it('preserves generic counters and synchronizes grouped Hit Dice summaries', async () => {
+    await as(player);
+    const generic = {
+      version: 1 as const,
+      sections: [
+        {
+          id: randomUUID(),
+          title: 'Custom',
+          fields: [
+            { id: randomUUID(), label: 'Fuel', kind: 'resource' as const, value: 2, max: 5 },
+          ],
+          abilities: [],
+        },
+      ],
+    };
+    const id = (
+      await command('actor_create', {
+        name: 'Generic',
+        kind: 'character',
+        owner_id: player,
+        sheet: generic,
+      })
+    ).id;
+    const result = (
+      await adjust([{ id: generic.sections[0].fields[0].id, value: 1.5 }], 0, randomUUID(), id)
+    ).rows[0].value;
+    expect(JSON.parse(result.sheet).sections[0].fields[0].value).toBe(1.5);
+    const built = applySrdBuilder(createDndSheet(), fighterBuilder());
+    const fighter = (
+      await command('actor_create', {
+        name: 'Fighter',
+        kind: 'character',
+        owner_id: player,
+        sheet: built,
+      })
+    ).id;
+    const grouped = built.sections
+      .flatMap((s) => s.fields)
+      .find((f) => f.id === dndId('srd-resource:hit-die:10'))!;
+    const updated = (await adjust([{ id: grouped.id, value: 0 }], 0, randomUUID(), fighter)).rows[0]
+      .value;
+    expect(numericFields(JSON.parse(updated.sheet))[dndId('hit-dice')]).toBe(0);
+    await expect(
+      adjust([{ id: dndId('hit-dice'), value: 1 }], 1, randomUUID(), fighter),
+    ).rejects.toThrow(/grouped/);
+  });
+  it('updates limited feature uses without touching feature configuration or allowing numeric-stat edits', async () => {
+    await as(player);
+    const doc = createDndSheet();
+    doc.character = emptyCharacterDetails();
+    const feature = {
+      id: randomUUID(),
+      name: 'Wind',
+      description: 'Manual feature',
+      actionType: 'Bonus action' as const,
+      source: 'Class' as const,
+      uses: 2,
+      maxUses: 2,
+    };
+    doc.character.features.push(feature);
+    const id = (
+      await command('actor_create', {
+        name: 'Feature hero',
+        kind: 'character',
+        owner_id: player,
+        sheet: doc,
+      })
+    ).id;
+    const changes = [
+      { id: feature.id, target: 'feature', value: 1 },
+      { id: hp, value: 7 },
+    ];
+    const result = (await adjust(changes, 0, randomUUID(), id)).rows[0].value;
+    const next = JSON.parse(result.sheet) as Sheet;
+    expect(next.character?.features[0]).toEqual({ ...feature, uses: 1 });
+    expect(numericFields(next)[hp]).toBe(7);
+    for (const changes of [
+      [{ id: feature.id, target: 'feature', value: 3 }],
+      [{ id: feature.id, target: 'feature', value: 0.5 }],
+      [{ id: feature.id, target: 'item', value: 1 }],
+      [{ id: randomUUID(), target: 'feature', value: 1 }],
+    ])
+      await expect(adjust(changes, 1, randomUUID(), id)).rejects.toThrow();
+  });
+});
