@@ -428,6 +428,38 @@ code {
   min-height: 0;
   flex: 1;
 }
+.encounter-turn {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 8px 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.encounter-turn.is-your-turn {
+  border-left: 5px solid #c7b87d;
+}
+.encounter-order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.encounter-order li,
+.encounter-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.encounter-order li.is-current-turn {
+  border-left: 4px solid #c7b87d;
+}
+.encounter-pick input[type='checkbox'] {
+  width: auto;
+}
 .sidebar {
   width: 370px;
   flex-shrink: 0;

@@ -13,6 +13,8 @@ import { diceStyleSchema } from '@/lib/dice-style';
 import { invitationUrl } from '@/lib/invitations';
 import { authCallbackPath, authNextCookie, safeAuthNext } from '@/lib/auth-redirect';
 import { createMonsterSheet, monsterById } from '@/lib/srd-monsters';
+import { initiativeTokenIds } from '@/lib/encounter-commands';
+import { initiativeInput } from '@/lib/initiative';
 
 const uuid = z.string().uuid();
 const title = z.string().trim().min(1).max(100);
@@ -122,6 +124,66 @@ export async function mutate(
     const deletion =
       command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
+    if (command === 'encounter') {
+      const request = commandSchemas.encounter.parse(validated);
+      const ids = initiativeTokenIds(request);
+      if (!ids.length) {
+        const { data, error } = await db.rpc('encounter_command', { p_game: gameId, p: request });
+        if (error) throw new Error(error.message);
+        return { data };
+      }
+      // A lost-response retry must work even after its source actor was deleted,
+      // changed, or moved out of the active scene. Never reroll a committed batch.
+      const previous = await db.rpc('encounter_receipt', { p_game: gameId, p: request });
+      if (previous.error) throw new Error(previous.error.message);
+      if (previous.data) return { data: previous.data };
+      const {
+        data: { user },
+      } = await db.auth.getUser();
+      if (!user) throw new Error('Login required.');
+      const { data: game } = await db
+        .from('games')
+        .select('id,gm_id,active_scene_id,dice')
+        .eq('id', gameId)
+        .single();
+      if (!game || game.gm_id !== user.id) throw new Error('GM required.');
+      if (game.active_scene_id !== request.scene_id)
+        throw new Error('Active scene changed. Reload the encounter.');
+      const tokens = await db
+        .from('tokens')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('scene_id', request.scene_id)
+        .in('id', ids);
+      if (tokens.error || tokens.data?.length !== ids.length)
+        throw new Error('Selected tokens are unavailable.');
+      const actorIds = [...new Set(tokens.data.map((t) => t.actor_id))];
+      const actors = await db.from('actors').select('*').eq('game_id', gameId).in('id', actorIds);
+      if (actors.error) throw new Error('Unable to load initiative sources.');
+      const packets = ids.map((tokenId) => {
+        const token = tokens.data.find((t) => t.id === tokenId)!;
+        const actor = actors.data?.find((a) => a.id === token.actor_id);
+        if (!actor) throw new Error('Initiative sheet unavailable.');
+        const input = initiativeInput(actor.sheet);
+        return {
+          token_id: token.id,
+          token_revision: token.revision,
+          actor_id: actor.id,
+          actor_revision: actor.revision,
+          roll_id: crypto.randomUUID(),
+          expression: input.expression,
+          result: rollDice(input.expression, game.dice, input.fields),
+        };
+      });
+      const { data, error } = await supabaseAdmin().rpc('commit_encounter_rolls', {
+        p_user: user.id,
+        p_game: gameId,
+        p: request,
+        p_rolls: packets,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     if (command === 'creature_add') {
       const request = commandSchemas.creature_add.parse(validated);
       const source = request.source;

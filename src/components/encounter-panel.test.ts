@@ -1,0 +1,289 @@
+// @vitest-environment jsdom
+import { act, createElement, Fragment } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
+import { useEncounterCommand } from './use-encounter-command';
+import { createDndSheet } from '@/lib/dnd';
+import type { Snapshot } from '@/lib/types';
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+const game = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  scene = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const hero = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  enemy = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  encounter = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+let root: Root, container: HTMLDivElement;
+function fixture(live = true): Snapshot {
+  return {
+    userId: 'gm',
+    role: 'gm',
+    game: { id: game, name: 'Game', gm_id: 'gm', active_scene_id: scene, dice: [20] },
+    scenes: [
+      {
+        id: scene,
+        game_id: game,
+        name: 'Map',
+        asset_id: 'map',
+        width: 300,
+        height: 300,
+        unit: 'ft',
+        units_per_pixel: 1,
+        revision: 0,
+        fog: [],
+      },
+    ],
+    actors: [
+      {
+        id: hero,
+        game_id: game,
+        name: 'Hero',
+        kind: 'character',
+        owner_id: 'player',
+        sheet: createDndSheet(),
+        revision: 0,
+      },
+      {
+        id: enemy,
+        game_id: game,
+        name: 'Secret enemy',
+        kind: 'enemy',
+        owner_id: 'gm',
+        sheet: { version: 1, sections: [] },
+        revision: 0,
+      },
+    ],
+    tokens: [hero, enemy].map((id) => ({
+      id,
+      actor_id: id,
+      game_id: game,
+      scene_id: scene,
+      label: id === hero ? 'Hero' : 'Secret enemy',
+      controller_id: id === hero ? 'player' : 'gm',
+      x: 100,
+      y: 100,
+      size: 48,
+      hidden: id === enemy,
+      asset_id: null,
+      revision: 0,
+    })),
+    encounter: live
+      ? {
+          id: encounter,
+          scene_id: scene,
+          status: 'active',
+          round: 1,
+          revision: 4,
+          active_token_id: hero,
+          participants: [
+            { token_id: hero, label: 'Hero', initiative: 15 },
+            { token_id: enemy, label: 'Secret enemy', initiative: 10 },
+          ],
+        }
+      : null,
+    grants: [],
+    members: [],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+}
+async function mount(element: ReturnType<typeof createElement>) {
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(element));
+}
+const buttons = () => [...container.querySelectorAll('button')];
+const button = (text: string) => buttons().find((b) => b.textContent === text)!;
+async function click(text: string) {
+  await act(async () => button(text).click());
+}
+async function value(label: string, next: string) {
+  await act(async () => {
+    const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, next);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+const refresh = vi.fn(async () => {});
+afterEach(async () => {
+  if (root) await act(async () => root.unmount());
+  document.body.replaceChildren();
+  sessionStorage.clear();
+  vi.restoreAllMocks();
+  refresh.mockClear();
+});
+it('selects board tokens in click order, requires a manual total for missing rules and sends no client dice', async () => {
+  const run = vi.fn().mockResolvedValue({ id: encounter, revision: '1' });
+  await mount(
+    createElement(EncounterPanel, { snapshot: fixture(false), run, refresh, onSheet: vi.fn() }),
+  );
+  await act(async () =>
+    container
+      .querySelector<HTMLInputElement>('[aria-label="Include Secret enemy in encounter"]')!
+      .click(),
+  );
+  await act(async () =>
+    container.querySelector<HTMLInputElement>('[aria-label="Include Hero in encounter"]')!.click(),
+  );
+  expect(button('Start encounter').disabled).toBe(true);
+  await value('Manual initiative for Secret enemy', '17');
+  await click('Start encounter');
+  expect(run).toHaveBeenCalledExactlyOnceWith(
+    'encounter',
+    expect.objectContaining({
+      action: 'start',
+      scene_id: scene,
+      operation_id: expect.any(String),
+      participants: [
+        { token_id: enemy, initiative: 17 },
+        { token_id: hero, initiative: null },
+      ],
+    }),
+  );
+});
+it('prevents double advancement and waits for a snapshot rather than advancing optimistically', async () => {
+  let resolve!: (v: Record<string, string>) => void;
+  const run = vi.fn(
+    () =>
+      new Promise<Record<string, string>>((done) => {
+        resolve = done;
+      }),
+  );
+  const snapshot = fixture();
+  await mount(createElement(EncounterPanel, { snapshot, run, refresh, onSheet: vi.fn() }));
+  await act(async () => {
+    button('Next turn').click();
+    button('Next turn').click();
+  });
+  expect(run).toHaveBeenCalledOnce();
+  expect(run.mock.calls[0]).toEqual([
+    'encounter',
+    expect.objectContaining({ action: 'next', id: encounter, revision: 4 }),
+  ]);
+  expect(container.querySelector('[aria-current="step"]')!.textContent).toContain('Hero');
+  expect(button('Next turn').disabled).toBe(true);
+  await act(async () => resolve({ id: encounter, revision: '5' }));
+  expect(container.querySelector('[aria-current="step"]')!.textContent).toContain('Hero');
+});
+it('restores an uncertain command after remount and retries the same revision and operation', async () => {
+  const run = vi.fn().mockResolvedValue(undefined),
+    snapshot = fixture();
+  await mount(createElement(EncounterPanel, { snapshot, run, refresh, onSheet: vi.fn() }));
+  await click('Next turn');
+  const request = run.mock.calls[0][1];
+  expect(container.textContent).toContain('failed or unconfirmed');
+  await act(async () => root.unmount());
+  await mount(createElement(EncounterPanel, { snapshot, run, refresh, onSheet: vi.fn() }));
+  expect(button('Next turn').disabled).toBe(true);
+  run.mockResolvedValue({ id: encounter, revision: '5' });
+  await click('Retry encounter change');
+  expect(run.mock.calls[1]).toEqual(['encounter', request]);
+  expect(sessionStorage.length).toBe(0);
+});
+it('offers explicit manual initiative and complete tie reorder while preserving the current token', async () => {
+  const run = vi.fn().mockResolvedValue({ id: encounter, revision: '5' });
+  await mount(
+    createElement(EncounterPanel, { snapshot: fixture(), run, refresh, onSheet: vi.fn() }),
+  );
+  await act(async () => {
+    const input = container.querySelector<HTMLInputElement>('input[type="number"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '12.5');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await click('Set initiative for Hero');
+  expect(run).toHaveBeenLastCalledWith(
+    'encounter',
+    expect.objectContaining({ action: 'initiative', changes: [{ token_id: hero, value: 12.5 }] }),
+  );
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Move Hero down"]')!.click(),
+  );
+  expect(run).toHaveBeenLastCalledWith(
+    'encounter',
+    expect.objectContaining({ action: 'reorder', token_ids: [enemy, hero] }),
+  );
+});
+it('exposes a read-only player tracker and Your turn cue without hidden labels or GM controls', async () => {
+  const snapshot = fixture();
+  snapshot.role = 'player';
+  snapshot.userId = 'player';
+  snapshot.tokens = snapshot.tokens.filter((t) => t.id === hero);
+  snapshot.actors = snapshot.actors.filter((a) => a.id === hero);
+  snapshot.encounter!.participants = snapshot.encounter!.participants.filter(
+    (p) => p.token_id === hero,
+  );
+  await mount(
+    createElement(
+      Fragment,
+      null,
+      createElement(EncounterTurnCue, { snapshot }),
+      createElement(EncounterPanel, { snapshot, run: vi.fn(), refresh, onSheet: vi.fn() }),
+    ),
+  );
+  expect(container.textContent).toContain('Your turn');
+  expect(container.textContent).not.toContain('Secret enemy');
+  expect(buttons().map((b) => b.textContent)).toEqual(['Sheet for Hero']);
+  snapshot.encounter = { ...snapshot.encounter!, active_token_id: null };
+  await act(async () =>
+    root.render(
+      createElement(
+        Fragment,
+        null,
+        createElement(EncounterTurnCue, { snapshot }),
+        createElement(EncounterPanel, { snapshot, run: vi.fn(), refresh, onSheet: vi.fn() }),
+      ),
+    ),
+  );
+  expect(container.textContent).toContain('Waiting for GM');
+  expect(container.textContent).not.toContain('Your turn');
+  expect(container.textContent).not.toContain('Hidden combatant');
+});
+it('does not show another scene encounter or paused Your turn cues', async () => {
+  const snapshot = fixture();
+  snapshot.role = 'player';
+  snapshot.userId = 'player';
+  snapshot.encounter!.status = 'paused';
+  await mount(createElement(EncounterTurnCue, { snapshot }));
+  expect(container.textContent).toContain('Encounter paused');
+  expect(container.textContent).not.toContain('Your turn');
+  snapshot.encounter!.scene_id = game;
+  await act(async () => root.render(createElement(EncounterTurnCue, { snapshot })));
+  expect(container.textContent).toBe('');
+});
+it('isolates late command failures and restored attempts across scene scopes', async () => {
+  let resolve!: (v: undefined) => void;
+  const run = vi.fn(
+    () =>
+      new Promise<undefined>((done) => {
+        resolve = done;
+      }),
+  );
+  function Harness({ scope }: { scope: string }) {
+    const op = useEncounterCommand(scope, run, refresh);
+    return createElement(
+      'div',
+      null,
+      createElement('span', null, op.message),
+      createElement(
+        'button',
+        {
+          disabled: op.blocked,
+          onClick: () =>
+            void op.commit({ action: 'next', scene_id: scene, id: encounter, revision: 4 }),
+        },
+        'Next',
+      ),
+    );
+  }
+  await mount(createElement(Harness, { scope: 'scene-a' }));
+  await click('Next');
+  await act(async () => root.render(createElement(Harness, { scope: 'scene-b' })));
+  await act(async () => resolve(undefined));
+  expect(container.textContent).not.toContain('unconfirmed');
+  expect(button('Next').disabled).toBe(false);
+  expect(sessionStorage.getItem('vtt-encounter:scene-a')).not.toBeNull();
+  expect(sessionStorage.getItem('vtt-encounter:scene-b')).toBeNull();
+});

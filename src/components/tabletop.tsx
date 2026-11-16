@@ -8,6 +8,7 @@ import { distance, visibleAt } from '@/lib/geometry';
 import type { Command } from '@/lib/commands';
 import type { useTabletopEdits } from './use-tabletop-edits';
 import { portraitCrop, tokenRings } from '@/lib/token-appearance';
+import { boardEncounter } from '@/lib/encounter-view';
 
 type Point = { x: number; y: number };
 type Mode = 'move' | 'measure' | 'calibrate' | 'reveal' | 'conceal';
@@ -42,12 +43,14 @@ function ActorToken({
   move,
   select,
   quickActions,
+  active,
 }: {
   token: Token;
   movable: boolean;
   move: (x: number, y: number, revision: number) => Promise<boolean>;
   select: () => void;
   quickActions: (x: number, y: number) => void;
+  active: boolean;
 }) {
   const { image } = useImage(token.asset_id ? `/api/images/${token.asset_id}` : undefined);
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
@@ -82,6 +85,15 @@ function ActorToken({
         setDragPosition(null);
       }}
     >
+      {active && (
+        <Circle
+          radius={token.size / 2 + 11}
+          stroke="#fff4bf"
+          strokeWidth={3}
+          dash={[6, 4]}
+          listening={false}
+        />
+      )}
       <Circle
         radius={token.size / 2 + 3}
         fill="#131e26"
@@ -115,7 +127,7 @@ function ActorToken({
         />
       )}
       <Text
-        text={token.label + (token.hidden ? ' · hidden' : '')}
+        text={token.label + (token.hidden ? ' · hidden' : '') + (active ? ' · current turn' : '')}
         x={-80}
         y={token.size / 2 + 9}
         width={160}
@@ -159,6 +171,7 @@ export default function Tabletop({
   const [selected, setSelected] = useState<string>();
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
   const gm = snapshot.role === 'gm';
+  const encounter = boardEncounter(snapshot);
   const imageUrl = scene
     ? `/api/images/${scene.id}?scene=1&r=${scene.revision}&preview=${preview ? 1 : 0}`
     : undefined;
@@ -346,6 +359,7 @@ export default function Tabletop({
               {image && <CanvasImage image={image} width={scene.width} height={scene.height} />}
               {renderedTokens.map((token) => (
                 <ActorToken
+                  active={encounter?.status === 'active' && encounter.active_token_id === token.id}
                   key={`${scene.id}:${token.id}`}
                   token={token}
                   quickActions={(x, y) => openQuickActions(token.id, { x, y })}

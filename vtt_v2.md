@@ -75,7 +75,7 @@ Local verification: 361 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 04 — SRD monster library and independent encounter creatures
 
-Status: Implemented; [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) ready for review, not merged. Dependencies: E02 (merged).
+Status: Complete; [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) merged into `main` on 2026-11-16 (commit `0f9c50e`). Dependencies: E02 (merged).
 
 - [x] E04-T01: Define reusable monster definitions versus independent encounter actors; keep PC state shared across scenes.
 - [x] E04-T02: Add backward-compatible instance creation with independent HP/resources/conditions and linked appearance.
@@ -98,16 +98,20 @@ Local verification: 407 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 05 — Initiative and encounter lifecycle
 
-Status: Planned. Dependencies: E04.
+Status: Implemented; review handoff pending. Dependencies: E04 (merged).
 
-- [ ] E05-T01: Model encounters, participants, initiative, round, and active turn with authorized server operations.
-- [ ] E05-T02: Start an encounter from selected tokens; roll initiative through the existing authoritative dice service.
-- [ ] E05-T03: Support manual initiative, tie resolution, reorder, add/remove participants, pause/resume, and end.
-- [ ] E05-T04: Display turn order; highlight the active token and show a clear Your turn cue.
-- [ ] E05-T05: Define player turn-advance permissions; hide secret combatants and GM-only statistics.
-- [ ] E05-T06: Test concurrent turn advancement, idempotent rolls, refresh/reconnect, hidden participants, and multiple scenes.
+- [x] E05-T01: Model encounters, participants, initiative, round, and active turn with authorized server operations.
+- [x] E05-T02: Start an encounter from selected tokens; roll initiative through the existing authoritative dice service.
+- [x] E05-T03: Support manual initiative, tie resolution, reorder, add/remove participants, pause/resume, and end.
+- [x] E05-T04: Display turn order; highlight the active token and show a clear Your turn cue.
+- [x] E05-T05: Define player turn-advance permissions; hide secret combatants and GM-only statistics.
+- [x] E05-T06: Test concurrent turn advancement, idempotent rolls, refresh/reconnect, hidden participants, and multiple scenes.
 
 Acceptance: GM and players agree on turn/round; secret enemies do not leak through tracker payloads or events.
+
+Implementation policy: one live encounter per scene, up to 50 selected board tokens. GM-only advancement; players have a filtered read-only tracker and persistent Your turn cues for visible owned/controlled tokens. Automatic initiative uses saved rules through the existing server dice engine and private roll recorder, committing the batch/order/receipt atomically with source revisions. Manual totals are required for missing rules. Sorting is descending with stable ties; explicit reorder, score changes, additions and rerolls preserve the active token. Removing the current participant advances to the next survivor and wraps rounds; empty encounters pause. Scene switching retains independent state. Hidden/fogged participants, current IDs, indices, private revisions, counts and sheet statistics are omitted from player projections; non-visible turns display only Waiting for GM. No automatic resource/condition recovery or turn undo. Retries persist exact requests per user/game/scene and cannot advance/reroll twice.
+
+Local verification: 446 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests and full formatting with `--end-of-line auto` passed. Tests cover filtered hidden/fogged turns, GM-only control, raw/forged-roll denial, source/dice-setting races with batch rollback, concurrent/stale advancement, retry deduplication, manual/tie order, participant deletion, pause/end, per-scene persistence, reload and late-response isolation. Migration: `20261116210025_encounter_initiative.sql`. No hosted migration applied; the opt-in multiplayer browser scenario is extended but remains unrun. Local Docker/Supabase and advisors are unavailable.
 
 ### Epic 06 — Conditions, concentration, and death saves
 
@@ -256,8 +260,7 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 
 ## Unresolved Questions
 
-- None blocking E01.
-- Before E05: GM-only turn advance, or active player too? Default: GM only.
+- None blocking E05. Turn advancement is GM-only.
 - Before E09: diagonal distance rule? Default: Euclidean; configurable later.
 - Before E10: forced camera or opt-in follow? Default: opt-in.
 - Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.
