@@ -1385,6 +1385,86 @@ summary {
 .dnd-tabbed {
   margin-top: 10px;
 }
+.monster-combat,
+.monster-stat-grid,
+.monster-roll-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.monster-combat {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+  margin-bottom: 12px;
+  background: #fffaf080;
+}
+.monster-score {
+  min-width: 0;
+}
+.monster-score .dnd-value {
+  text-align: center;
+  margin-bottom: 6px;
+}
+.monster-score .dnd-value output {
+  justify-content: center;
+}
+.monster-action {
+  padding: 12px 0;
+  border-bottom: 1px solid #d8ceba;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.monster-action:last-child {
+  border-bottom: 0;
+}
+.monster-action h4,
+.monster-action h3 {
+  margin: 0;
+}
+.monster-sheet .monster-roll-grid .dnd-roll {
+  gap: 8px;
+  height: 100%;
+}
+.monster-sheet .monster-roll-grid .dnd-roll strong {
+  font-size: 12px;
+}
+.monster-use-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.monster-sheet details > p {
+  margin: 8px 0;
+}
+.monster-action > details {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.monster-action > details > summary {
+  margin: 0;
+  padding: 4px 0;
+}
+.monster-sheet .monster-roll-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+}
+.monster-source-stats > div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.monster-source-stats dt {
+  font-weight: 600;
+}
+.monster-source-stats dd {
+  margin: 0;
+}
 .dnd-tabs {
   position: sticky;
   top: -18px;

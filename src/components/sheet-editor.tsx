@@ -241,7 +241,7 @@ export function SheetEditor({
             )}
           </div>
         </details>
-        {(!dnd || customize) && (
+        {((!dnd && !monster) || customize) && (
           <label>
             Name
             <input
@@ -257,6 +257,11 @@ export function SheetEditor({
         )}
         {monster && !customize ? (
           <MonsterSheet
+            name={name}
+            onCustomize={() => setCustomize(true)}
+            portrait={
+              <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
+            }
             sheet={sheet}
             editable={editable}
             rollable={rollable}
