@@ -75,7 +75,7 @@ Local verification: 361 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 04 — SRD monster library and independent encounter creatures
 
-Status: Implemented; review handoff pending. Dependencies: E02 (merged).
+Status: Implemented; [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) ready for review, not merged. Dependencies: E02 (merged).
 
 - [x] E04-T01: Define reusable monster definitions versus independent encounter actors; keep PC state shared across scenes.
 - [x] E04-T02: Add backward-compatible instance creation with independent HP/resources/conditions and linked appearance.
