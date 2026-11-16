@@ -78,9 +78,9 @@ jobs:
       - name: Install Vercel CLI
         if: steps.revision.outputs.current == 'true'
         run: npm install --global vercel@65.16.0
-      - name: Pull Vercel production configuration
+      - name: Verify Vercel project access
         if: steps.revision.outputs.current == 'true'
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        run: vercel link --yes --scope "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN"
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         if: steps.revision.outputs.current == 'true'
         with:
@@ -94,9 +94,8 @@ jobs:
       - name: Apply pending migrations
         if: steps.revision.outputs.current == 'true'
         run: supabase db push --linked --skip-vault --yes
-      - name: Build production application
-        if: steps.revision.outputs.current == 'true'
-        run: vercel build --prod --token "$VERCEL_TOKEN"
       - name: Deploy production application
         if: steps.revision.outputs.current == 'true'
-        run: vercel deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN"
+        # Build on Vercel: pulled Secret values are [SENSITIVE] placeholders,
+        # which Next.js would otherwise inline into NEXT_PUBLIC_* references.
+        run: vercel deploy --prod --yes --token "$VERCEL_TOKEN"
