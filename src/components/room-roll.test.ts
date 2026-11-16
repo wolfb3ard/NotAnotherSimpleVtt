@@ -29,6 +29,64 @@ afterEach(async () => {
   vi.resetAllMocks();
 });
 
+it('routes both full-scene fog controls through the shared reversible operation queue', async () => {
+  const scene = {
+    id: 'scene',
+    game_id: 'game',
+    name: 'Map',
+    asset_id: 'asset',
+    width: 200,
+    height: 200,
+    fog: [],
+    revision: 0,
+    units_per_pixel: 1,
+    unit: 'ft',
+  };
+  const snapshot: Snapshot = {
+    userId: 'gm',
+    role: 'gm',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: 'scene', dice: [20] },
+    actors: [],
+    grants: [],
+    tokens: [],
+    members: [],
+    scenes: [scene],
+    templates: [],
+    rolls: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  mutate.mockResolvedValue({ data: { history: '[]' } });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+  );
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Room, { initial: snapshot })));
+  const button = (name: string) =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === name)!;
+  await act(async () => button('Scenes').click());
+  for (const name of ['Reveal entire scene', 'Conceal entire scene']) {
+    await act(async () => button(name).click());
+    expect(mutate).toHaveBeenLastCalledWith(
+      'game',
+      'tabletop_fog',
+      expect.objectContaining({
+        id: 'scene',
+        scene_id: 'scene',
+        revision: 0,
+        operation_id: expect.any(String),
+        fog: name.startsWith('Reveal')
+          ? [{ x: 0, y: 0, width: 200, height: 200, reveal: true }]
+          : [],
+      }),
+    );
+  }
+  expect(mutate.mock.calls.filter(([, command]) => command === 'scene_update')).toHaveLength(0);
+});
+
 it.each(['public', 'private'] as const)(
   'submits %s sheet rolls immediately, ignores manual modifiers, prevents concurrent requests and keeps the sheet open',
   async (visibility) => {

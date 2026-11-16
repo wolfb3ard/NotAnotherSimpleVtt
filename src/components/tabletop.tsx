@@ -6,7 +6,7 @@ import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Scene, Snapshot, Token } from '@/lib/types';
 import { distance, visibleAt } from '@/lib/geometry';
 import type { Command } from '@/lib/commands';
-import { movementQueue } from '@/lib/movement';
+import type { useTabletopEdits } from './use-tabletop-edits';
 import { portraitCrop, tokenRings } from '@/lib/token-appearance';
 
 type Point = { x: number; y: number };
@@ -49,8 +49,7 @@ function ActorToken({
 }) {
   const { image } = useImage(token.asset_id ? `/api/images/${token.asset_id}` : undefined);
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
-  const queue = useRef<ReturnType<typeof movementQueue> | null>(null);
-  const lastSent = useRef(0);
+  const draggingRevision = useRef(token.revision);
   return (
     <Group
       x={dragPosition?.x ?? token.x}
@@ -61,25 +60,17 @@ function ActorToken({
       onTap={select}
       onDragStart={(e) => {
         setDragPosition(e.target.position());
-        queue.current = movementQueue(token.revision, (point, revision) =>
-          move(point.x, point.y, revision),
-        );
-        lastSent.current = 0;
+        draggingRevision.current = token.revision;
       }}
       onDragMove={(e) => {
         const point = e.target.position();
         setDragPosition(point);
-        if (Date.now() - lastSent.current >= 300) {
-          lastSent.current = Date.now();
-          void queue.current?.move(point);
-        }
       }}
       onDragEnd={async (e) => {
         const point = e.target.position();
         setDragPosition(point);
-        await queue.current?.move(point);
+        await move(point.x, point.y, draggingRevision.current);
         setDragPosition(null);
-        queue.current = null;
       }}
     >
       <Circle
@@ -131,11 +122,13 @@ function ActorToken({
 
 export default function Tabletop({
   snapshot,
+  edits,
   run,
   selectActor,
   children,
 }: {
   snapshot: Snapshot;
+  edits: ReturnType<typeof useTabletopEdits>;
   run: Run;
   selectActor: (id: string) => void;
   children?: React.ReactNode;
@@ -190,6 +183,7 @@ export default function Tabletop({
   }
   function down(e: KonvaEventObject<MouseEvent>) {
     if (mode === 'move' || e.evt.button !== 0) return;
+    if (edits.blocked && ['reveal', 'conceal'].includes(mode)) return;
     const p = point();
     setStart(p);
     setEnd(p);
@@ -201,7 +195,8 @@ export default function Tabletop({
     const width = Math.abs(start.x - end.x),
       height = Math.abs(start.y - end.y);
     if (width < 1 || height < 1) return;
-    await run('scene_update', {
+    if (edits.blocked) return;
+    await edits.commit('tabletop_fog', {
       id: scene.id,
       revision: scene.revision,
       fog: [
@@ -225,6 +220,19 @@ export default function Tabletop({
   return (
     <div className="tabletop" ref={container}>
       <div className="canvas-tools">
+        <button
+          disabled={edits.blocked || !edits.entry}
+          onClick={() => void edits.undo()}
+          title="Ctrl/Cmd+Z. Last 20 moves/fog edits, within 24 hours, in this scene."
+        >
+          Undo{edits.entry ? `: ${edits.entry.description}` : ''}
+        </button>
+        {edits.uncertain && (
+          <>
+            <button onClick={() => void edits.retry()}>Retry tabletop change</button>
+            <button onClick={edits.dismiss}>Dismiss attempt</button>
+          </>
+        )}
         <button className={mode === 'move' ? 'active' : ''} onClick={() => setMode('move')}>
           ↖ Move
         </button>
@@ -253,6 +261,16 @@ export default function Tabletop({
             </button>
           </>
         )}
+      </div>
+      <div className="tabletop-undo-status" role="status">
+        {edits.message}
+        <details>
+          <summary>Undo limits</summary>
+          Last 20 committed token moves and fog edits per user/game, for 24 hours. Only this scene
+          is shown. Later changes or lost permission can block undo. Scale, visibility, size,
+          control, creation and deletion are not undoable. Undo cannot erase information players
+          already saw.
+        </details>
       </div>
       {!scene ? (
         <div className="canvas-empty">
@@ -303,22 +321,25 @@ export default function Tabletop({
               {image && <CanvasImage image={image} width={scene.width} height={scene.height} />}
               {renderedTokens.map((token) => (
                 <ActorToken
-                  key={token.id}
+                  key={`${scene.id}:${token.id}`}
                   token={token}
                   movable={
-                    mode === 'move' && !preview && (gm || token.controller_id === snapshot.userId)
+                    !edits.blocked &&
+                    mode === 'move' &&
+                    !preview &&
+                    (gm || token.controller_id === snapshot.userId)
                   }
                   select={() => {
                     setSelected(token.id);
                     selectActor(token.actor_id);
                   }}
                   move={async (x, y, revision) => {
-                    return !!(await run('token_update', {
+                    return edits.commit('tabletop_move', {
                       id: token.id,
                       revision,
                       x: Math.min(scene.width - 0.01, Math.max(0, x)),
                       y: Math.min(scene.height - 0.01, Math.max(0, y)),
-                    }));
+                    });
                   }}
                 />
               ))}

@@ -167,6 +167,30 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
         expect(current.actors).toHaveLength(0);
       }),
     );
+    // A whole drag is one undo entry, restored from server history after reload.
+    await player.page.reload();
+    await player.page.getByRole('button', { name: 'Undo: Move token', exact: true }).click();
+    await expect
+      .poll(async () => {
+        const current = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+        return current.tokens[0].x;
+      })
+      .toBeCloseTo(100, 0);
+    // Both full-scene fog controls use the same reversible path as painted rectangles.
+    await gm.page.getByRole('button', { name: 'Conceal entire scene', exact: true }).click();
+    await expect
+      .poll(async () => {
+        const current = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+        return current.tokens.length;
+      })
+      .toBe(0);
+    await gm.page.getByRole('button', { name: 'Undo: Edit fog', exact: true }).click();
+    await expect
+      .poll(async () => {
+        const current = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+        return current.tokens.length;
+      })
+      .toBe(1);
     await gm.page.getByRole('button', { name: 'Calibrate', exact: false }).click();
     const gmCanvas = (await gm.page.locator('canvas').first().boundingBox())!;
     await gm.page.mouse.move(gmCanvas.x + 350, gmCanvas.y + 350);

@@ -6,7 +6,7 @@
 
 - Google sign-in through Supabase, multiple games, game-scoped GM/player roles, and expiring/revocable invitations.
 - Custom character/NPC/enemy sheets, sections, text/numeric/resource fields, abilities, sheet permissions, and reusable templates.
-- Multiple saved scenes, uploaded maps/tokens, pan/zoom, assigned token control, live movement checkpoints, scene calibration, and a straight-line ruler.
+- Multiple saved scenes, uploaded maps/tokens, pan/zoom, assigned token control, reversible committed moves/fog edits, scene calibration, and a straight-line ruler.
 - Manual reveal/conceal fog, GM-hidden tokens, and player-view previews. Concealed background pixels are removed server-side.
 - Server-generated dice rolls: custom die sizes, mixed dice, arithmetic, parentheses, keep-highest/lowest, modifiers, and saved rolls using sheet fields.
 - Animated 3D polyhedral dice over the tabletop (d4/d6/d8/d10/d12/d20), anonymous private-player roll cues, and per-user dice material customization.
@@ -78,6 +78,14 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - **Add token to scene** places the saved appearance in the active scene. Players can place their own actors; GMs can place any actor, including multiple instances of a monster. Player placement retries do not create duplicates.
 - Appearance changes update existing placements in every scene. Tokens link to the same live sheet: HP, resources, and other stats are not copied or reset on placement or scene changes. Multiple instances of the same monster sheet share stats; create separate sheets for independent monsters.
 - Placement starts near the map’s top-left. Existing fog/hidden-token rules still apply; a GM may need to reveal that area. Party placement remains a shortcut, but appearance is managed on the sheet.
+
+### Undo tabletop edits
+
+- **Undo: Move token / Edit fog** in the map toolbar, or **Ctrl/Cmd+Z** outside text inputs, reverses your latest eligible action in the active scene. A drag commits once on drop. Painted fog and Reveal/Conceal entire scene are supported.
+- The server retains your last **20 actions per game for 24 hours**, including undone receipts for safe retries. History survives refresh and is reconciled on reconnect/focus; switching scenes shows only that scene's entries.
+- Undo checks current permission, visibility and revision. A newer change blocks reversal rather than overwriting it; adjust manually. Scale, token size/visibility/control, creation, deletion and sheets are not part of this history. No redo.
+- **Saving**, **confirmed**, and **failed or unconfirmed** feedback distinguishes acknowledgement from an uncertain request. **Retry tabletop change** resends the exact operation ID, never applies it twice. Unconfirmed requests survive reload in the same tab when session storage is available. **Dismiss attempt** only stops retrying and reloads history; it does not reverse a change.
+- Concealing again cannot erase information a player already saw or saved.
 - Apply `supabase/migrations/20261116120505_persistent_actor_tokens.sql` after earlier migrations before deploying. Existing actors inherit one deterministic existing token portrait (lowest token ID with an image); scene-specific portraits then share that character appearance. Application startup never migrates databases; the production workflow below applies pending migrations.
 
 ## Character deletion & roll windows

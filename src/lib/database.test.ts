@@ -967,6 +967,214 @@ describe.sequential('database authorization and transactions', () => {
 
 persistentActorTests();
 
+describe.sequential('reversible tabletop edits', () => {
+  async function fixture() {
+    await as(gm);
+    const g = (await db.query<{ id: string }>("select public.create_game('Undo','GM') as id"))
+      .rows[0].id;
+    const invitation = (await command('invite', {}, g)).token;
+    await as(player);
+    await db.query("select public.accept_invite($1,'Player')", [invitation]);
+    await db.exec('reset role');
+    const asset = randomUUID();
+    await db.query(
+      "insert into assets(id,game_id,owner_id,kind,path,width,height) values($1,$2,$3,'background',$4,200,200)",
+      [asset, g, gm, `undo-${asset}.webp`],
+    );
+    await as(gm);
+    await command('scene_create', { name: 'Undo map', asset_id: asset }, g);
+    const s = (
+      await db.query<{ id: string }>('select active_scene_id as id from games where id=$1', [g])
+    ).rows[0].id;
+    const fog = [{ x: 0, y: 0, width: 200, height: 200, reveal: true }];
+    await command('scene_update', { id: s, revision: 0, fog }, g);
+    const a = (
+      await command(
+        'actor_create',
+        { name: 'Undo hero', kind: 'character', owner_id: player, sheet },
+        g,
+      )
+    ).id;
+    await command('token_create', { actor_id: a, scene_id: s }, g);
+    const t = (await db.query<{ id: string }>('select id from tokens where game_id=$1', [g]))
+      .rows[0].id;
+    const call = async (name: string, p: Record<string, unknown> = {}, gameId = g) =>
+      (
+        await db.query<{ value: { history: string } }>(
+          'select public.tabletop_command($1,$2,$3::jsonb) as value',
+          [gameId, name, JSON.stringify({ scene_id: s, ...p })],
+        )
+      ).rows[0].value;
+    const move = (revision = 0, operation_id = randomUUID(), x = 120) =>
+      call('tabletop_move', { id: t, revision, operation_id, x, y: 120 });
+    const undo = (operation_id: string) => call('tabletop_undo', { operation_id });
+    const history = async () =>
+      JSON.parse((await call('tabletop_history')).history) as { id: string; description: string }[];
+    const position = async () =>
+      (
+        await db.query<{ x: number; revision: number }>(
+          'select x,revision from tokens where id=$1',
+          [t],
+        )
+      ).rows[0];
+    return { g, s, t, fog, call, move, undo, history, position };
+  }
+  it('commits one move, retries idempotently, and retries undo without moving twice', async () => {
+    const f = await fixture();
+    await as(player);
+    const id = randomUUID();
+    await f.move(0, id);
+    await f.move(0, id);
+    expect(await f.position()).toEqual({ x: 120, revision: 1 });
+    expect(await f.history()).toEqual([{ id, description: 'Move token' }]);
+    await expect(f.move(0, id, 130)).rejects.toThrow(/already used/);
+    await f.undo(id);
+    await f.undo(id);
+    expect(await f.position()).toEqual({ x: 100, revision: 2 });
+    expect(await f.history()).toEqual([]);
+    await f.move(0, id);
+    expect(await f.position()).toEqual({ x: 100, revision: 2 });
+  });
+  it('undoes consecutive own moves, rebasing revisions without reverting newer foreign writes', async () => {
+    const f = await fixture();
+    await as(player);
+    const first = randomUUID(),
+      second = randomUUID();
+    await f.move(0, first);
+    await f.move(1, second, 140);
+    await f.undo(second);
+    await f.undo(first);
+    expect(await f.position()).toEqual({ x: 100, revision: 4 });
+    const third = randomUUID();
+    await f.move(4, third);
+    await as(gm);
+    // Even a later move back to identical coordinates must break the revision chain.
+    await command('token_update', { id: f.t, revision: 5, x: 120 }, f.g);
+    await as(player);
+    await expect(f.undo(third)).rejects.toThrow(/later change/);
+    expect(await f.position()).toEqual({ x: 120, revision: 6 });
+  });
+  it('rejects stale forward moves atomically and never adds failed operations to history', async () => {
+    const f = await fixture();
+    await as(player);
+    await f.move();
+    await expect(f.move()).rejects.toThrow(/changed/);
+    expect(await f.history()).toHaveLength(1);
+    expect(await f.position()).toEqual({ x: 120, revision: 1 });
+  });
+  it('restores fog privately, conceals tokens again, and never exposes inverse data', async () => {
+    const f = await fixture();
+    const id = randomUUID();
+    await f.call('tabletop_fog', { id: f.s, revision: 1, operation_id: id, fog: [] });
+    expect(await f.history()).toEqual([{ id, description: 'Edit fog' }]);
+    await as(player);
+    expect(await f.history()).toEqual([]);
+    expect((await db.query('select id from tokens where id=$1', [f.t])).rows).toEqual([]);
+    await expect(db.query('select * from tabletop_history')).rejects.toThrow(/permission denied/);
+    await expect(f.undo(id)).rejects.toThrow(/expired or unsupported/);
+    await expect(
+      f.call('tabletop_fog', { id: f.s, revision: 2, operation_id: randomUUID(), fog: f.fog }),
+    ).rejects.toThrow(/GM required/);
+    await as(gm);
+    await f.undo(id);
+    await as(player);
+    expect((await db.query('select id from tokens where id=$1', [f.t])).rows).toHaveLength(1);
+    // Undo a reveal as well: players lose current access, not their prior knowledge.
+    await as(gm);
+    await command('scene_update', { id: f.s, revision: 3, fog: [] }, f.g);
+    const reveal = randomUUID();
+    await f.call('tabletop_fog', { id: f.s, revision: 4, operation_id: reveal, fog: f.fog });
+    await f.undo(reveal);
+    await as(player);
+    expect((await db.query('select id from tokens where id=$1', [f.t])).rows).toEqual([]);
+  });
+  it('rejects undo over later fog or calibration changes', async () => {
+    const f = await fixture();
+    const id = randomUUID();
+    await f.call('tabletop_fog', { id: f.s, revision: 1, operation_id: id, fog: [] });
+    await command('scene_update', { id: f.s, revision: 2, unit: 'm' }, f.g);
+    await expect(f.undo(id)).rejects.toThrow(/later change/);
+    expect((await db.query('select fog,unit from scenes where id=$1', [f.s])).rows[0]).toEqual({
+      fog: [],
+      unit: 'm',
+    });
+  });
+  it('rechecks control and visibility for history, inverse destinations, and receipt retries', async () => {
+    const f = await fixture();
+    await as(player);
+    const id = randomUUID();
+    await f.move(0, id);
+    await as(gm);
+    await command(
+      'scene_update',
+      { id: f.s, revision: 1, fog: [{ x: 110, y: 110, width: 40, height: 40, reveal: true }] },
+      f.g,
+    );
+    await as(player);
+    await expect(f.undo(id)).rejects.toThrow(/Destination is concealed/);
+    await as(gm);
+    await command('token_update', { id: f.t, revision: 1, controller_id: gm }, f.g);
+    await as(player);
+    expect(await f.history()).toEqual([]);
+    await expect(f.undo(id)).rejects.toThrow(/control denied/);
+    await expect(f.move(0, id)).rejects.toThrow(/control denied/);
+  });
+  it('scopes history and undo to user, game and active scene across scene switches', async () => {
+    const f = await fixture();
+    await as(player);
+    const id = randomUUID();
+    await f.move(0, id);
+    await as(gm);
+    expect(await f.history()).toEqual([]);
+    await expect(f.undo(id)).rejects.toThrow(/expired or unsupported/);
+    await db.exec('reset role');
+    await db.query('update games set active_scene_id=null where id=$1', [f.g]);
+    await as(player);
+    await expect(f.undo(id)).rejects.toThrow(/Scene changed/);
+    await expect(f.call('tabletop_history', {}, otherGame)).rejects.toThrow(/access denied/);
+    await as(gm);
+    await command('scene_activate', { id: f.s }, f.g);
+    await as(player);
+    expect(await f.history()).toHaveLength(1);
+    await f.undo(id);
+  });
+  it('bounds history at twenty, expires at 24h, and denies anonymous execution', async () => {
+    const f = await fixture();
+    await as(player);
+    const first = randomUUID();
+    await f.move(0, first);
+    for (let i = 1; i <= 20; i++) await f.move(i, randomUUID(), 120 + i);
+    expect(await f.history()).toHaveLength(20);
+    await expect(f.undo(first)).rejects.toThrow(/expired or unsupported/);
+    await expect(f.move(0, first)).rejects.toThrow(/changed/);
+    await db.exec('reset role');
+    await db.query(
+      "update tabletop_history set created_at=now()-interval '25 hours' where game_id=$1",
+      [f.g],
+    );
+    await as(player);
+    expect(await f.history()).toEqual([]);
+    await db.exec('reset role; set role anon');
+    await expect(f.call('tabletop_history')).rejects.toThrow(/permission denied/);
+  });
+  it('denies history, undo and acknowledgement retries after membership revocation', async () => {
+    const f = await fixture();
+    await as(player);
+    const id = randomUUID();
+    await f.move(0, id);
+    await db.exec('reset role');
+    await db.query('update actors set owner_id=$1 where game_id=$2', [gm, f.g]);
+    await db.query('update tokens set controller_id=$1 where game_id=$2', [gm, f.g]);
+    await db.query('delete from memberships where game_id=$1 and user_id=$2', [f.g, player]);
+    await as(player);
+    await expect(f.history()).rejects.toThrow(/access denied/);
+    await expect(f.undo(id)).rejects.toThrow(/access denied/);
+    await expect(f.move(0, id)).rejects.toThrow(/access denied/);
+    await as(gm);
+    expect(await f.position()).toEqual({ x: 120, revision: 1 });
+  });
+});
+
 describe.sequential('atomic play resources', () => {
   let hero: string;
   const hp = dndId('hp'),

@@ -7,6 +7,7 @@
 - Set site URLs, callback allowlists, Google provider credentials, and environment variables for the correct environment. Test Google sign-in in a signed-out browser and from an invitation. Discord's sign-in button is currently hidden.
 - In separate GM/player browsers, create/join a room, upload a scene, reveal part of it, add/move a token, calibrate/measure, save a sheet, and roll publicly/privately.
 - Check player requests cannot fetch raw backgrounds, hidden tokens, restricted sheets, or GM-private rolls.
+- Apply `20261116161714_reversible_tabletop.sql` before the Epic 03 app. Verify move/fog Undo, reload/retry acknowledgement, concurrent-change rejection, and loss of control. Inverse history must have no client table grants or Realtime publication. Undo does not erase information already seen.
 - Disconnect/reconnect a player and verify persisted state returns. Revoke a sheet grant and confirm it disappears from that player's view.
 - Load-test a GM and eight players, including large supported images and repeated fog edits. Measure image processing duration, request latency, reconnect behavior, and service quota usage.
 
@@ -18,7 +19,7 @@ Images are normalized on upload. Fog derivatives are shared between viewers of t
 
 The application does not yet schedule automatic asset cleanup. Periodically remove obsolete `masked/<game>/<scene>/<revision>.webp` derivatives, keeping each scene's current revision. Remove orphan originals that are not referenced by any scene/token after verifying the `assets` records. Failed scene/token creation may leave an uploaded asset for later cleanup.
 
-Roll history is retained in Postgres; the UI queries the newest 50 authorized entries. Export before implementing any retention deletion. Continuous dragging writes checkpoints and sends invalidations; reducing movement frequency is the first tuning option if usage is high.
+Roll history is retained in Postgres; the UI queries the newest 50 authorized entries. Export before implementing any retention deletion. Token drags commit once on drop. Undo history is bounded to 20 receipts per user/game and expires lazily after 24 hours on that user's next tabletop request; there is no scheduled cleanup.
 
 ## Recovery and backup
 
