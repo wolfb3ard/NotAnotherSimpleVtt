@@ -57,7 +57,7 @@ Local verification: 327 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 03 — Reversible tabletop edits
 
-Status: Implemented; ready for review, not merged. Dependencies: E02 (merged).
+Status: Implemented; [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) ready for review, not merged. Dependencies: E02 (merged).
 
 - [x] E03-T01: Define a bounded, per-user undo history for committed token moves and fog edits.
 - [x] E03-T02: Add revision-checked inverse operations; reject undo that would overwrite another user's later change.

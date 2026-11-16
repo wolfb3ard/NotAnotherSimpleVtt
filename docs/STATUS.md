@@ -4,7 +4,7 @@
 
 - VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
 - VTT v2 Epic 02: immediate authorized resource/feature-use saves, atomic Damage/Heal previews with temporary HP, serialized rapid edits, revision/idempotency protection, visible failure/retry, and isolated configuration drafts. Apply the new resource migration before deployment.
-- VTT v2 Epic 03: bounded private server undo history, revision-checked inverses for committed token moves and painted/full-scene fog, Ctrl/Cmd+Z outside typing, and persisted uncertain-operation retries. Apply the reversible-tabletop migration before deployment. Review pending.
+- VTT v2 Epic 03: bounded private server undo history, revision-checked inverses for committed token moves and painted/full-scene fog, Ctrl/Cmd+Z outside typing, and persisted uncertain-operation retries. Apply the reversible-tabletop migration before deployment. [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) ready for review; not merged.
 
 - Phase 1: application foundation, Google authentication (Discord backend retained; button hidden), game-scoped roles, invitations, dashboard, and authorization migrations.
 - Phase 2: actor sheets, customizable fields/resources/abilities, grants, templates, copies, and revision checks.
