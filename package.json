@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "srd:import": "python scripts/import-srd.py",
+    "srd:migration": "node scripts/generate-srd-migration.cjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

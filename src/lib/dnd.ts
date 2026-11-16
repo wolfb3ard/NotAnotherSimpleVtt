@@ -1,4 +1,5 @@
 import type { Field, Section, Sheet } from './types';
+import { srdCastingSources } from './srd-casting';
 
 export const abilities = [
   'Strength',
@@ -105,7 +106,7 @@ export function createDndSheet(): Sheet {
       max: 0,
     })),
   ]);
-  roll(combat, 'initiative', 'Initiative', `1d20 + ${ref('check:1')}`);
+  roll(combat, 'initiative', 'Initiative', `1d20 + ${ref('initiative')}`);
   roll(combat, 'spell-attack', 'Spell attack', `1d20 + ${ref('spell-attack')}`);
   const attacks = Array.from({ length: 3 }, (_, i) => {
     const s = section(`weapon:${i}`, `Attack ${i + 1}`, [
@@ -136,9 +137,12 @@ export function createDndSheet(): Sheet {
 }
 
 export function dndDamageExpression(dice: string, slot: number, critical = false) {
+  // Fixed damage (e.g. Blowgun) has no dice to double on a critical hit.
+  if (/^(0|[1-9]\d{0,2})$/.test(dice))
+    return `max(0, ${Number(dice)} + ${ref(`weapon-damage-total:${slot}`)})`;
   const match = /^(\d{1,2})d(4|6|8|10|12|20)$/.exec(dice);
   if (!match || Number(match[1]) < 1 || Number(match[1]) > 20)
-    throw new Error('Damage dice must be 1–20 dice, such as 2d6.');
+    throw new Error('Damage must be 1–20 dice, such as 2d6, or fixed damage from 0–999.');
   return `max(0, ${Number(match[1]) * (critical ? 2 : 1)}d${match[2]} + ${ref(`weapon-damage-total:${slot}`)})`;
 }
 
@@ -176,7 +180,21 @@ export function dndNumbers(sheet: Sheet): Record<string, number> {
   const spellMod = mods[n('spell-ability', 3)] ?? 0;
   set('spell-dc', 8 + pb + spellMod);
   set('spell-attack', spellMod + pb + n('attack-bonus') - penalty);
-  set('initiative', mods[1] + n('check-bonus') - penalty);
+  const builder = sheet.character?.builder;
+  const latest = new Map(builder?.levels.map((step) => [step.className, step]));
+  const feats = [
+    builder?.originFeat,
+    builder?.humanFeat,
+    ...(builder?.levels.map((step) => step.feat) ?? []),
+    ...[...latest.values()].flatMap((step) => step.invocationFeats),
+  ];
+  // SRD 5.2.1 p.87: Alert is initiative-specific, not a bonus to all checks.
+  const alert = feats.some((feat) => feat?.id === 'feat-alert') ? pb : 0;
+  set('initiative', mods[1] + n('check-bonus') - penalty + alert);
+  for (const source of builder ? srdCastingSources(builder) : []) {
+    set(source.dcKey, 8 + pb + mods[source.ability]);
+    set(source.attackKey, pb + mods[source.ability] + n('attack-bonus') - penalty);
+  }
   set('passive', 10 + result[dndId('skill:11')] + penalty);
   for (let i = 0; i < 3; i++) {
     const mod = mods[n(`weapon-ability:${i}`)] ?? 0;

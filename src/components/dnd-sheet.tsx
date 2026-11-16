@@ -11,6 +11,7 @@ import {
 } from '@/lib/dnd';
 import type { Sheet } from '@/lib/types';
 import { DndTabs } from './dnd-tabs';
+import { srdCastingSources } from '@/lib/srd-casting';
 
 type Props = {
   name: string;
@@ -20,7 +21,7 @@ type Props = {
   rollable: boolean;
   dirty: boolean;
   update: (edit: (sheet: Sheet) => void) => void;
-  onRoll: (expression: string) => void;
+  onRoll: (expression: string, rollType?: string) => void;
 };
 const signed = (n: number) => (n >= 0 ? `+${n}` : String(n));
 const ref = (key: string) => `@{${dndId(key)}}`;
@@ -39,6 +40,7 @@ export function DndSheet({
   const [mode, setMode] = useState('normal');
   const fields = new Map(sheet.sections.flatMap((s) => s.fields).map((f) => [f.id, f]));
   const computed = dndNumbers(sheet);
+  const castingSources = sheet.character?.builder ? srdCastingSources(sheet.character.builder) : [];
   const field = (key: string) => fields.get(dndId(key));
   function change(key: string, value: string | number, maximum = false) {
     update((copy) => {
@@ -90,7 +92,12 @@ export function DndSheet({
             aria-label={label ?? f.label}
             type={f.kind === 'text' ? 'text' : 'number'}
             value={computed[f.id] ?? f.value}
-            disabled={!editable || derived}
+            disabled={
+              !editable ||
+              derived ||
+              (!!sheet.character?.builder &&
+                (key === 'level' || key === 'hit-dice' || key.startsWith('score:')))
+            }
             min={
               key === 'level' || key.startsWith('score:')
                 ? 1
@@ -122,7 +129,7 @@ export function DndSheet({
               type="number"
               min={0}
               value={f.max ?? 0}
-              disabled={!editable}
+              disabled={!editable || (!!sheet.character?.builder && key === 'hit-dice')}
               onChange={(e) => change(key, Number(e.target.value), true)}
             />
           </label>
@@ -135,8 +142,10 @@ export function DndSheet({
     key: string,
     expression = `1d20 + ${ref(key)}`,
     displayLabel = label,
+    rollType = label,
   ) {
-    const value = computed[dndId(key)];
+    const stored = fields.get(dndId(key))?.value;
+    const value = computed[dndId(key)] ?? (typeof stored === 'number' ? stored : undefined);
     const resolved = expression.replace(/@\{([^}]+)\}/g, (_, id: string) =>
       String(computed[id] ?? fields.get(id)?.value ?? '?'),
     );
@@ -151,6 +160,7 @@ export function DndSheet({
             mode === 'normal'
               ? expression
               : expression.replace(/^1d20/, mode === 'advantage' ? '2d20kh1' : '2d20kl1'),
+            rollType,
           )
         }
       >
@@ -198,6 +208,8 @@ export function DndSheet({
       'weapon:0',
       'weapon:1',
       'weapon:2',
+      'srd-resources',
+      'srd-resources:1',
     ].map(dndId),
   );
   return (
@@ -259,7 +271,7 @@ export function DndSheet({
           {input('speed')}
           {input('initiative')}
           {input('exhaustion')}
-          {rollButton('Initiative', 'check:1')}
+          {rollButton('Initiative', 'initiative')}
         </div>
         <div className="dnd-resource-grid">
           {input('hp')}
@@ -267,6 +279,61 @@ export function DndSheet({
           {input('inspiration')}
         </div>
       </section>
+      {sheet.sections.some((section) => section.id === dndId('srd-resources')) && (
+        <details className="dnd-box">
+          <summary>Class resources, grouped Hit Dice & spellcasting</summary>
+          <div className="dnd-resource-grid">
+            {sheet.sections
+              .filter((section) =>
+                [dndId('srd-resources'), dndId('srd-resources:1')].includes(section.id),
+              )
+              .flatMap((section) => section.fields)
+              .map((resource) => (
+                <label key={resource.id}>
+                  {resource.label}
+                  {resource.kind === 'resource' ? (
+                    <>
+                      <input
+                        aria-label={resource.label}
+                        type="number"
+                        min={0}
+                        max={resource.max}
+                        disabled={!editable}
+                        value={resource.value}
+                        onChange={(e) =>
+                          update((copy) => {
+                            const all = copy.sections.flatMap((section) => section.fields);
+                            const target = all.find((field) => field.id === resource.id)!;
+                            target.value = Math.max(
+                              0,
+                              Math.min(target.max ?? 0, Math.trunc(Number(e.target.value))),
+                            );
+                            const grouped = [6, 8, 10, 12].map((die) =>
+                              dndId(`srd-resource:hit-die:${die}`),
+                            );
+                            if (grouped.includes(target.id)) {
+                              const total = all.find((field) => field.id === dndId('hit-dice'));
+                              if (total)
+                                total.value = Math.min(
+                                  total.max ?? 0,
+                                  all
+                                    .filter((field) => grouped.includes(field.id))
+                                    .reduce((sum, field) => sum + Number(field.value), 0),
+                                );
+                            }
+                          })
+                        }
+                      />
+                      <span className="small muted"> / {resource.max}</span>
+                    </>
+                  ) : (
+                    <output>{computed[resource.id] ?? resource.value}</output>
+                  )}
+                </label>
+              ))}
+          </div>
+        </details>
+      )}
       <DndTabs
         sheet={sheet}
         editable={editable}
@@ -274,8 +341,19 @@ export function DndSheet({
         dirty={dirty}
         update={update}
         onRoll={onRoll}
+        d20={mode === 'advantage' ? '2d20kh1' : mode === 'disadvantage' ? '2d20kl1' : '1d20'}
         input={input}
-        spellAttack={rollButton('Spell attack', 'spell-attack')}
+        spellAttack={
+          <>
+            {rollButton('Spell attack', 'spell-attack')}
+            {castingSources.map((source) => (
+              <div key={source.id}>
+                {rollButton(`${source.label} spell attack`, source.attackKey)}
+                <span className="small muted">Save DC {computed[dndId(source.dcKey)]}</span>
+              </div>
+            ))}
+          </>
+        }
         abilityPanel={
           <div className="dnd-columns">
             <div className="dnd-column">
@@ -309,7 +387,13 @@ export function DndSheet({
                 {skills.map(([name, ability], i) => (
                   <div className="dnd-stat-row" key={name}>
                     {proficiency(`skill-prof:${i}`, name)}
-                    {rollButton(`${name} (${abilities[ability].slice(0, 3)})`, `skill:${i}`)}
+                    {rollButton(
+                      `${name} (${abilities[ability].slice(0, 3)})`,
+                      `skill:${i}`,
+                      undefined,
+                      undefined,
+                      `${name} check`,
+                    )}
                   </div>
                 ))}
                 {input('passive')}
@@ -334,6 +418,13 @@ export function DndSheet({
         <section className="dnd-box">
           <h3>Weapon & spell attacks</h3>
           {[0, 1, 2].map((i) => {
+            if (sheet.character?.builder && field(`weapon-name:${i}`)?.value === 'Unequipped')
+              return (
+                <p key={i} className="muted">
+                  Attack slot {i + 1} · Unequipped. Choose a ready weapon in the builder, or use
+                  Customize sheet for a manual attack.
+                </p>
+              );
             let damage = '',
               critical = '';
             try {
@@ -349,10 +440,28 @@ export function DndSheet({
                   {input(`weapon-dice:${i}`, `Attack ${i + 1} damage dice`)}
                   {input(`weapon-type:${i}`, `Attack ${i + 1} damage type`)}
                 </div>
-                {rollButton('Attack roll', `weapon-total:${i}`)}
+                {rollButton(
+                  'Attack roll',
+                  `weapon-total:${i}`,
+                  undefined,
+                  undefined,
+                  `Attack roll with ${field(`weapon-name:${i}`)?.value}`,
+                )}
                 <div className="dnd-inline">
-                  {rollButton('Damage', `weapon-damage-total:${i}`, damage)}
-                  {rollButton('Critical damage', `weapon-damage-total:${i}`, critical)}
+                  {rollButton(
+                    'Damage',
+                    `weapon-damage-total:${i}`,
+                    damage,
+                    undefined,
+                    `Damage with ${field(`weapon-name:${i}`)?.value}`,
+                  )}
+                  {rollButton(
+                    'Critical damage',
+                    `weapon-damage-total:${i}`,
+                    critical,
+                    undefined,
+                    `Critical damage with ${field(`weapon-name:${i}`)?.value}`,
+                  )}
                 </div>
                 {!damage && <p role="alert">Use damage dice such as 1d8 or 2d6.</p>}
                 <details>

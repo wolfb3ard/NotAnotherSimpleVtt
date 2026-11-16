@@ -1,0 +1,36 @@
+{
+  "title": "System Reference Document 5.2.1",
+  "sourceFile": "SRD_CC_v5.2.1.pdf",
+  "sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87",
+  "pageCount": 364,
+  "importer": "scripts/import-srd.py",
+  "license": "CC-BY-4.0",
+  "attribution": "This work includes material from the System Reference Document 5.2.1 (SRD 5.2.1) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode. Adapted as a searchable catalog and character builder.",
+  "counts": {
+    "background": 4,
+    "class": 12,
+    "equipment": 325,
+    "feat": 17,
+    "feature": 232,
+    "magic-item": 892,
+    "option": 38,
+    "rule": 71,
+    "species": 9,
+    "spell": 338,
+    "subclass": 12
+  },
+  "verification": "All 364 PDF pages retained. Structured heading extraction; counts are regression baselines, not independent proof of semantic completeness. Nested tables and conditional rules require separate rule modeling.",
+  "implementationCoverage": {
+    "startingEquipment": "All 25 class package/currency alternatives and all 8 background package/currency alternatives are explicitly modeled in src/lib/srd-equipment.ts; 7 packs expanded from PDF pp.96–99. Regression tests independently assert printed example quantities and coin amounts.",
+    "armor": "12 body armor profiles plus Shields (PDF p.92), training, Strength/Stealth feedback, nonstacking AC formulas and movement application.",
+    "weapons": "Owned, explicitly selected ready weapons apply to three existing attack slots; Finesse, Monk Martial Arts, active Pact ability/proficiency/damage and named +1–3 variants are modeled. Blowgun fixed damage is supported; critical hits double dice, never flat damage.",
+    "casting": "Each generated spell retains its class, feat and/or species source and chosen casting ability. A shared configurable default is not treated as the source for every spell."
+  },
+  "limitations": [
+    "Not independently audited as a complete rules implementation; all original page text remains accessible.",
+    "The creation shop covers printed mundane prices, mounts/vehicles and explicit equipment variants. Magic-item acquisition prices, spell-component purchases, crafting and encumbrance are not fully modeled. Other manual inventory is preserved.",
+    "Conditional encounter effects, resistances, temporary spell buffs, and magic-item effects beyond named +1–3 armor/shield/weapon bonuses remain manual. Defense and ranged Archery bonuses are applied to eligible equipment.",
+    "Known Wild Shape choices enforce class-level count/CR/Fly limits; familiar and steed presets retain source references. Active Pact configuration applies one conjured/owned magic weapon, not action timing or bond distance. Transformations, companion actors, copied-spell costs and situational/resource-recovery actions remain manual. Swarms require GM interpretation and are excluded from strict single-Beast selections.",
+    "Generic legacy attack/spell defaults remain configurable for homebrew; source-specific spell statistics and metadata are separate. Rest recovery/actions are not an encounter engine."
+  ]
+}

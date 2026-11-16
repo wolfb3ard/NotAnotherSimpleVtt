@@ -71,7 +71,7 @@ async function select(label: string, value: string) {
   });
 }
 async function typeName(value: string) {
-  const element = container.querySelector<HTMLInputElement>('input')!;
+  const element = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value);
     element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -137,7 +137,9 @@ describe('character sheet window', () => {
     await click(button('Close character sheet'));
     expect(confirm).toHaveBeenCalledWith('Discard unsaved character sheet changes?');
     expect(onClose).not.toHaveBeenCalled();
-    expect(container.querySelector<HTMLInputElement>('input')!.value).toBe('Changed hero');
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!.value).toBe(
+      'Changed hero',
+    );
     confirm.mockReturnValue(true);
     await click(button('Close character sheet'));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -147,7 +149,11 @@ describe('character sheet window', () => {
     await render();
     await select('Sheet roll mode', 'advantage');
     await click(button('Roll Strength check'));
-    expect(onRoll).toHaveBeenCalledWith('actor', `2d20kh1 + @{${dndId('check:0')}}`);
+    expect(onRoll).toHaveBeenCalledWith(
+      'actor',
+      `2d20kh1 + @{${dndId('check:0')}}`,
+      'Strength check',
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
   it('allows the GM to set view-only access and transfer ownership with a revision', async () => {
@@ -179,5 +185,27 @@ describe('character sheet window', () => {
     await click(button('Roll Strength check'));
     expect(onRoll).not.toHaveBeenCalled();
     expect(container.querySelector('[aria-label="Sheet owner"]')).toBeNull();
+  });
+  it('confirms deletion and submits the saved revision only for the owner', async () => {
+    const { render, run } = fixture();
+    await render();
+    const remove = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Delete character',
+    )!;
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await click(remove);
+    expect(run).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await click(remove);
+    expect(run).toHaveBeenCalledExactlyOnceWith('actor_delete', { id: 'actor', revision: 0 });
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('cannot be undone'));
+  });
+  it('does not show deletion to a sheet editor or token controller', async () => {
+    const { render, snapshot } = fixture();
+    snapshot.userId = 'viewer';
+    snapshot.grants = [{ actor_id: 'actor', user_id: 'viewer', can_edit: true }];
+    await render();
+    expect(container.textContent).toContain('Can edit');
+    expect(container.textContent).not.toContain('Delete character');
   });
 });

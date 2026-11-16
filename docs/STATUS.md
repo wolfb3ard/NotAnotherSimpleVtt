@@ -9,12 +9,16 @@
 - Phase 5: bounded server-side dice engine, custom die configuration, manual/sheet modifiers, saved rolls, private/public history, and idempotent retry identifiers.
 - Phase 6: automated checks, database authorization tests, browser smoke tests, an opt-in multiplayer browser test, CI, deployment and operations documentation.
 - 3D dice extension: standard numbered polyhedra, arbitrary-die question-mark visuals, anonymous private-player cues, GM-private silence, and per-user material controls with a live preview.
+- Owner/GM-only character deletion with confirmation/revision protection; tokens and grants removed while roll history and templates remain.
+- Detachable, movable/resizable in-VTT roll window; recorded roll purpose and snapshotted character attribution.
+- Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
 
 - Production build, TypeScript, lint, and formatting.
 - Unit/database tests exercise arithmetic, validation, concealed image pixels, movement coalescing, real Postgres RLS, invitation validity, revision conflicts, template ownership, roll privacy, cross-game isolation, and hidden-token access.
 - Browser smoke tests exercise public navigation, invalid invitations, and invalid data-route identifiers.
+- SRD extension tests cover every class at every level, multiclass choices, source-specific casting, equipment/variants, draft isolation, real create/save RPC validation, attunement limits, deletion authorization, and preserved roll attribution. Newly extended multiplayer/browser-builder scenarios still require an isolated Supabase test project.
 - Full Playwright session passed against local Supabase with one GM and eight players, including private-player cue access, silent private GM rolls, customized dice appearance, scene movement, and persisted roll history.
 
 ## Still requires configured infrastructure
@@ -28,4 +32,4 @@ These infrastructure checks remain release gates; local PGlite tests are not a s
 
 ## Deferred
 
-Mobile tabletop support, grid snapping, automatic vision/lighting, ruleset automation, global template catalogs, automated storage cleanup, and paginated browsing of older rolls.
+Mobile tabletop support, grid snapping, automatic vision/lighting, a complete tactical/condition rules engine, global template catalogs, automated storage cleanup, and paginated browsing of older rolls. See the SRD catalog manifest for explicit builder-automation limits; this is not independently audited as a complete rules implementation.

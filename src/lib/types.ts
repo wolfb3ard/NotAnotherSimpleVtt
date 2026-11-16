@@ -78,6 +78,8 @@ export type Roll = {
   author_id: string;
   author_name: string;
   actor_id: string | null;
+  actor_name?: string | null;
+  roll_type?: string;
   expression: string;
   visibility: 'public' | 'private';
   result: RollResult;

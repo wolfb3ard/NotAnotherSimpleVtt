@@ -1334,3 +1334,41 @@ summary {
     font-size: 35px;
   }
 }
+.roll-window {
+  width: min(440px, calc(100vw - 32px));
+  min-width: min(320px, calc(100vw - 32px));
+  z-index: 45;
+}
+
+dialog[aria-labelledby='srd-builder-title'] {
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid #74684f;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 16px 64px #000b;
+}
+dialog[aria-labelledby='srd-builder-title']::backdrop {
+  background: #0009;
+}
+dialog[aria-labelledby='srd-builder-title'] fieldset {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+dialog[aria-labelledby='srd-builder-title'] legend {
+  color: var(--gold);
+  padding: 0 8px;
+}
+dialog[aria-labelledby='srd-builder-title'] .row {
+  flex-wrap: wrap;
+}
+dialog[aria-labelledby='srd-builder-title'] label.row {
+  flex-direction: row;
+  justify-content: flex-start;
+  margin: 8px 0;
+}
+dialog[aria-labelledby='srd-builder-title'] input[type='checkbox'] {
+  width: auto;
+}

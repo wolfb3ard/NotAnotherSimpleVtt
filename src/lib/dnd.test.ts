@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createDndSheet, dndDamageExpression, dndId, dndNumbers, skills } from './dnd';
 import { numericFields, sheetSchema } from './sheets';
 import { rollDice } from './dice';
+import { applySrdBuilder } from './srd-engine';
+import { fighterBuilder, multiclassBuilder } from './srd-test-fixtures';
+import { blankFeat } from './srd-state';
 
 describe('SRD 5.2.1 template', () => {
   const sheet = () => createDndSheet();
@@ -65,6 +68,15 @@ describe('SRD 5.2.1 template', () => {
     set(s, 'weapon-add:0', 0);
     expect(rollDice(dndDamageExpression('1d4', 0), [4], numericFields(s), () => 1).total).toBe(1);
   });
+  it('rolls fixed damage without inventing dice or doubling flat damage on a critical', () => {
+    const s = sheet();
+    set(s, 'score:0', 16);
+    const ordinary = dndDamageExpression('1', 0);
+    const critical = dndDamageExpression('1', 0, true);
+    expect(ordinary).toBe(critical);
+    expect(rollDice(ordinary, [20], numericFields(s)).total).toBe(4);
+    expect(rollDice(critical, [20], numericFields(s)).dice).toEqual([]);
+  });
   it('derives spell attacks and DC from the selected spellcasting ability', () => {
     const s = sheet();
     set(s, 'score:5', 18);
@@ -72,6 +84,38 @@ describe('SRD 5.2.1 template', () => {
     set(s, 'level', 5);
     expect(numericFields(s)[dndId('spell-attack')]).toBe(7);
     expect(numericFields(s)[dndId('spell-dc')]).toBe(15);
+  });
+  it('applies Alert to initiative only, including saved initiative rolls', () => {
+    const state = fighterBuilder(5);
+    state.humanFeat = blankFeat('feat-alert');
+    const s = applySrdBuilder(sheet(), state);
+    set(s, 'check-bonus', 1);
+    set(s, 'exhaustion', 1);
+    const n = numericFields(s);
+    expect(n[dndId('initiative')]).toBe(n[dndId('check:1')] + 3);
+    const initiative = s.sections
+      .flatMap((section) => section.abilities)
+      .find((ability) => ability.id === dndId('roll:initiative'))!;
+    expect(initiative.expression).toBe(`1d20 + @{${dndId('initiative')}}`);
+    expect(rollDice(initiative.expression, [20], n, () => 10).total).toBe(
+      10 + n[dndId('initiative')],
+    );
+  });
+  it('recomputes separate multiclass spell modifiers from scores rather than trusting resource values', () => {
+    const state = multiclassBuilder();
+    state.baseScores = [13, 13, 8, 14, 13, 13];
+    const s = applySrdBuilder(sheet(), state);
+    const wizard = dndId('srd-resource:spell-attack:Wizard');
+    const cleric = dndId('srd-resource:spell-attack:Cleric');
+    s.sections.flatMap((section) => section.fields).find((field) => field.id === wizard)!.value =
+      999;
+    set(s, 'attack-bonus', 3);
+    set(s, 'exhaustion', 1);
+    const n = numericFields(s);
+    expect(n[wizard]).toBe(4 + 2 + 3 - 2);
+    expect(n[cleric]).toBe(4 + 1 + 3 - 2);
+    expect(n[dndId('srd-resource:spell-dc:Wizard')]).toBe(14);
+    expect(n[dndId('srd-resource:spell-dc:Cleric')]).toBe(13);
   });
   it.each([
     ['level', 0],

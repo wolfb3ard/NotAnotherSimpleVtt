@@ -13,14 +13,16 @@ export function SheetWindow({
   onClose,
   error,
   onDirtyChange,
+  initialBuilderOpen,
 }: {
   actor: Actor;
   snapshot: Snapshot;
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
-  onRoll: (actorId: string, expression: string) => void;
+  onRoll: (actorId: string, expression: string, rollType?: string) => void;
   onClose: () => void;
   error?: string;
   onDirtyChange?: (dirty: boolean) => void;
+  initialBuilderOpen?: boolean;
 }) {
   const title = useId();
   const frameRef = useRef<HTMLDivElement>(null);
@@ -134,6 +136,7 @@ export function SheetWindow({
             onDirtyChange?.(dirty);
           }}
           onRoll={onRoll}
+          initialBuilderOpen={initialBuilderOpen}
         />
       </div>
     </div>

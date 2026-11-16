@@ -7,6 +7,10 @@ import { createDndSheet, dndId } from '@/lib/dnd';
 import { emptyCharacterDetails, rarities } from '@/lib/character-details';
 import { sheetSchema } from '@/lib/sheets';
 import type { Sheet } from '@/lib/types';
+import { applySrdBuilder } from '@/lib/srd-engine';
+import { classBuilder, fighterBuilder } from '@/lib/srd-test-fixtures';
+import { blankFeat } from '@/lib/srd-state';
+import { srdEntry } from '@/lib/srd-catalog';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root;
@@ -67,6 +71,59 @@ afterEach(async () => {
 });
 
 describe('character tabs', () => {
+  it('rolls a feat spell with its chosen casting source, advantage, and recorded purpose', async () => {
+    const state = fighterBuilder();
+    state.humanFeat = {
+      ...blankFeat('feat-magic-initiate'),
+      spellList: 'Wizard',
+      spellAbility: 4,
+      spells: ['Fire Bolt', 'Mage Hand', 'Shield'].map((name) => srdEntry('spell', name)!.id),
+    };
+    const sheet = applySrdBuilder(createDndSheet(), state);
+    const { onRoll } = await fixture(sheet);
+    await value('Sheet roll mode', 'advantage');
+    await click('Spell');
+    await click('Roll Fire Bolt (Human · Magic Initiate)');
+    expect(onRoll).toHaveBeenCalledExactlyOnceWith(
+      `2d20kh1 + @{${dndId('srd-resource:casting:feat:human:attack')}}`,
+      'Spell attack with Fire Bolt (Human · Magic Initiate)',
+    );
+    expect(panel().textContent).toContain('Human · Magic Initiate · Save DC 10');
+  });
+  it('exposes builder resources and keeps grouped Hit Dice synchronized with the total', async () => {
+    const { current } = await fixture(applySrdBuilder(createDndSheet(), fighterBuilder(2)));
+    expect(container.textContent).toContain('Class resources, grouped Hit Dice');
+    await value('Hit Dice d10', '1');
+    const total = current()
+      .sections.flatMap((section) => section.fields)
+      .find((field) => field.id === dndId('hit-dice'))!;
+    expect(total.value).toBe(1);
+    expect(total.max).toBe(2);
+    expect(sheetSchema.safeParse(current()).success).toBe(true);
+  });
+  it('allows the Thief level-13 fourth attunement without relaxing the default limit', async () => {
+    const sheet = applySrdBuilder(createDndSheet(), classBuilder('Rogue', 13));
+    sheet.character!.items = Array.from({ length: 5 }, (_, i) => ({
+      id: crypto.randomUUID(),
+      name: `Relic ${i + 1}`,
+      description: '',
+      rarity: 'Rare',
+      quantity: 1,
+      requiresAttunement: true,
+      attuned: i < 3,
+    }));
+    const { current } = await fixture(sheet);
+    await click('Inventory');
+    const fourth = container.querySelector<HTMLInputElement>('[aria-label="Attune Relic 4"]')!;
+    expect(fourth.disabled).toBe(false);
+    await act(async () => fourth.click());
+    expect(current().character!.items.filter((item) => item.attuned)).toHaveLength(4);
+    expect(sheetSchema.safeParse(current()).success).toBe(true);
+    expect(container.textContent).toContain('Attuned: 4 / 4');
+    expect(
+      container.querySelector<HTMLInputElement>('[aria-label="Attune Relic 5"]')!.disabled,
+    ).toBe(true);
+  });
   it('opens on Actions with combat essentials outside the Abilities panel', async () => {
     await fixture();
     expect(panel().textContent).toContain('Weapon & spell attacks');
@@ -95,9 +152,21 @@ describe('character tabs', () => {
         container.querySelector<HTMLButtonElement>(`[aria-label="Roll ${label}"]`)!.click(),
       );
     }
-    expect(onRoll).toHaveBeenNthCalledWith(1, `2d20kl1 + @{${dndId('weapon-total:0')}}`);
-    expect(onRoll).toHaveBeenNthCalledWith(2, expect.stringContaining('1d8'));
-    expect(onRoll).toHaveBeenNthCalledWith(3, expect.stringContaining('2d8'));
+    expect(onRoll).toHaveBeenNthCalledWith(
+      1,
+      `2d20kl1 + @{${dndId('weapon-total:0')}}`,
+      'Attack roll with Longsword',
+    );
+    expect(onRoll).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('1d8'),
+      'Damage with Longsword',
+    );
+    expect(onRoll).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('2d8'),
+      'Critical damage with Longsword',
+    );
     expect(button('Actions').getAttribute('aria-selected')).toBe('true');
   });
 

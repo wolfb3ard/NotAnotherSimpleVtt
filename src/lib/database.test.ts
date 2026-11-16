@@ -7,6 +7,9 @@ import { createDndSheet, dndId } from './dnd';
 import { numericFields, sheetSchema } from './sheets';
 import type { Sheet } from './types';
 import { emptyCharacterDetails } from './character-details';
+import { applySrdBuilder } from './srd-engine';
+import { classBuilder, fighterBuilder, multiclassBuilder } from './srd-test-fixtures';
+import { srdClasses } from './srd-rules';
 
 const gm = randomUUID(),
   player = randomUUID(),
@@ -222,7 +225,7 @@ describe.sequential('database authorization and transactions', () => {
       ]),
     ).rejects.toThrow(/permission denied/);
     await db.exec('reset role; set role service_role');
-    await db.query("select record_roll($1,$2,$3,null,'1d6','public',$4)", [
+    await db.query("select record_roll($1,$2,$3,null,'1d6','public',$4,'Public roll')", [
       player,
       game,
       publicId,
@@ -234,13 +237,13 @@ describe.sequential('database authorization and transactions', () => {
       publicId,
       outcome,
     ]);
-    await db.query("select record_roll($1,$2,$3,null,'1d6','private',$4)", [
+    await db.query("select record_roll($1,$2,$3,null,'1d6','private',$4,'Secret player check')", [
       player,
       game,
       randomUUID(),
       outcome,
     ]);
-    await db.query("select record_roll($1,$2,$3,null,'1d6','private',$4)", [
+    await db.query("select record_roll($1,$2,$3,null,'1d6','private',$4,'Secret GM check')", [
       gm,
       game,
       randomUUID(),
@@ -258,6 +261,9 @@ describe.sequential('database authorization and transactions', () => {
     await as(viewer);
     await db.query("select accept_invite($1,'Second player')", [viewerInvite]);
     expect(await count('rolls')).toBe(1);
+    expect((await db.query('select roll_type from rolls')).rows).toEqual([
+      { roll_type: 'Public roll' },
+    ]);
     await as(other);
     expect(await count('rolls')).toBe(0);
     await db.exec('reset role; set role service_role');
@@ -269,6 +275,17 @@ describe.sequential('database authorization and transactions', () => {
         outcome,
       ]),
     ).rejects.toThrow(/denied/);
+    for (const purpose of ['', ' ', 'x'.repeat(161), null]) {
+      await expect(
+        db.query("select record_roll($1,$2,$3,null,'1d6','public',$4,$5)", [
+          player,
+          game,
+          randomUUID(),
+          outcome,
+          purpose,
+        ]),
+      ).rejects.toThrow(/constraint/);
+    }
   });
   it('copies creator-owned templates into another membership without permissions', async () => {
     await as(gm);
@@ -406,6 +423,238 @@ describe.sequential('database authorization and transactions', () => {
     await expect(
       command('actor_save', { id, name: 'Stolen', sheet: original, revision: 1 }),
     ).rejects.toThrow();
+  });
+  it('limits deletion to owners/GMs, checks revisions, and preserves attributed roll history', async () => {
+    await as(gm);
+    const id = (
+      await command('actor_create', {
+        name: 'Recorded hero',
+        kind: 'character',
+        owner_id: player,
+        sheet,
+      })
+    ).id;
+    await command('token_create', { actor_id: id, scene_id: scene, asset_id: null });
+    await command('grant', { actor_id: id, user_id: gm, access: 'edit' });
+    const rollId = randomUUID();
+    await db.exec('reset role; set role service_role');
+    const result = JSON.stringify({
+      total: 4,
+      dice: [{ sides: 6, values: [4], kept: [true], total: 4 }],
+      resolvedExpression: '1d6',
+      modifiers: {},
+    });
+    await db.query(
+      "select record_roll($1,$2,$3,$4,'1d6','public',$5,'Attack roll with Longsword')",
+      [player, game, rollId, id, result],
+    );
+    // Idempotent retries never rewrite the saved context.
+    await db.query("select record_roll($1,$2,$3,$4,'1d6','public',$5,'Changed label')", [
+      player,
+      game,
+      rollId,
+      id,
+      result,
+    ]);
+    const remove = (revision: number | null, gameId = game) =>
+      db.query('select delete_actor($1,$2,$3)', [gameId, id, revision]);
+    await db.exec('reset role; set role anon');
+    await expect(remove(0)).rejects.toThrow(/permission denied/);
+    await as(other);
+    await expect(remove(0)).rejects.toThrow(/denied/);
+    await expect(remove(0, otherGame)).rejects.toThrow(/denied/);
+    await as(player);
+    await expect(remove(null)).rejects.toThrow(/changed/);
+    await command('actor_save', { id, name: 'Renamed hero', sheet, revision: 0 });
+    await expect(remove(0)).rejects.toThrow(/changed/);
+    await remove(1);
+    expect((await db.query('select id from actors where id=$1', [id])).rows).toHaveLength(0);
+    await as(gm);
+    expect((await db.query('select id from tokens where actor_id=$1', [id])).rows).toHaveLength(0);
+    expect(
+      (await db.query('select * from sheet_grants where actor_id=$1', [id])).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await db.query('select actor_id,actor_name,roll_type,game_id from rolls where id=$1', [
+          rollId,
+        ])
+      ).rows,
+    ).toEqual([
+      {
+        actor_id: null,
+        actor_name: 'Recorded hero',
+        roll_type: 'Attack roll with Longsword',
+        game_id: game,
+      },
+    ]);
+    const gmActor = (
+      await command('actor_create', {
+        name: 'GM may delete',
+        kind: 'character',
+        owner_id: player,
+        sheet,
+      })
+    ).id;
+    await db.query('select delete_actor($1,$2,0)', [game, gmActor]);
+    expect((await db.query('select id from actors where id=$1', [gmActor])).rows).toHaveLength(0);
+  });
+  it('does not allow sheet edit grants or token control to delete a GM character', async () => {
+    await as(gm);
+    const id = (
+      await command('actor_create', {
+        name: 'Not owned',
+        kind: 'npc',
+        owner_id: gm,
+        sheet,
+      })
+    ).id;
+    await command('grant', { actor_id: id, user_id: player, access: 'edit' });
+    await command('token_create', { actor_id: id, scene_id: scene, asset_id: null });
+    const placed = (await db.query<{ id: string }>('select id from tokens where actor_id=$1', [id]))
+      .rows[0];
+    await command('token_update', { id: placed.id, revision: 0, controller_id: player });
+    await as(player);
+    await expect(db.query('select delete_actor($1,$2,0)', [game, id])).rejects.toThrow(/denied/);
+    await as(gm);
+    await db.query('select delete_actor($1,$2,0)', [game, id]);
+  });
+  it('creates and saves source-valid builder sheets through the real authorized RPC', async () => {
+    await as(player);
+    for (const name of srdClasses) {
+      const initial = applySrdBuilder(createDndSheet(), classBuilder(name));
+      expect(sheetSchema.safeParse(initial).success, `${name} level 1 app validation`).toBe(true);
+      const id = (
+        await command('actor_create', {
+          name: `${name} builder`,
+          kind: 'character',
+          owner_id: player,
+          sheet: initial,
+        })
+      ).id;
+      const advanced = applySrdBuilder(initial, classBuilder(name, 20));
+      expect(sheetSchema.safeParse(advanced).success, `${name} level 20 app validation`).toBe(true);
+      await command('actor_save', { id, name: `${name} 20`, sheet: advanced, revision: 0 });
+      const saved = (await db.query<{ sheet: Sheet }>('select sheet from actors where id=$1', [id]))
+        .rows[0].sheet;
+      expect(saved.character?.builder?.levels).toHaveLength(20);
+      expect(
+        saved.sections
+          .flatMap((section) => section.fields)
+          .find((field) => field.id === dndId('level'))?.value,
+      ).toBe(20);
+      await expect(
+        command('actor_save', { id, name: 'Stale', sheet: initial, revision: 0 }),
+      ).rejects.toThrow(/changed/);
+    }
+    const multi = applySrdBuilder(createDndSheet(), multiclassBuilder());
+    expect(sheetSchema.safeParse(multi).success).toBe(true);
+    const id = (
+      await command('actor_create', {
+        name: 'Multiclass',
+        kind: 'character',
+        owner_id: player,
+        sheet: multi,
+      })
+    ).id;
+    const template = await command('template_create', {
+      actor_id: id,
+      name: 'Multiclass template',
+    });
+    expect(template).toBeDefined();
+    await as(other);
+    expect((await db.query('select id from actors where id=$1', [id])).rows).toHaveLength(0);
+    await expect(
+      command('actor_save', { id, name: 'Stolen', sheet: multi, revision: 0 }),
+    ).rejects.toThrow(/denied/);
+  });
+  it('rejects forged builder choices, incompatible statistics, and malformed details through direct create/save calls', async () => {
+    await as(player);
+    const valid = applySrdBuilder(createDndSheet(), fighterBuilder());
+    const id = (
+      await command('actor_create', {
+        name: 'Protected builder',
+        kind: 'character',
+        owner_id: player,
+        sheet: valid,
+      })
+    ).id;
+    for (const corrupt of [
+      (s: Sheet) => {
+        s.character!.builder!.levels[0].skills = ['Forged skill', 'Insight'];
+      },
+      (s: Sheet) => {
+        s.character!.builder!.levels[0].hp = 999;
+      },
+      (s: Sheet) => {
+        s.character!.builder!.backgroundBoosts = [2, 2, 2, 2, 2, 2];
+      },
+      (s: Sheet) => {
+        s.sections
+          .flatMap((section) => section.fields)
+          .find((field) => field.id === dndId('level'))!.value = 20;
+      },
+      (s: Sheet) => {
+        s.sections
+          .flatMap((section) => section.fields)
+          .find((field) => field.id === dndId('score:0'))!.value = 30;
+      },
+      (s: Sheet) => {
+        s.character!.items[0].quantity = -1;
+      },
+    ]) {
+      const invalid = structuredClone(valid);
+      corrupt(invalid);
+      expect(sheetSchema.safeParse(invalid).success).toBe(false);
+      await expect(
+        command('actor_create', {
+          name: 'Invalid builder',
+          kind: 'character',
+          owner_id: player,
+          sheet: invalid,
+        }),
+      ).rejects.toThrow(/constraint/);
+      await expect(
+        command('actor_save', {
+          id,
+          name: 'Invalid builder',
+          sheet: invalid,
+          revision: 0,
+        }),
+      ).rejects.toThrow(/constraint/);
+    }
+  });
+  it('persists the Thief fourth attunement through the legacy sheet validator without allowing a fifth', async () => {
+    await as(player);
+    const sheet = applySrdBuilder(createDndSheet(), classBuilder('Rogue', 13));
+    sheet.character!.items = Array.from({ length: 4 }, (_, index) => ({
+      id: randomUUID(),
+      name: `Thief relic ${index}`,
+      description: '',
+      rarity: 'Rare',
+      quantity: 1,
+      requiresAttunement: true,
+      attuned: true,
+    }));
+    expect(sheetSchema.safeParse(sheet).success).toBe(true);
+    const id = (
+      await command('actor_create', {
+        name: 'Thief attunement',
+        kind: 'character',
+        owner_id: player,
+        sheet,
+      })
+    ).id;
+    sheet.character!.items.push({ ...sheet.character!.items[0], id: randomUUID() });
+    expect(sheetSchema.safeParse(sheet).success).toBe(false);
+    await expect(
+      command('actor_save', {
+        id,
+        name: 'Fifth relic',
+        sheet,
+        revision: 0,
+      }),
+    ).rejects.toThrow(/constraint/);
   });
   it('stores bounded per-user appearance without cross-user writes', async () => {
     const style = {
