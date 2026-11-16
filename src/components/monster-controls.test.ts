@@ -21,7 +21,9 @@ async function mount(element: ReturnType<typeof createElement>) {
 }
 async function click(text: string) {
   await act(async () =>
-    [...container.querySelectorAll('button')].find((b) => b.textContent === text)!.click(),
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent === text || b.getAttribute('aria-label') === text)!
+      .click(),
   );
 }
 afterEach(async () => {
@@ -84,7 +86,11 @@ it('declares spells, rolls attacks/damage, and spends independent uses without a
       onRoll,
     }),
   );
-  expect(container.textContent).toContain('Ray of Sickness save DC: 12');
+  await click('Spell');
+  const dc = [...container.querySelectorAll('.dnd-value')].find(
+    (entry) => entry.querySelector('label')?.textContent === 'Ray of Sickness save DC',
+  );
+  expect(dc?.querySelector('output')?.textContent).toBe('12');
   expect(container.textContent).toContain('self only');
   await click('Roll Ray of Sickness · Spell attack');
   expect(onRoll).toHaveBeenLastCalledWith('1d20 + 4', 'Ray of Sickness · Spell attack');
@@ -122,7 +128,13 @@ it('blocks view-only rolls/resource edits and dirty or unconfirmed actions', asy
       onRoll: vi.fn(),
     }),
   );
-  expect([...container.querySelectorAll('button')].every((b) => b.disabled)).toBe(true);
+  expect(
+    [...container.querySelectorAll<HTMLButtonElement>('button:not([role=tab])')].every(
+      (b) => b.disabled,
+    ),
+  ).toBe(true);
+  expect([...container.querySelectorAll('input')].every((input) => input.disabled)).toBe(true);
+  await click('Notes & Source');
   expect(container.textContent).toContain('Published Incubus');
 });
 it('shows the library only to GMs and explains missing scene placement', async () => {
