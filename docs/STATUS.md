@@ -2,7 +2,7 @@
 
 ## Built
 
-- VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. Epic 05 waits for Epic 04 review/merge.
+- VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) ready for review, not merged. Epic 05 waits for Epic 04 review/merge.
 
 - Token quick-actions follow-up: removed the character sheet's Play resources panel; token right-click opens a condensed resource/health card with a keyboard chooser, movable/clamped window, permission filtering, immediate-save/retry feedback and cross-window draft guards. Existing sheet Use/Recover buttons remain immediate. [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) ready for review; not merged.
 
