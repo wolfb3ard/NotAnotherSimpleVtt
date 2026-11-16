@@ -116,8 +116,6 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       exact: true,
     });
     await card.click();
-    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toHaveCount(0);
-    await card.dblclick();
     await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toBeVisible();
     await player.page.getByRole('button', { name: 'Close character sheet', exact: true }).click();
     await card.focus();
@@ -286,7 +284,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await rolls.getByRole('button', { name: 'Dock roll window' }).click();
     await expect(rolls).toHaveCount(0);
     await player.page.getByRole('button', { name: 'Party', exact: true }).click();
-    await card.dblclick();
+    await card.click();
     player.page.once('dialog', (dialog) => dialog.accept());
     await player.page.getByRole('button', { name: 'Delete character', exact: true }).click();
     await expect(card).toHaveCount(0);
@@ -316,7 +314,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await player.page.reload();
     await player.page
       .getByRole('button', { name: 'Open Builder hero character sheet', exact: true })
-      .dblclick();
+      .click();
     await player.page
       .getByRole('button', { name: 'Progress / level up character', exact: true })
       .click();
@@ -337,7 +335,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await player.page.reload();
     await player.page
       .getByRole('button', { name: 'Open Builder hero character sheet', exact: true })
-      .dblclick();
+      .click();
     await expect(player.page.getByLabel('Level', { exact: true })).toHaveValue('2');
     await expect(player.page.getByLabel('Level', { exact: true })).toBeDisabled();
     const builderSnapshot = await (await player.page.request.get(`/api/games/${gameId}`)).json();

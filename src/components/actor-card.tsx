@@ -14,7 +14,7 @@ export function ActorCard({
   return (
     <button
       className="actor-card"
-      onDoubleClick={onOpen}
+      onClick={onOpen}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
@@ -23,7 +23,7 @@ export function ActorCard({
       }}
       aria-label={`Open ${actor.name} character sheet`}
       aria-haspopup="dialog"
-      title="Double-click to open character sheet"
+      title="Open character sheet"
     >
       <TokenPortrait name={actor.name} assetId={actor.token_asset_id} ring={actor.token_ring} />
       <span>

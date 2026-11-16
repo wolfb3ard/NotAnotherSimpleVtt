@@ -387,6 +387,36 @@ code {
 .connection.connected {
   color: #8bbb9f;
 }
+.room-shortcuts {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  padding: 10px 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.character-shortcut,
+.room-shortcuts label {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.room-shortcuts select {
+  width: auto;
+  max-width: 240px;
+}
+.character-shortcut button {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .room-body {
   display: flex;
   min-height: 0;

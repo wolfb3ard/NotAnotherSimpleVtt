@@ -2,6 +2,8 @@
 
 ## Built
 
+- VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
+
 - Phase 1: application foundation, Google authentication (Discord backend retained; button hidden), game-scoped roles, invitations, dashboard, and authorization migrations.
 - Phase 2: actor sheets, customizable fields/resources/abilities, grants, templates, copies, and revision checks.
 - Phase 3: uploaded scenes/tokens, scene switching, assigned movement with live persisted checkpoints, pan/zoom, calibration, ruler, and reconciliation.
@@ -14,6 +16,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- VTT v2 Epic 01: 294 unit/database tests, lint, TypeScript, production build, and six browser auth/smoke tests (Edge) passed. Changed-file formatting passed; full formatting passed with `--end-of-line auto` (default check flags pre-existing CRLF files on Windows). Updated multiplayer single-click scenarios still require the opt-in isolated infrastructure run.
 
 - Production build, TypeScript, lint, and formatting.
 - Unit/database tests exercise arithmetic, validation, concealed image pixels, movement coalescing, real Postgres RLS, invitation validity, revision conflicts, template ownership, roll privacy, cross-game isolation, and hidden-token access.
