@@ -80,7 +80,7 @@ describe('ordered production release', () => {
     expect(configuration.run).toContain('exit 1');
   });
 
-  it('runs migrations before a remote Vercel build without pulling secret placeholders', () => {
+  it('checks project access without link and builds remotely after migrations', () => {
     const order = [
       'Verify Vercel project access',
       'Review pending migrations in log',
@@ -90,13 +90,13 @@ describe('ordered production release', () => {
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(steps[position('Verify Vercel project access')].run).toBe(
-      'vercel link --yes --scope "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" --token "$VERCEL_TOKEN"',
+      'vercel pull --yes --environment=production --token "$VERCEL_TOKEN"',
     );
     expect(steps[position('Apply pending migrations')].run).toContain('supabase db push --linked');
     expect(steps[position('Deploy production application')].run).toContain(
       'vercel deploy --prod --yes --token "$VERCEL_TOKEN"',
     );
-    expect(JSON.stringify(steps)).not.toContain('vercel pull');
+    expect(JSON.stringify(steps)).not.toContain('vercel link');
     expect(JSON.stringify(steps)).not.toContain('vercel build');
     expect(JSON.stringify(steps)).not.toContain('--prebuilt');
     expect(JSON.stringify(steps)).not.toContain('continue-on-error');
