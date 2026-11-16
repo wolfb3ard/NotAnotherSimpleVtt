@@ -67,6 +67,17 @@ export const commandSchemas = {
     unit: z.string().trim().min(1).max(20).optional(),
   }),
   token_create: z.object({ actor_id: id, scene_id: id }),
+  tabletop_history: z.object({ scene_id: id }),
+  tabletop_undo: z.object({ scene_id: id, operation_id: id }),
+  tabletop_move: z.object({
+    id,
+    scene_id: id,
+    operation_id: id,
+    revision,
+    x: z.number().finite().min(0).max(4096),
+    y: z.number().finite().min(0).max(4096),
+  }),
+  tabletop_fog: z.object({ id, scene_id: id, operation_id: id, revision, fog }),
   token_update: z.object({
     id,
     revision,

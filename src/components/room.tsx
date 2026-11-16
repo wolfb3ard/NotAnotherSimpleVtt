@@ -17,6 +17,7 @@ import { RollWindow } from './roll-window';
 import { ActorCard } from './actor-card';
 import { RoomShortcuts } from './room-shortcuts';
 import { useDiceZoom } from './use-dice-zoom';
+import { useTabletopEdits } from './use-tabletop-edits';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -58,6 +59,11 @@ export function Room({ initial }: { initial: Snapshot }) {
   const gm = snapshot.role === 'gm';
   const selectedDice = selectedDiceSides(expression);
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
+  const tabletopEdits = useTabletopEdits(
+    `${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`,
+    scene?.id,
+    run,
+  );
   const actor = snapshot.actors.find((a) => a.id === selectedActor);
   function openSheet(id: string, startBuilder = false) {
     if (
@@ -308,6 +314,7 @@ export function Room({ initial }: { initial: Snapshot }) {
         <Tabletop
           key={scene?.id ?? 'empty'}
           snapshot={snapshot}
+          edits={tabletopEdits}
           run={run}
           selectActor={(id) => {
             if (snapshot.actors.some((a) => a.id === id)) {
@@ -792,8 +799,9 @@ export function Room({ initial }: { initial: Snapshot }) {
                       current fog.
                     </p>
                     <button
+                      disabled={tabletopEdits.blocked}
                       onClick={() =>
-                        run('scene_update', {
+                        tabletopEdits.commit('tabletop_fog', {
                           id: scene.id,
                           revision: scene.revision,
                           fog: [
@@ -805,8 +813,13 @@ export function Room({ initial }: { initial: Snapshot }) {
                       Reveal entire scene
                     </button>
                     <button
+                      disabled={tabletopEdits.blocked}
                       onClick={() =>
-                        run('scene_update', { id: scene.id, revision: scene.revision, fog: [] })
+                        tabletopEdits.commit('tabletop_fog', {
+                          id: scene.id,
+                          revision: scene.revision,
+                          fog: [],
+                        })
                       }
                     >
                       Conceal entire scene

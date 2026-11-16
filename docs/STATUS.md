@@ -4,10 +4,11 @@
 
 - VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
 - VTT v2 Epic 02: immediate authorized resource/feature-use saves, atomic Damage/Heal previews with temporary HP, serialized rapid edits, revision/idempotency protection, visible failure/retry, and isolated configuration drafts. Apply the new resource migration before deployment.
+- VTT v2 Epic 03: bounded private server undo history, revision-checked inverses for committed token moves and painted/full-scene fog, Ctrl/Cmd+Z outside typing, and persisted uncertain-operation retries. Apply the reversible-tabletop migration before deployment. Review pending.
 
 - Phase 1: application foundation, Google authentication (Discord backend retained; button hidden), game-scoped roles, invitations, dashboard, and authorization migrations.
 - Phase 2: actor sheets, customizable fields/resources/abilities, grants, templates, copies, and revision checks.
-- Phase 3: uploaded scenes/tokens, scene switching, assigned movement with live persisted checkpoints, pan/zoom, calibration, ruler, and reconciliation.
+- Phase 3: uploaded scenes/tokens, scene switching, assigned movement committed on drop, pan/zoom, calibration, ruler, and reconciliation.
 - Phase 4: manual fog, hidden tokens, GM player-view preview, server-side sanitized map rendering, private revision cache, and token filtering.
 - Phase 5: bounded server-side dice engine, custom die configuration, manual/sheet modifiers, saved rolls, private/public history, and idempotent retry identifiers.
 - Phase 6: automated checks, database authorization tests, browser smoke tests, an opt-in multiplayer browser test, CI, deployment and operations documentation.
@@ -17,6 +18,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- VTT v2 Epic 03: 361 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, and full formatting with `--end-of-line auto` passed. Tests exercise private inverses, revisions, retry deduplication, bounded/expired history, revoked permissions/membership, concealed destinations, reconnect/reload, scene switching, shared fog controls, and typing-safe keyboard undo. Updated opt-in multiplayer Undo scenarios were not run. No hosted migration applied.
 
 - VTT v2 Epic 02: 327 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, and full formatting with `--end-of-line auto` passed. Tests cover rapid edits, stale editors, atomic rollback, deduplicated retries, revoked grants, controller-only denial, generic counters, feature uses, grouped Hit Dice, offline reload, remote renames, reconnect reconciliation, and dirty/pending sheet guards. Hosted resource/multiplayer verification remains outstanding; the opt-in browser scenario now checks immediate generic-counter saves across reload but was not run for this epic. No hosted migration applied.
 

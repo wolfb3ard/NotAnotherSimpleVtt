@@ -162,7 +162,7 @@ export async function mutate(
                   p_owner: ownership.owner_id,
                   p_revision: ownership.revision,
                 })
-              : await db.rpc('mutate_game', {
+              : await db.rpc(command.startsWith('tabletop_') ? 'tabletop_command' : 'mutate_game', {
                   p_game: gameId,
                   p_command: command,
                   p: validated,

@@ -57,15 +57,19 @@ Local verification: 327 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 03 — Reversible tabletop edits
 
-Status: Planned. Dependencies: E02.
+Status: Implemented; ready for review, not merged. Dependencies: E02 (merged).
 
-- [ ] E03-T01: Define a bounded, per-user undo history for committed token moves and fog edits.
-- [ ] E03-T02: Add revision-checked inverse operations; reject undo that would overwrite another user's later change.
-- [ ] E03-T03: Expose Undo with action descriptions and keyboard support outside text inputs.
-- [ ] E03-T04: Explain unsupported/expired undo and unconfirmed network operations.
-- [ ] E03-T05: Test fog privacy, concurrent movement, retries, permissions, and scene switching.
+- [x] E03-T01: Define a bounded, per-user undo history for committed token moves and fog edits.
+- [x] E03-T02: Add revision-checked inverse operations; reject undo that would overwrite another user's later change.
+- [x] E03-T03: Expose Undo with action descriptions and keyboard support outside text inputs.
+- [x] E03-T04: Explain unsupported/expired undo and unconfirmed network operations.
+- [x] E03-T05: Test fog privacy, concurrent movement, retries, permissions, and scene switching.
 
 Acceptance: an accidental move/reveal can be reversed without corrupting newer state. Explain that undo cannot erase information already seen.
+
+History policy: last 20 receipts per user/game, including undone actions, retained for 24 hours with lazy expiry. Active-scene history contains authorized metadata only. Drags commit once on drop; painted fog and full-scene reveal/conceal share the same queue. Full revisions prevent overwriting newer moves, fog, or configuration. Consecutive own undos rebase only an unbroken revision chain. Exact operation retries are idempotent; uncertain requests survive same-tab reload via scoped session storage when available. No redo; unsupported operations are documented. Undo cannot erase information already seen.
+
+Local verification: 361 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke browser tests, and full formatting with `--end-of-line auto` passed. PGlite applies all migrations and tests private fog inverses, consecutive undo, stale/concurrent writes, expired/pruned receipts, idempotent forward/undo retries, revoked control/membership, concealed destinations, cross-game access and scene switching. Component tests cover shared full-scene fog controls, pending/retry/reload, reconnect, late scene responses, explicit dismissal and typing-safe shortcuts. The updated opt-in multiplayer scenario covers move Undo after reload and conceal/restore, but was not run for this epic. No hosted migration applied. Migration: `20261116161714_reversible_tabletop.sql`.
 
 ## Phase 2 — Encounter-ready play
 
