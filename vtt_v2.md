@@ -26,7 +26,7 @@ At the v2 planning baseline: character cards require double-click; roll settings
 
 ### Epic 01 — Character access and roll-privacy clarity
 
-Status: Complete; [PR #21](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/21) awaiting review/merge. Dependencies: none.
+Status: Complete; [PR #21](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/21) merged into `main` on 2026-11-16 (commit `3eda344`). Dependencies: none.
 
 - [x] E01-T01: Open compact character cards with one click; retain Enter/Space and dirty-sheet guards.
 - [x] E01-T02: Add a persistent My character shortcut; handle multiple characters and explain the empty state.
@@ -40,7 +40,7 @@ Local verification: 294 unit/database tests, lint, typecheck, production build, 
 
 ### Epic 02 — Reliable quick updates and play-focused resources
 
-Status: Planned. Dependencies: E01.
+Status: Planned; next for implementation. Dependencies: E01 (merged).
 
 - [ ] E02-T01: Inventory existing quick-edit and configuration paths; define which changes save immediately.
 - [ ] E02-T02: Add atomic, authorized resource adjustments with revision checks; preserve generic sheets.
