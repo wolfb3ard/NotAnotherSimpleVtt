@@ -26,13 +26,13 @@ At the v2 planning baseline: character cards require double-click; roll settings
 
 ### Epic 01 — Character access and roll-privacy clarity
 
-Status: Implemented; publishing PR. Dependencies: none.
+Status: Complete; [PR #21](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/21) awaiting review/merge. Dependencies: none.
 
 - [x] E01-T01: Open compact character cards with one click; retain Enter/Space and dirty-sheet guards.
 - [x] E01-T02: Add a persistent My character shortcut; handle multiple characters and explain the empty state.
 - [x] E01-T03: Keep roll visibility and its actual audience visible outside Dice; synchronize all roll controls.
 - [x] E01-T04: Test mouse/keyboard activation, ownership filtering, multiple characters, dirty switching, and public/private rolls.
-- [ ] E01-T05: Update user documentation; run checks; publish an `ai-coded` PR.
+- [x] E01-T05: Update user documentation; run checks; publish an `ai-coded` PR.
 
 Acceptance: an owner can open their character and identify/change the audience of a sheet roll without leaving another panel. No shortcut grants access or bypasses unsaved-change confirmation.
 
