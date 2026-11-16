@@ -1372,3 +1372,29 @@ dialog[aria-labelledby='srd-builder-title'] label.row {
 dialog[aria-labelledby='srd-builder-title'] input[type='checkbox'] {
   width: auto;
 }
+.token-portrait {
+  display: inline-flex;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border: 4px solid;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #131e26;
+  color: #f4e6cf;
+}
+.token-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.token-appearance {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+.token-appearance > .row > p {
+  flex: 1;
+}

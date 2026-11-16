@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DndSheet } from './dnd-sheet';
 import { SrdBuilder } from './srd-builder';
+import { TokenAppearanceEditor } from './token-appearance-editor';
 import type { Actor, Sheet, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import {
@@ -88,6 +89,12 @@ export function SheetEditor({
           </button>
         )}
       </div>
+      <TokenAppearanceEditor
+        key={`${actor.id}-${actor.appearance_revision ?? 0}`}
+        actor={actor}
+        snapshot={snapshot}
+        run={run}
+      />
       {(snapshot.role === 'gm' || actor.owner_id === snapshot.userId) && (
         <button
           className="danger"

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { sheetSchema } from './sheets';
+import { tokenRings } from './token-appearance';
 
 const id = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -26,6 +27,14 @@ export const commandSchemas = {
     sheet: sheetSchema,
   }),
   actor_save: z.object({ id, name, sheet: sheetSchema, revision }),
+  actor_appearance: z.object({
+    id,
+    asset_id: id.nullable(),
+    ring: z.enum(
+      Object.keys(tokenRings) as [keyof typeof tokenRings, ...(keyof typeof tokenRings)[]],
+    ),
+    revision,
+  }),
   actor_delete: z.object({ id, revision }),
   actor_owner: z.object({ actor_id: id, owner_id: id, revision }),
   grant: z.object({ actor_id: id, user_id: id, access: z.enum(['none', 'view', 'edit']) }),
@@ -40,7 +49,7 @@ export const commandSchemas = {
     units_per_pixel: z.number().positive().max(100000000).optional(),
     unit: z.string().trim().min(1).max(20).optional(),
   }),
-  token_create: z.object({ actor_id: id, scene_id: id, asset_id: id.nullable() }),
+  token_create: z.object({ actor_id: id, scene_id: id }),
   token_update: z.object({
     id,
     revision,

@@ -64,6 +64,189 @@ afterAll(async () => {
   await db?.close();
 });
 
+function persistentActorTests() {
+  describe.sequential('persistent actor tokens', () => {
+    let hero: string, portrait: string, secondScene: string;
+    const appearance = (id: string, asset: string | null, ring = 'ruby', revision = 0, g = game) =>
+      db.query('select public.save_actor_appearance($1,$2,$3,$4,$5)', [
+        g,
+        id,
+        asset,
+        ring,
+        revision,
+      ]);
+    const place = (id: string, s = scene, g = game) =>
+      db.query('select public.place_actor_token($1,$2,$3)', [g, id, s]);
+
+    it('stores appearance independently of sheet revision and authorizes portraits before placement', async () => {
+      portrait = randomUUID();
+      const map = randomUUID();
+      await db.exec('reset role');
+      await db.query(
+        "insert into assets(id,game_id,owner_id,kind,path,width,height) values($1,$2,$3,'token',$4,100,200),($5,$2,$3,'background',$6,200,200)",
+        [portrait, game, gm, `portrait-${portrait}.webp`, map, `map-${map}.webp`],
+      );
+      await as(gm);
+      await command('scene_create', { name: 'Second scene', asset_id: map });
+      secondScene = (
+        await db.query<{ id: string }>('select id from scenes where asset_id=$1', [map])
+      ).rows[0].id;
+      hero = (
+        await command('actor_create', {
+          name: 'Persistent hero',
+          kind: 'character',
+          owner_id: player,
+          sheet,
+        })
+      ).id;
+      await appearance(hero, portrait, 'ruby');
+      await as(player);
+      expect((await db.query('select id from assets where id=$1', [portrait])).rows).toHaveLength(
+        1,
+      );
+      expect(
+        (
+          await db.query('select revision,appearance_revision,token_ring from actors where id=$1', [
+            hero,
+          ])
+        ).rows[0],
+      ).toEqual({ revision: 0, appearance_revision: 1, token_ring: 'ruby' });
+      // A GM-supplied portrait remains usable when its owner changes just the ring.
+      await appearance(hero, portrait, 'emerald', 1);
+      await expect(appearance(hero, null, 'silver', 1)).rejects.toThrow(/changed/);
+      await expect(appearance(hero, null, 'invalid', 2)).rejects.toThrow(/Invalid token ring/);
+      await expect(appearance(hero, null, 'gold', null as unknown as number)).rejects.toThrow(
+        /changed/,
+      );
+    });
+
+    it('places an owned actor in active scenes with canonical appearance and live sheet stats', async () => {
+      await as(gm);
+      await command('scene_activate', { id: scene });
+      await as(player);
+      await place(hero);
+      await place(hero);
+      await as(gm);
+      let rows = (
+        await db.query(
+          'select actor_id,asset_id,ring,controller_id from tokens where actor_id=$1',
+          [hero],
+        )
+      ).rows;
+      expect(rows).toEqual([
+        { actor_id: hero, asset_id: portrait, ring: 'emerald', controller_id: player },
+      ]);
+      await command('scene_activate', { id: secondScene });
+      await as(player);
+      await expect(place(hero, scene)).rejects.toThrow(/denied/);
+      await place(hero, secondScene);
+      const updatedSheet = {
+        version: 1,
+        sections: [
+          {
+            id: randomUUID(),
+            title: 'Stats',
+            fields: [{ id: randomUUID(), label: 'HP', kind: 'number', value: 7 }],
+            abilities: [],
+          },
+        ],
+      };
+      await command('actor_save', {
+        id: hero,
+        name: 'Renamed hero',
+        sheet: updatedSheet,
+        revision: 0,
+      });
+      await appearance(hero, null, 'sapphire', 2);
+      await as(gm);
+      rows = (
+        await db.query(
+          'select t.label,t.asset_id,t.ring,a.sheet from tokens t join actors a on a.id=t.actor_id where t.actor_id=$1',
+          [hero],
+        )
+      ).rows;
+      expect(rows).toHaveLength(2);
+      for (const row of rows)
+        expect(row).toEqual({
+          label: 'Renamed hero',
+          asset_id: null,
+          ring: 'sapphire',
+          sheet: updatedSheet,
+        });
+    });
+
+    it('rejects nonowners, granted editors, foreign assets/scenes and anonymous calls', async () => {
+      await as(gm);
+      await command('grant', { actor_id: hero, user_id: gm, access: 'edit' });
+      const monster = (
+        await command('actor_create', {
+          name: 'Monster portrait',
+          kind: 'enemy',
+          owner_id: gm,
+          sheet,
+        })
+      ).id;
+      await command('grant', { actor_id: monster, user_id: player, access: 'edit' });
+      await as(player);
+      await expect(appearance(monster, null)).rejects.toThrow(/denied/);
+      await expect(place(monster, secondScene)).rejects.toThrow(/denied/);
+      await as(other);
+      await expect(appearance(hero, null, 'gold', 3)).rejects.toThrow(/denied/);
+      await expect(place(hero, secondScene, otherGame)).rejects.toThrow(/denied/);
+      const foreignAsset = randomUUID();
+      await db.exec('reset role');
+      await db.query(
+        "insert into assets(id,game_id,owner_id,kind,path,width,height) values($1,$2,$3,'token',$4,50,50)",
+        [foreignAsset, otherGame, other, `foreign-${foreignAsset}.webp`],
+      );
+      await as(player);
+      await expect(appearance(hero, foreignAsset, 'gold', 3)).rejects.toThrow(
+        /Invalid token image/,
+      );
+      await db.exec('reset role; set role anon');
+      await expect(appearance(hero, null)).rejects.toThrow(/permission denied/);
+      await expect(place(hero)).rejects.toThrow(/permission denied/);
+      await as(gm);
+      await appearance(monster, portrait, 'amethyst');
+      await place(monster, secondScene);
+      await place(monster, secondScene);
+      expect(
+        (await db.query('select ring,asset_id from tokens where actor_id=$1', [monster])).rows,
+      ).toEqual([
+        { ring: 'amethyst', asset_id: portrait },
+        { ring: 'amethyst', asset_id: portrait },
+      ]);
+      // Legacy clients cannot override the canonical appearance during placement.
+      await command('token_create', { actor_id: monster, scene_id: secondScene, asset_id: null });
+      expect(
+        (await db.query('select distinct asset_id,ring from tokens where actor_id=$1', [monster]))
+          .rows,
+      ).toEqual([{ asset_id: portrait, ring: 'amethyst' }]);
+      await command('grant', { actor_id: monster, user_id: player, access: 'none' });
+      await as(player);
+      // The concealed monster's visual projection must not expose its private sheet or image.
+      expect((await db.query('select id from actors where id=$1', [monster])).rows).toHaveLength(0);
+      expect((await db.query('select id from assets where id=$1', [portrait])).rows).toHaveLength(
+        0,
+      );
+      await as(gm);
+      await command('scene_update', {
+        id: secondScene,
+        revision: 0,
+        fog: [{ x: 0, y: 0, width: 200, height: 200, reveal: true }],
+      });
+      await as(player);
+      expect(
+        (await db.query('select ring,asset_id from tokens where actor_id=$1', [monster])).rows,
+      ).toHaveLength(3);
+      expect((await db.query('select id from assets where id=$1', [portrait])).rows).toHaveLength(
+        1,
+      );
+      expect((await db.query('select id from actors where id=$1', [monster])).rows).toHaveLength(0);
+    });
+  });
+}
+
 describe.sequential('database authorization and transactions', () => {
   it('scopes roles and isolates unrelated games', async () => {
     await as(player);
@@ -781,3 +964,5 @@ describe.sequential('database authorization and transactions', () => {
     expect((await db.query('select * from actors where id=$1', [id])).rows).toHaveLength(0);
   });
 });
+
+persistentActorTests();
