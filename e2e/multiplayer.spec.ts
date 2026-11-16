@@ -97,17 +97,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(
       player.page.getByRole('button', { name: 'Save sheet', exact: true }),
     ).toBeDisabled();
-    // Generic resource use commits without another whole-sheet save and survives reload.
-    await player.page.getByLabel('Quick HP', { exact: true }).fill('6');
-    await expect(player.page.getByRole('status').filter({ hasText: 'Resources:' })).toHaveText(
-      'Resources: Saved',
-    );
-    await expect(
-      player.page.getByRole('button', { name: 'Save sheet', exact: true }),
-    ).toBeDisabled();
-    await player.page.reload();
-    await player.page.getByRole('button', { name: 'My character', exact: true }).click();
-    await expect(player.page.getByLabel('Quick HP', { exact: true })).toHaveValue('6');
+    await expect(player.page.getByRole('region', { name: 'Play resources' })).toHaveCount(0);
     await gm.page.getByRole('button', { name: 'Scenes', exact: true }).click();
     await gm.page.getByLabel('Scene name').fill('Forest');
     const image = await sharp({
@@ -150,6 +140,23 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     // Move the token using the canvas; default map offset is 50,50 and token begins at 100,100.
     const canvas = player.page.locator('canvas').first();
     const box = (await canvas.boundingBox())!;
+    // Token right-click opens condensed resources, not the full sheet.
+    await player.page.mouse.click(box.x + 150, box.y + 150, { button: 'right' });
+    await expect(
+      player.page.getByRole('dialog', { name: 'Aria quick actions', exact: true }),
+    ).toBeVisible();
+    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toHaveCount(0);
+    await player.page.getByLabel('Quick HP', { exact: true }).fill('6');
+    await expect(player.page.getByRole('status').filter({ hasText: 'Resources:' })).toHaveText(
+      'Resources: Saved',
+    );
+    await player.page.reload();
+    // Keyboard-accessible equivalent; current values survive reload.
+    await player.page
+      .getByLabel('Token quick actions', { exact: true })
+      .selectOption({ label: 'Aria' });
+    await expect(player.page.getByLabel('Quick HP', { exact: true })).toHaveValue('6');
+    await player.page.getByRole('button', { name: 'Close quick actions', exact: true }).click();
     await player.page.mouse.move(box.x + 150, box.y + 150);
     await player.page.mouse.down();
     await player.page.mouse.move(box.x + 220, box.y + 200, { steps: 8 });

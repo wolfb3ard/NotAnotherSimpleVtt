@@ -34,6 +34,8 @@ Token visibility is determined independently by the GM hidden flag and whether t
 
 ## Sheets and dice
 
+Resource writes retain the existing authorized, revision-checked `adjust_actor_resources` path. `QuickResources` provides compact controls in `TokenQuickActions`; sheet editors mount only its save controller/pending-failure feedback for their existing Use/Recover buttons. The room coordinates dirty-sheet and resource-busy guards across both windows. Cards derive actor data exclusively from the authorized snapshot, are keyed by token/actor, and disappear when their token leaves the active scene. Controller rights alone never become sheet-edit rights.
+
 Versioned sheets use JSON documents with stable section/field/ability UUIDs. Database constraints validate documents even if clients bypass the Next.js forms. Creating sheets from templates makes independent copies. Only a template creator can copy that template between games they belong to.
 
 Dice expressions use a bounded recursive-descent parser, not `eval`. Arithmetic honors parentheses and normal operator precedence; division retains decimals. Outcomes record original and resolved expressions, field values, individual dice, kept/discarded results, and totals. Later sheet changes never rewrite historical rolls.

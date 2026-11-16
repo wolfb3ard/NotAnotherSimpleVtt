@@ -79,6 +79,20 @@ async function value(label: string, next: string) {
 function button(text: string) {
   return [...container.querySelectorAll('button')].find((b) => b.textContent === text)!;
 }
+async function spendSlot(a: Actor, render: () => Promise<void>) {
+  a.revision++;
+  a.sheet = structuredClone(a.sheet);
+  const slot = a.sheet.sections.flatMap((s) => s.fields).find((f) => f.id === dndId('slot:0'))!;
+  slot.max = 1;
+  slot.value = 1;
+  await render();
+  await act(async () =>
+    [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find((b) => b.textContent === 'Spell')!
+      .click(),
+  );
+  await act(async () => button('Use level 1 slot').click());
+}
 afterEach(async () => {
   if (root) await act(async () => root.unmount());
   document.body.replaceChildren();
@@ -167,7 +181,7 @@ it('preserves configuration drafts during remote updates and requires an explici
   const { a, run, render } = await setup(true);
   await act(async () => button('Edit sheet').click());
   await value('Name', 'Draft hero');
-  expect(input('Quick Hit Points').disabled).toBe(true);
+  expect(input('Quick Hit Points')).toBeNull();
   expect(run).not.toHaveBeenCalled();
   a.revision = 1;
   a.sheet = previewResources(a.sheet, [{ id: dndId('hp'), value: 5 }]);
@@ -181,14 +195,14 @@ it('reconciles a clean sheet after reconnect and keeps configuration disabled wh
   a.revision = 1;
   a.sheet = previewResources(a.sheet, [{ id: dndId('hp'), value: 6 }]);
   await render();
-  expect(input('Quick Hit Points').value).toBe('6');
+  expect(container.querySelector('output[aria-label="Hit Points"]')!.textContent).toBe('6');
   run.mockResolvedValue(undefined);
-  await value('Quick Hit Points', '4');
+  await spendSlot(a, render);
   expect(container.querySelector('fieldset')!.disabled).toBe(true);
   expect(container.querySelector('.sheet-save-status')!.textContent).toContain('unconfirmed');
   await act(async () => button('Reload resources').click());
   expect(container.querySelector('fieldset')!.disabled).toBe(false);
-  expect(input('Quick Hit Points').value).toBe('6');
+  expect(container.querySelector('output[aria-label="Hit Points"]')!.textContent).toBe('6');
 });
 
 it('saves existing Actions feature-use and Spell slot buttons immediately', async () => {
@@ -270,9 +284,9 @@ it('does not clear an unconfirmed write when the explicit resource reload is off
 });
 
 it('reloads the latest name along with its revision so later draft saves cannot undo a remote rename', async () => {
-  const { a, run } = await setup(true);
+  const { a, run, render } = await setup(true);
   run.mockResolvedValue(undefined);
-  await value('Quick Hit Points', '3');
+  await spendSlot(a, render);
   const latest = { ...a, revision: 2, name: 'Renamed remotely' };
   vi.stubGlobal(
     'fetch',

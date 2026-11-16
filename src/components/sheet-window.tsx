@@ -14,6 +14,7 @@ export function SheetWindow({
   error,
   onDirtyChange,
   initialBuilderOpen,
+  externalBusy,
 }: {
   actor: Actor;
   snapshot: Snapshot;
@@ -23,6 +24,7 @@ export function SheetWindow({
   error?: string;
   onDirtyChange?: (dirty: boolean) => void;
   initialBuilderOpen?: boolean;
+  externalBusy?: boolean;
 }) {
   const title = useId();
   const frameRef = useRef<HTMLDivElement>(null);
@@ -137,6 +139,7 @@ export function SheetWindow({
           }}
           onRoll={onRoll}
           initialBuilderOpen={initialBuilderOpen}
+          externalBusy={externalBusy}
         />
       </div>
     </div>

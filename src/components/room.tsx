@@ -17,6 +17,7 @@ import { RollWindow } from './roll-window';
 import { ActorCard } from './actor-card';
 import { RoomShortcuts } from './room-shortcuts';
 import { useDiceZoom } from './use-dice-zoom';
+import { TokenQuickActions } from './token-quick-actions';
 import { useTabletopEdits } from './use-tabletop-edits';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
@@ -33,9 +34,16 @@ export function Room({ initial }: { initial: Snapshot }) {
   const [selectedActor, setSelectedActor] = useState<string>();
   const [initialBuilderActor, setInitialBuilderActor] = useState<string>();
   const sheetDirtyRef = useRef(false);
+  const [sheetDirty, setSheetDirty] = useState(false);
   const trackSheetDirty = useCallback((dirty: boolean) => {
     sheetDirtyRef.current = dirty;
+    setSheetDirty(dirty);
   }, []);
+  const [quickActions, setQuickActions] = useState<{
+    tokenId: string;
+    anchor: { x: number; y: number };
+  }>();
+  const [quickBusy, setQuickBusy] = useState(false);
   const [error, setError] = useState('');
   const [sync, setSync] = useState('Connecting');
   const [denied, setDenied] = useState(false);
@@ -65,6 +73,18 @@ export function Room({ initial }: { initial: Snapshot }) {
     run,
   );
   const actor = snapshot.actors.find((a) => a.id === selectedActor);
+  const quickToken = snapshot.tokens.find(
+    (t) => t.id === quickActions?.tokenId && t.scene_id === snapshot.game.active_scene_id,
+  );
+  const quickActor = snapshot.actors.find((a) => a.id === quickToken?.actor_id);
+  function leaveQuickActions() {
+    return (
+      !quickBusy ||
+      window.confirm(
+        'A resource update is saving or unconfirmed. Close anyway? This does not cancel or reverse it; reopen the token to check the latest values.',
+      )
+    );
+  }
   function openSheet(id: string, startBuilder = false) {
     if (
       id !== selectedActor &&
@@ -114,6 +134,13 @@ export function Room({ initial }: { initial: Snapshot }) {
         }
         if (next.length) setAnimations((queue) => [...queue, ...next].slice(-4));
         setSnapshot(updated);
+        setQuickActions((current) =>
+          updated.tokens.some(
+            (t) => t.id === current?.tokenId && t.scene_id === updated.game.active_scene_id,
+          )
+            ? current
+            : undefined,
+        );
         setSelectedActor((current) =>
           updated.actors.some((a) => a.id === current) ? current : undefined,
         );
@@ -316,12 +343,48 @@ export function Room({ initial }: { initial: Snapshot }) {
           snapshot={snapshot}
           edits={tabletopEdits}
           run={run}
+          openQuickActions={(tokenId, anchor) => {
+            if (quickActions?.tokenId !== tokenId && !leaveQuickActions()) return;
+            setQuickActions({ tokenId, anchor });
+          }}
           selectActor={(id) => {
             if (snapshot.actors.some((a) => a.id === id)) {
               if (openSheet(id)) setTab('party');
             }
           }}
         />
+        {quickToken && quickActions && (
+          <TokenQuickActions
+            key={quickToken.id}
+            token={quickToken}
+            actor={quickActor}
+            snapshot={snapshot}
+            anchor={quickActions.anchor}
+            blocked={selectedActor === quickActor?.id && sheetDirty}
+            busy={quickBusy}
+            run={run}
+            onBusyChange={setQuickBusy}
+            onClose={() => {
+              if (leaveQuickActions()) {
+                setQuickActions(undefined);
+                setQuickBusy(false);
+              }
+            }}
+            onSheet={() => {
+              if (quickActor) openSheet(quickActor.id);
+            }}
+            onCommitted={(sheet, revision, name) => {
+              setSnapshot((current) => ({
+                ...current,
+                actors: current.actors.map((a) =>
+                  a.id === quickActor?.id && revision >= a.revision
+                    ? { ...a, sheet, revision, ...(name !== undefined ? { name } : {}) }
+                    : a,
+                ),
+              }));
+            }}
+          />
+        )}
         {animations[0] && (
           <DiceOverlay
             key={animations[0].id}
@@ -940,6 +1003,7 @@ export function Room({ initial }: { initial: Snapshot }) {
       </div>
       {actor && (
         <SheetWindow
+          externalBusy={!!quickActor && selectedActor === quickActor.id && quickBusy}
           key={actor.id}
           actor={actor}
           snapshot={snapshot}
