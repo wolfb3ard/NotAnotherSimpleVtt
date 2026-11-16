@@ -61,6 +61,14 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - Existing free-text spell, equipment and feature notes stay in their matching tabs. Changes require **Save sheet** and are included in reusable templates. View-only access remains read-only.
 - Apply `supabase/migrations/202611150002_character_tabs.sql` before deployment. This validates the optional character extension at the database boundary; older sheets remain valid. No hosted migration is applied automatically.
 
+## Persistent token appearance
+
+- Open any sheet → **Token appearance**. Owners and GMs can upload a PNG/JPEG/WebP portrait (up to 4 MB), choose one of six ring presets, and **Save appearance**. Portraits are center-cropped, not stretched. This save is separate from sheet-stat edits.
+- **Add token to scene** places the saved appearance in the active scene. Players can place their own actors; GMs can place any actor, including multiple instances of a monster. Player placement retries do not create duplicates.
+- Appearance changes update existing placements in every scene. Tokens link to the same live sheet: HP, resources, and other stats are not copied or reset on placement or scene changes. Multiple instances of the same monster sheet share stats; create separate sheets for independent monsters.
+- Placement starts near the map’s top-left. Existing fog/hidden-token rules still apply; a GM may need to reveal that area. Party placement remains a shortcut, but appearance is managed on the sheet.
+- Apply `supabase/migrations/20261116120505_persistent_actor_tokens.sql` after earlier migrations before deploying. Existing actors inherit one deterministic existing token portrait (lowest token ID with an image); scene-specific portraits then share that character appearance. No hosted migration is applied automatically.
+
 ## Character deletion & roll windows
 
 - **Delete character** is available inside a sheet to its owner and the game's GM only. Sheet edit grants and token control do not grant deletion rights. Confirmation and a current sheet revision are required. Deletion removes the character, all their scene tokens, and access grants; saved templates remain.

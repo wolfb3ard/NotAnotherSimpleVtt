@@ -1,5 +1,6 @@
 'use client';
 import type { Actor } from '@/lib/types';
+import { TokenPortrait } from './token-portrait';
 
 export function ActorCard({
   actor,
@@ -24,7 +25,7 @@ export function ActorCard({
       aria-haspopup="dialog"
       title="Double-click to open character sheet"
     >
-      <span className={`avatar ${actor.kind}`}>{actor.name.slice(0, 2).toUpperCase()}</span>
+      <TokenPortrait name={actor.name} assetId={actor.token_asset_id} ring={actor.token_ring} />
       <span>
         <strong>{actor.name}</strong>
         <small>

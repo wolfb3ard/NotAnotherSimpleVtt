@@ -21,6 +21,9 @@ export type Actor = {
   owner_id: string;
   sheet: Sheet;
   revision: number;
+  token_asset_id?: string | null;
+  token_ring?: import('./token-appearance').TokenRing;
+  appearance_revision?: number;
 };
 export type Game = {
   id: string;
@@ -50,6 +53,7 @@ export type Token = {
   label: string;
   controller_id: string;
   asset_id: string | null;
+  ring?: import('./token-appearance').TokenRing;
   x: number;
   y: number;
   size: number;

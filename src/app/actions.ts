@@ -121,24 +121,42 @@ export async function mutate(
     const deletion =
       command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
-    const { data, error } = deletion
-      ? await db.rpc('delete_actor', {
+    const appearance =
+      command === 'actor_appearance' ? commandSchemas.actor_appearance.parse(validated) : null;
+    const placement =
+      command === 'token_create' ? commandSchemas.token_create.parse(validated) : null;
+    const { data, error } = appearance
+      ? await db.rpc('save_actor_appearance', {
           p_game: gameId,
-          p_actor: deletion.id,
-          p_revision: deletion.revision,
+          p_actor: appearance.id,
+          p_asset: appearance.asset_id,
+          p_ring: appearance.ring,
+          p_revision: appearance.revision,
         })
-      : ownership
-        ? await db.rpc('transfer_actor_owner', {
+      : placement
+        ? await db.rpc('place_actor_token', {
             p_game: gameId,
-            p_actor: ownership.actor_id,
-            p_owner: ownership.owner_id,
-            p_revision: ownership.revision,
+            p_actor: placement.actor_id,
+            p_scene: placement.scene_id,
           })
-        : await db.rpc('mutate_game', {
-            p_game: gameId,
-            p_command: command,
-            p: validated,
-          });
+        : deletion
+          ? await db.rpc('delete_actor', {
+              p_game: gameId,
+              p_actor: deletion.id,
+              p_revision: deletion.revision,
+            })
+          : ownership
+            ? await db.rpc('transfer_actor_owner', {
+                p_game: gameId,
+                p_actor: ownership.actor_id,
+                p_owner: ownership.owner_id,
+                p_revision: ownership.revision,
+              })
+            : await db.rpc('mutate_game', {
+                p_game: gameId,
+                p_command: command,
+                p: validated,
+              });
     if (error) throw new Error(error.message);
     if (command === 'invite' && data?.token) {
       const headerList = await headers();

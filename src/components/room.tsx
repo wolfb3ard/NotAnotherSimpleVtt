@@ -465,12 +465,9 @@ export function Room({ initial }: { initial: Snapshot }) {
                           setError('');
                           const form = new FormData(e.currentTarget);
                           try {
-                            const file = form.get('image') as File;
-                            const assetId = file?.size ? await imageUpload(file, 'token') : null;
                             await run('token_create', {
                               actor_id: form.get('actor_id'),
                               scene_id: scene.id,
-                              asset_id: assetId,
                             });
                           } catch (err) {
                             setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -492,14 +489,9 @@ export function Room({ initial }: { initial: Snapshot }) {
                               ))}
                           </select>
                         </label>
-                        <label>
-                          Token image (optional)
-                          <input
-                            name="image"
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                          />
-                        </label>
+                        <p className="small muted">
+                          Uses the portrait and ring saved on the character sheet.
+                        </p>
                         <button disabled={pending}>Place token</button>
                         <p className="small muted">
                           New tokens start near the map’s top-left. The GM may need to reveal that

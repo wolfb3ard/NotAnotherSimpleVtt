@@ -7,6 +7,7 @@ import type { Scene, Snapshot, Token } from '@/lib/types';
 import { distance, visibleAt } from '@/lib/geometry';
 import type { Command } from '@/lib/commands';
 import { movementQueue } from '@/lib/movement';
+import { portraitCrop, tokenRings } from '@/lib/token-appearance';
 
 type Point = { x: number; y: number };
 type Mode = 'move' | 'measure' | 'calibrate' | 'reveal' | 'conceal';
@@ -84,8 +85,8 @@ function ActorToken({
       <Circle
         radius={token.size / 2 + 3}
         fill="#131e26"
-        stroke={movable ? '#dcc39a' : '#8bb9af'}
-        strokeWidth={2}
+        stroke={tokenRings[token.ring ?? 'gold'].color}
+        strokeWidth={4}
       />
       {image ? (
         <Group
@@ -99,6 +100,7 @@ function ActorToken({
             y={-token.size / 2}
             width={token.size}
             height={token.size}
+            crop={portraitCrop(image.naturalWidth, image.naturalHeight)}
           />
         </Group>
       ) : (
