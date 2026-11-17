@@ -8,6 +8,8 @@ import { emptyCharacterDetails, rarities } from '@/lib/character-details';
 import { sheetSchema } from '@/lib/sheets';
 import type { Sheet } from '@/lib/types';
 import { applySrdBuilder } from '@/lib/srd-engine';
+import { castChoices } from '@/lib/play-assistance';
+import type { QuickUpdate } from '@/lib/resources';
 import { classBuilder, fighterBuilder } from '@/lib/srd-test-fixtures';
 import { blankFeat } from '@/lib/srd-state';
 import { srdEntry } from '@/lib/srd-catalog';
@@ -15,7 +17,7 @@ import { srdEntry } from '@/lib/srd-catalog';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root;
 let container: HTMLDivElement;
-async function fixture(initial = createDndSheet(), editable = true) {
+async function fixture(initial = createDndSheet(), editable = true, quickUpdate?: QuickUpdate) {
   let current = initial;
   const onRoll = vi.fn();
   function Harness() {
@@ -28,6 +30,7 @@ async function fixture(initial = createDndSheet(), editable = true) {
       rollable: editable,
       dirty: false,
       onRoll,
+      quickUpdate,
       update: (edit: (copy: Sheet) => void) => {
         const copy = structuredClone(sheet);
         edit(copy);
@@ -71,6 +74,38 @@ afterEach(async () => {
 });
 
 describe('character tabs', () => {
+  it('spends the chosen tracked slot from the active Actions tab', async () => {
+    const sheet = applySrdBuilder(createDndSheet(), classBuilder('Wizard'));
+    const spell = sheet.character!.spells.find(
+      (s) =>
+        s.level > 0 &&
+        s.prepared &&
+        castChoices(sheet, s).some((c) => c.changes.length && c.available),
+    )!;
+    const choice = castChoices(sheet, spell).find((c) => c.changes.length && c.available)!;
+    const quickUpdate = vi.fn();
+    await fixture(sheet, true, quickUpdate);
+    expect(panel().textContent).toContain(spell.name);
+    await click(`Cast ${spell.name} · ${choice.label}`);
+    expect(quickUpdate).toHaveBeenCalledExactlyOnceWith(choice.changes);
+  });
+  it('casts a cantrip from Actions without touching spell slots', async () => {
+    const sheet = createDndSheet();
+    sheet.character = emptyCharacterDetails();
+    sheet.character.spells.push({
+      id: crypto.randomUUID(),
+      name: 'Light',
+      actionType: 'Action',
+      description: 'An object emits light.',
+      level: 0,
+      prepared: false,
+    });
+    const { current } = await fixture(sheet);
+    expect(panel().textContent).toContain('An object emits light.');
+    await click('Cast Light · No slot');
+    expect(container.textContent).toContain('Light: no slot spent');
+    expect(current()).toBe(sheet);
+  });
   it('rolls a feat spell with its chosen casting source, advantage, and recorded purpose', async () => {
     const state = fighterBuilder();
     state.humanFeat = {

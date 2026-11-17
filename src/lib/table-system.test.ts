@@ -8,11 +8,13 @@ it('changes one monster without changing its source or another instance', () => 
   const rules = tableSystem({});
   const source = createMonsterSheet('monster-aboleth');
   const sibling = structuredClone(source);
-  const equipped = rules.changeMonsterShield(source);
+  const id = crypto.randomUUID();
+  const stocked = rules.changeInventory(source, { type: 'add', id, name: 'Shield' }).sheet;
+  const equipped = rules.changeInventory(stocked, { type: 'toggle', id }).sheet;
   expect(rules.armorClass(equipped)).toBe(Number(rules.armorClass(sibling)) + 2);
   expect(rules.numbers(equipped)[dndId('monster:ac')]).toBe(rules.armorClass(equipped));
   expect(source).toEqual(sibling);
-  expect(rules.changeMonsterShield(equipped)).toEqual(source);
+  expect(rules.changeInventory(equipped, { type: 'toggle', id }).sheet).toEqual(stocked);
 });
 
 it('uses the saved level when resolving the next table roll', () => {

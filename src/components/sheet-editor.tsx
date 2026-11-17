@@ -19,8 +19,9 @@ import { numericFields } from '@/lib/sheets';
 import { QuickResources } from './quick-resources';
 import type { ResourceWriter } from '@/lib/resource-writer';
 import { monsterId } from '@/lib/monster-sheet';
-import { additionalShield, tableSystem } from '@/lib/table-system';
-import { isShield, resolveLoadout } from '@/lib/srd-equipment';
+import { tableSystem } from '@/lib/table-system';
+import { PlayInventory } from './play-inventory';
+import type { changeInventory } from '@/lib/inventory-play';
 
 const MonsterSheet = dynamic(() => import('./monster-sheet'));
 
@@ -49,6 +50,22 @@ export function SheetEditor({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [playNotice, setPlayNotice] = useState('');
+  const [itemName, setItemName] = useState('');
+  async function inventoryChange(action: Parameters<typeof changeInventory>[1]) {
+    try {
+      const system = tableSystem(snapshot.game);
+      const result = system.changeInventory(sheet, action);
+      const before = system.armorClass(sheet),
+        after = system.armorClass(result.sheet);
+      return await commitPlay(
+        result.sheet,
+        `${result.message}${before !== after ? ` · AC ${before} → ${after}` : ''}`,
+      );
+    } catch (e) {
+      setPlayNotice((e as Error).message);
+      return false;
+    }
+  }
   async function commitPlay(next: Sheet, message: string) {
     if (!editable || saving || resourceBusy || externalBusy || conflict || dirty) return false;
     setSaving(true);
@@ -283,76 +300,66 @@ export function SheetEditor({
           </label>
         )}
         {monster && !customize ? (
-          <>
-            {editable && tableSystem(snapshot.game).armorClass(sheet) !== undefined && (
-              <details>
-                <summary>Monster equipment</summary>
+          <MonsterSheet
+            inventory={
+              <div className="stack">
                 <p>
-                  Printed AC already includes the creature’s normal gear. Use this only for an extra
-                  shield the creature can wield; shield bonuses do not stack.
+                  Printed AC already includes normal gear. Add a Shield here only if the creature
+                  can gain the extra +2 AC; shields do not stack. Other items are tracked manually.
                 </p>
-                <button
-                  disabled={dirty || conflict}
-                  onClick={() => {
-                    const system = tableSystem(snapshot.game);
-                    const next = system.changeMonsterShield(sheet);
-                    void commitPlay(
-                      next,
-                      `Shield changed · AC ${system.armorClass(sheet)} → ${system.armorClass(next)}`,
-                    );
-                  }}
-                >
-                  {sheet.sections.some((s) => s.fields.some((f) => f.id === additionalShield))
-                    ? 'Remove additional shield'
-                    : 'Equip additional shield'}
-                </button>
-              </details>
-            )}
-            <MonsterSheet
-              name={name}
-              onCustomize={() => setCustomize(true)}
-              portrait={
-                <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
-              }
-              sheet={sheet}
-              editable={editable}
-              rollable={rollable}
-              blocked={dirty || conflict || saving || resourceBusy || externalBusy}
-              quickEditable={
-                editable && !dirty && !conflict && !saving && !resourceBusy && !externalBusy
-              }
-              quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
-              onRoll={(expression, label) => onRoll(actor.id, expression, label)}
-            />
-          </>
+                <PlayInventory
+                  sheet={sheet}
+                  disabled={!editable || dirty || conflict}
+                  onChange={inventoryChange}
+                />
+                {editable && (
+                  <div className="wrap">
+                    <label>
+                      Item name
+                      <input
+                        maxLength={80}
+                        value={itemName}
+                        onChange={(e) => setItemName(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      disabled={dirty || conflict || !itemName.trim()}
+                      onClick={async () => {
+                        if (
+                          await inventoryChange({
+                            type: 'add',
+                            id: crypto.randomUUID(),
+                            name: itemName,
+                          })
+                        )
+                          setItemName('');
+                      }}
+                    >
+                      Add item
+                    </button>
+                  </div>
+                )}
+              </div>
+            }
+            name={name}
+            onCustomize={() => setCustomize(true)}
+            portrait={
+              <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
+            }
+            sheet={sheet}
+            editable={editable}
+            rollable={rollable}
+            blocked={dirty || conflict || saving || resourceBusy || externalBusy}
+            quickEditable={
+              editable && !dirty && !conflict && !saving && !resourceBusy && !externalBusy
+            }
+            quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
+            onRoll={(expression, label) => onRoll(actor.id, expression, label)}
+          />
         ) : dnd && !customize ? (
           <DndSheet
-            onUseItem={(id) => {
-              const next = structuredClone(sheet);
-              const item = next.character?.items.find((i) => i.id === id);
-              if (!item || item.quantity < 1) return;
-              item.quantity--;
-              void commitPlay(next, `${item.name} used · ${item.quantity} remaining.`);
-            }}
-            onEquip={(id) => {
-              try {
-                const state = structuredClone(sheet.character!.builder!);
-                const items = sheet.character!.items;
-                const item = items.find((i) => i.id === id)!;
-                const loadout = resolveLoadout(state, items);
-                const shield = isShield(item.name);
-                const worn = (shield ? loadout.shield : loadout.armor)?.id === id;
-                state.equipment[shield ? 'shieldId' : 'armorId'] = worn ? '' : id;
-                const system = tableSystem(snapshot.game);
-                const next = system.applyProgression(sheet, state);
-                void commitPlay(
-                  next,
-                  `${item.name} ${worn ? 'unequipped' : 'equipped'} · AC ${system.armorClass(sheet)} → ${system.armorClass(next)}`,
-                );
-              } catch (e) {
-                setPlayNotice((e as Error).message);
-              }
-            }}
+            onUseItem={(id) => void inventoryChange({ type: 'use', id })}
+            onEquip={(id) => void inventoryChange({ type: 'toggle', id })}
             portrait={
               <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
             }
