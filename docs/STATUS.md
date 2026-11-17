@@ -1,16 +1,22 @@
 # Implementation status
 
+Progress reconciled with merged GitHub PRs on 2026-11-17. Epics 01–05 are complete; Epic 06 is next and Epic 07 has only a partial quick-actions foundation. Merge status does not establish hosted deployment or acceptance verification.
+
 ## Built
 
-- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) ready for review, not merged. Epic 06 waits for review/merge.
+- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) merged on 2026-11-16. Epic 06 is unblocked for planning, not started.
 
 - VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) merged on 2026-11-16.
 
-- Token quick-actions follow-up: removed the character sheet's Play resources panel; token right-click opens a condensed resource/health card with a keyboard chooser, movable/clamped window, permission filtering, immediate-save/retry feedback and cross-window draft guards. Existing sheet Use/Recover buttons remain immediate. [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) ready for review; not merged.
+- Monster-sheet usability follow-up: compact player-style combat header, quick checks, accessible tabs, grouped action/critical/recharge rolls, shared d20 mode, collapsed rules/source and deduplicated casting restrictions. Saved/customized controls and independent resources remain intact. [PR #32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32) merged on 2026-11-16. No schema changes.
+
+- Token quick-actions follow-up: removed the character sheet's Play resources panel; token right-click opens a condensed resource/health card with a keyboard chooser, movable/clamped window, permission filtering, immediate-save/retry feedback and cross-window draft guards. Existing sheet Use/Recover buttons remain immediate. [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) merged on 2026-11-16. Partial E07 delivery; token Attack/Conditions/Initiative shortcuts and the complete unified action menu remain outstanding.
+
+- Production deployment follow-ups: [PR #29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29) and [PR #30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30) merged on 2026-11-16. Production builds run remotely on Vercel after migrations, avoiding downloaded Secret placeholders in Next.js public configuration; the access preflight uses the configured project without `vercel link`'s failing user lookup. Live production recovery is not asserted by this documentation update.
 
 - VTT v2 Epic 01: single-click character cards, persistent owned-character shortcuts, and synchronized roll-visibility controls with explicit audience descriptions. Roadmap and per-epic tasks: [vtt_v2.md](../vtt_v2.md).
 - VTT v2 Epic 02: immediate authorized resource/feature-use saves, atomic Damage/Heal previews with temporary HP, serialized rapid edits, revision/idempotency protection, visible failure/retry, and isolated configuration drafts. Apply the new resource migration before deployment.
-- VTT v2 Epic 03: bounded private server undo history, revision-checked inverses for committed token moves and painted/full-scene fog, Ctrl/Cmd+Z outside typing, and persisted uncertain-operation retries. Apply the reversible-tabletop migration before deployment. [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) ready for review; not merged.
+- VTT v2 Epic 03: bounded private server undo history, revision-checked inverses for committed token moves and painted/full-scene fog, Ctrl/Cmd+Z outside typing, and persisted uncertain-operation retries. Apply the reversible-tabletop migration before deployment. [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) merged on 2026-11-16.
 
 - Phase 1: application foundation, Google authentication (Discord backend retained; button hidden), game-scoped roles, invitations, dashboard, and authorization migrations.
 - Phase 2: actor sheets, customizable fields/resources/abilities, grants, templates, copies, and revision checks.
@@ -24,6 +30,8 @@
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- Latest merged implementation ([PR #32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32)): 455 unit/database/component tests, production build/TypeScript, lint, formatting with `--end-of-line auto`, and six Edge auth/smoke tests passed. Catalog-wide tests retain every action, roll and editable field exactly once for all 336 monsters; component tests cover keyboard tabs, independent IDs, roll mode, immediate HP writes, blocked actions, renamed/customized expressions, continued sections, orphaned rolls and homebrew spells. Isolated wide/narrow browser checks found no horizontal overflow or console errors. The opt-in multiplayer test was skipped; no hosted data changed. Earlier counts below are historical per-epic checks, not the current suite total.
 
 - VTT v2 Epic 05: 446 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests and full formatting with `--end-of-line auto` passed. Tests cover hidden/fogged projections, denied raw table/forged roll access, GM-only advancement, concurrent/stale turns, source/dice-setting races with batch rollback, idempotent rolls, manual/tie ordering, removal/deletion reconciliation, paused/ended states, per-scene persistence, same-tab retries and late-response isolation. The authenticated multiplayer scenario is extended but not run; local Docker/Supabase and advisors are unavailable. No hosted migration applied.
 
