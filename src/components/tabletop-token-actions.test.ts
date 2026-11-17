@@ -66,7 +66,11 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
     userId: 'gm',
     role: 'gm',
     game: { id: 'game', gm_id: 'gm', name: 'Game', active_scene_id: 'scene', dice: [20] },
-    tokens: [token, { ...token, id: 'secret', label: 'Secret enemy', hidden: true }],
+    tokens: [
+      token,
+      { ...token, id: 'secret', label: 'Secret enemy', hidden: true },
+      { ...token, id: 'other-scene', scene_id: 'elsewhere', label: 'Off-scene' },
+    ],
     scenes: [
       {
         id: 'scene',
@@ -101,8 +105,8 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
       ],
     },
   };
-  const open = vi.fn(),
-    sheet = vi.fn();
+  const open = vi.fn();
+  const previewChange = vi.fn(() => true);
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
@@ -122,8 +126,8 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
           dismiss: vi.fn(async () => {}),
         },
         run: vi.fn(),
-        selectActor: sheet,
         openQuickActions: open,
+        onPreviewChange: previewChange,
       }),
     ),
   );
@@ -141,21 +145,47 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
       .querySelector('[data-token="true"]')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 2 })),
   );
-  expect(sheet).not.toHaveBeenCalled();
-  expect(
-    container.querySelector('[data-text="Secret enemy · hidden · current turn"]'),
-  ).not.toBeNull();
-  expect(container.querySelectorAll('[data-stroke="#fff4bf"]')).toHaveLength(1);
+  expect(open).toHaveBeenCalledTimes(1);
   await act(async () =>
-    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Player view')!.click(),
+    container
+      .querySelector('[data-token="true"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })),
   );
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(container.querySelector('[data-stroke="#79c9e8"]')).not.toBeNull();
   const chooser = container.querySelector<HTMLSelectElement>('[aria-label="Token quick actions"]')!;
-  expect([...chooser.options].map((o) => o.textContent)).not.toContain('Secret enemy');
-  expect(container.querySelector('[data-text="Secret enemy · hidden · current turn"]')).toBeNull();
-  expect(container.querySelectorAll('[data-stroke="#fff4bf"]')).toHaveLength(0);
+  expect([...chooser.options].map((o) => o.textContent)).not.toContain('Off-scene');
   await act(async () => {
     chooser.value = 'token';
     chooser.dispatchEvent(new Event('change', { bubbles: true }));
   });
   expect(open).toHaveBeenLastCalledWith('token', { x: 24, y: 140 });
+  expect(
+    container.querySelector('[data-text="Secret enemy · hidden · current turn"]'),
+  ).not.toBeNull();
+  expect(container.querySelectorAll('[data-stroke="#fff4bf"]')).toHaveLength(1);
+  previewChange.mockReturnValueOnce(false);
+  await act(async () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Player view')!.click(),
+  );
+  expect(chooser.disabled).toBe(false);
+  expect(
+    container.querySelector('[data-text="Secret enemy · hidden · current turn"]'),
+  ).not.toBeNull();
+  await act(async () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Player view')!.click(),
+  );
+  expect(previewChange).toHaveBeenCalledWith(true);
+  expect(chooser.disabled).toBe(true);
+  expect([...chooser.options].map((o) => o.textContent)).not.toContain('Secret enemy');
+  expect(container.querySelector('[data-text="Secret enemy · hidden · current turn"]')).toBeNull();
+  expect(container.querySelectorAll('[data-stroke="#fff4bf"]')).toHaveLength(0);
+  open.mockClear();
+  await act(async () =>
+    container
+      .querySelector('[data-token="true"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })),
+  );
+  expect(open).not.toHaveBeenCalled();
+  expect(container.querySelector('[data-stroke="#79c9e8"]')).toBeNull();
 });

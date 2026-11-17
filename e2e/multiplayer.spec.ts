@@ -140,8 +140,8 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     // Move the token using the canvas; default map offset is 50,50 and token begins at 100,100.
     const canvas = player.page.locator('canvas').first();
     const box = (await canvas.boundingBox())!;
-    // Token right-click opens condensed resources, not the full sheet.
-    await player.page.mouse.click(box.x + 150, box.y + 150, { button: 'right' });
+    // Token selection opens actions, not the full sheet.
+    await player.page.mouse.click(box.x + 150, box.y + 150);
     await expect(
       player.page.getByRole('dialog', { name: 'Aria quick actions', exact: true }),
     ).toBeVisible();
@@ -515,6 +515,42 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     gm.page.once('dialog', (dialog) => dialog.accept());
     await tracker.getByRole('button', { name: 'End encounter', exact: true }).click();
     await expect(player.page.locator('.encounter-turn')).toContainText('Encounter ended');
+    // Selected-token attacks and HP need no sidebar/sheet hopping; private rolls stay private.
+    await player.page.getByLabel('Quick roll visibility', { exact: true }).selectOption('private');
+    await player.page
+      .getByLabel('Token quick actions', { exact: true })
+      .selectOption({ label: 'Builder hero' });
+    const quick = player.page.getByRole('dialog', {
+      name: 'Builder hero quick actions',
+      exact: true,
+    });
+    await quick.getByText('Attack / sheet rolls', { exact: true }).click();
+    await quick.getByLabel('Token attack or ability').selectOption({ label: 'Spell attack' });
+    await quick.getByRole('button', { name: 'Roll selected action', exact: true }).click();
+    await expect
+      .poll(async () => {
+        const current = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+        return current.rolls[0]?.actor_id === builtHero.id && current.rolls[0]?.visibility;
+      })
+      .toBe('private');
+    const hiddenRoll = (await (await player.page.request.get(`/api/games/${gameId}`)).json())
+      .rolls[0];
+    const spectatorRolls = (
+      await (await spectators[0].page.request.get(`/api/games/${gameId}`)).json()
+    ).rolls;
+    expect(spectatorRolls.some((r: { id: string }) => r.id === hiddenRoll.id)).toBe(false);
+    const hp = quick.getByLabel('Quick Hit Points', { exact: true });
+    const nextHp = Math.max(0, Number(await hp.inputValue()) - 1);
+    await hp.fill(String(nextHp));
+    await expect(quick.getByRole('status').filter({ hasText: 'Resources:' })).toHaveText(
+      'Resources: Saved',
+    );
+    await expect(
+      player.page.getByRole('dialog', { name: 'Builder hero', exact: true }),
+    ).toHaveCount(0);
+    await expect(player.page.getByRole('button', { name: 'Encounter', exact: true })).toHaveClass(
+      'active',
+    );
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {

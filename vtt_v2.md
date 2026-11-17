@@ -18,11 +18,11 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 
 ## Progress snapshot — 2026-11-17
 
-- Epics 01–05 are complete and merged into `main`. Phase 1 is complete; Phase 2 still requires Epics 06–07.
-- Epic 06 (conditions, concentration, death saves) is implemented awaiting review/merge. E05 is merged; E07 remains blocked on E06 merge.
-- Epic 07 has a merged resource/health quick-actions foundation, not the complete planned action menu.
+- Epics 01–06 are complete and merged into `main`. Phase 1 is complete; Phase 2 still requires Epic 07 merge.
+- Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
+- Epic 07 implementation extends the merged resource/health foundation with selected-token attacks, initiative and unified GM controls; ready for review, not merged.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
-- Latest local implementation verification: 486 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Latest local implementation verification: 500 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
 
 ## Current foundation
@@ -129,7 +129,7 @@ Local verification: 446 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 06 — Conditions, concentration, and death saves
 
-Status: Implemented; [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) ready for review, not merged. Dependencies: E05 (merged).
+Status: Complete; [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) merged into `main` on 2026-11-17 (commit `3315e46`). Dependencies: E05 (merged).
 
 - [x] E06-T01: Add condition markers with source, notes, optional duration, and manual removal.
 - [x] E06-T02: Support start/end-of-turn expiry prompts and overrides; do not silently adjudicate ambiguous rules.
@@ -146,18 +146,22 @@ Local verification: 486 unit/database/component tests, lint, production build/Ty
 
 ### Epic 07 — Token quick actions
 
-Status: Partially delivered through merged follow-ups; full epic not complete. Dependencies: E05 (merged), E06 (implemented, awaiting merge).
+Status: Implemented; PR pending publication, not merged. Dependencies: E05 and E06 (merged).
 
-Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. E06 adds condition/survival controls pending merge. Left-click still opens the sheet; token-level Attack/Initiative shortcuts, unified GM controls, and the full acceptance scenarios remain outstanding. Tasks below stay unchecked until their complete scope is delivered.
+Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. E06 adds condition/survival controls.
 
-- [ ] E07-T01: Separate token selection from opening its sheet; support keyboard-accessible equivalent controls.
-- [ ] E07-T02: Add Sheet, Attack, Damage/heal, Conditions, and Initiative actions appropriate to permissions.
-- [ ] E07-T03: Add GM Hide/reveal, Duplicate, and Assign control actions.
-- [ ] E07-T04: Use immediate sheet rolls for simple actions and the existing panel for advanced expressions.
-- [ ] E07-T05: Explain blocked actions without exposing restricted sheet data.
-- [ ] E07-T06: Test owners, controllers, view-only members, GM preview, private rolls, and missing sheets.
+- [x] E07-T01: Separate token selection from opening its sheet; support keyboard-accessible equivalent controls.
+- [x] E07-T02: Add Sheet, Attack, Damage/heal, Conditions, and Initiative actions appropriate to permissions.
+- [x] E07-T03: Add GM Hide/reveal, Duplicate, and Assign control actions.
+- [x] E07-T04: Use immediate sheet rolls for simple actions and the existing panel for advanced expressions.
+- [x] E07-T05: Explain blocked actions without exposing restricted sheet data.
+- [x] E07-T06: Test owners, controllers, view-only members, GM preview, private rolls, and missing sheets.
 
 Acceptance: an ordinary attack and HP adjustment can be completed from a selected token without panel hopping.
+
+Implementation policy: click selects/highlights and opens the same movable card as right-click/the keyboard chooser; opening a sheet is explicit. D&D attacks use play-sheet formulas from saved inputs; generic/monster actions preserve saved expressions and rule descriptions. Rolls require sheet access plus GM/owner/token control, never an edit grant alone. The shared audience is shown and GM SRD monster selection defaults it to private. Advanced expressions load into Dice without rolling. GM token visibility/control/size edits remain revision-checked; duplication remains NPC/enemy-only, independent and initially hidden. Inline initiative starts/adds/rerolls/sets one token through E05's authoritative commands with private automatic rolls, revisions and persisted exact retries. GM preview closes/blocks token actions. Existing sheet/resource/combat guards remain; uncertain creation/initiative also block competing edits and participate in close warnings. No targeting, hit adjudication or automatic resource expenditure.
+
+Local verification: 500 unit/database/component tests, lint, production build/TypeScript, native-line-ending formatting and six Edge auth/smoke tests passed. Added coverage includes click/right-click/keyboard selection, preview filtering/blocked entry, off-scene tokens, owner/GM/controller rolls, private-audience labels, edit-grant-only roll denial, missing/revoked sheets, dirty drafts, saved D&D/custom monster expressions/rules, GM revision-checked token edits, inline initiative lifecycle/manual overrides/exact retry across reload, and uncertain duplicate guards. Existing PGlite authorization/concurrency tests pass unchanged against all migrations. The opt-in multiplayer scenario now covers selected-token attack/HP without panel hopping and private-roll filtering, but remains unrun. No schema changes or hosted migrations.
 
 ## Phase 3 — Joining and moving around
 
@@ -280,7 +284,7 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 
 ## Unresolved Questions
 
-- None blocking E06 planning. E05 is merged; turn advancement remains GM-only.
+- None blocking E07. E06 is merged; turn advancement and encounter initiative changes remain GM-only.
 - Before E09: diagonal distance rule? Default: Euclidean; configurable later.
 - Before E10: forced camera or opt-in follow? Default: opt-in.
 - Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.
