@@ -84,7 +84,7 @@ export function Room({ initial }: { initial: Snapshot }) {
     return (
       !quickBusy ||
       window.confirm(
-        'A resource update is saving or unconfirmed. Close anyway? This does not cancel or reverse it; reopen the token to check the latest values.',
+        'A quick action is saving or unconfirmed. Close anyway? This does not cancel or reverse it; reopen the token to check the latest state.',
       )
     );
   }
@@ -354,13 +354,26 @@ export function Room({ initial }: { initial: Snapshot }) {
           edits={tabletopEdits}
           run={run}
           openQuickActions={(tokenId, anchor) => {
-            if (quickActions?.tokenId !== tokenId && !leaveQuickActions()) return;
+            if (quickActions?.tokenId !== tokenId && !leaveQuickActions()) return false;
+            const target = snapshot.tokens.find((t) => t.id === tokenId);
+            if (
+              gm &&
+              quickActions?.tokenId !== tokenId &&
+              monsterId(
+                snapshot.actors.find((a) => a.id === target?.actor_id)?.sheet ?? emptySheet(),
+              )
+            )
+              setVisibility('private');
             setQuickActions({ tokenId, anchor });
+            return true;
           }}
-          selectActor={(id) => {
-            if (snapshot.actors.some((a) => a.id === id)) {
-              if (openSheet(id)) setTab('party');
+          onPreviewChange={(preview) => {
+            if (preview) {
+              if (!leaveQuickActions()) return false;
+              setQuickActions(undefined);
+              setQuickBusy(false);
             }
+            return true;
           }}
         />
         {quickToken && quickActions && (
@@ -375,6 +388,16 @@ export function Room({ initial }: { initial: Snapshot }) {
             run={run}
             onBusyChange={setQuickBusy}
             onRoll={sendRoll}
+            refresh={refresh}
+            visibility={visibility}
+            rollPending={pending}
+            onAdvancedRoll={({ actorId, expression, rollType }) => {
+              setRollActor(actorId);
+              setExpression(expression);
+              setRollType(rollType);
+              setModifier('0');
+              setTab('dice');
+            }}
             onClose={() => {
               if (leaveQuickActions()) {
                 setQuickActions(undefined);

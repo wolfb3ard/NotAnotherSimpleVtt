@@ -44,6 +44,7 @@ function ActorToken({
   select,
   quickActions,
   active,
+  selected,
 }: {
   token: Token;
   movable: boolean;
@@ -51,6 +52,7 @@ function ActorToken({
   select: () => void;
   quickActions: (x: number, y: number) => void;
   active: boolean;
+  selected: boolean;
 }) {
   const { image } = useImage(token.asset_id ? `/api/images/${token.asset_id}` : undefined);
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
@@ -62,7 +64,10 @@ function ActorToken({
       draggable={movable}
       opacity={token.hidden ? 0.4 : 1}
       onClick={(e) => {
-        if (e.evt.button === 0) select();
+        if (e.evt.button === 0) {
+          e.cancelBubble = true;
+          select();
+        }
       }}
       onTap={select}
       onContextMenu={(e) => {
@@ -85,6 +90,9 @@ function ActorToken({
         setDragPosition(null);
       }}
     >
+      {selected && (
+        <Circle radius={token.size / 2 + 7} stroke="#79c9e8" strokeWidth={2} listening={false} />
+      )}
       {active && (
         <Circle
           radius={token.size / 2 + 11}
@@ -145,15 +153,15 @@ export default function Tabletop({
   snapshot,
   edits,
   run,
-  selectActor,
   openQuickActions,
+  onPreviewChange,
   children,
 }: {
   snapshot: Snapshot;
   edits: ReturnType<typeof useTabletopEdits>;
   run: Run;
-  selectActor: (id: string) => void;
-  openQuickActions: (tokenId: string, anchor: Point) => void;
+  openQuickActions: (tokenId: string, anchor: Point) => boolean | void;
+  onPreviewChange?: (preview: boolean) => boolean;
   children?: React.ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -237,18 +245,38 @@ export default function Tabletop({
     setStart(null);
     setEnd(null);
   }
-  const selectedToken = snapshot.tokens.find((t) => t.id === selected);
   const renderedTokens = snapshot.tokens.filter(
-    (t) => !preview || (!t.hidden && !!scene && visibleAt(scene.fog, t.x, t.y)),
+    (t) =>
+      t.scene_id === scene?.id &&
+      (!preview || (!t.hidden && !!scene && visibleAt(scene.fog, t.x, t.y))),
   );
+  function choose(token: Token, anchor?: Point) {
+    if (preview || mode !== 'move') return;
+    const rect = container.current?.getBoundingClientRect();
+    const accepted = openQuickActions(
+      token.id,
+      anchor ?? {
+        x: (rect?.left ?? 0) + position.x + token.x * scale + (token.size * scale) / 2,
+        y: (rect?.top ?? 0) + position.y + token.y * scale,
+      },
+    );
+    if (accepted !== false) setSelected(token.id);
+  }
   return (
     <div className="tabletop" ref={container}>
       <div className="canvas-tools">
         <select
           aria-label="Token quick actions"
+          disabled={preview || mode !== 'move'}
+          title={
+            preview
+              ? 'Token actions are disabled in player preview.'
+              : 'Select Move mode to use token actions.'
+          }
           value=""
           onChange={(e) => {
-            if (e.target.value) openQuickActions(e.target.value, { x: 24, y: 140 });
+            const token = renderedTokens.find((t) => t.id === e.target.value);
+            if (token) choose(token, { x: 24, y: 140 });
           }}
         >
           <option value="">Token quick actions…</option>
@@ -294,7 +322,14 @@ export default function Tabletop({
             >
               ◌ Conceal
             </button>
-            <button className={preview ? 'active' : ''} onClick={() => setPreview(!preview)}>
+            <button
+              className={preview ? 'active' : ''}
+              onClick={() => {
+                if (onPreviewChange?.(!preview) === false) return;
+                setSelected(undefined);
+                setPreview(!preview);
+              }}
+            >
               Player view
             </button>
           </>
@@ -362,7 +397,8 @@ export default function Tabletop({
                   active={encounter?.status === 'active' && encounter.active_token_id === token.id}
                   key={`${scene.id}:${token.id}`}
                   token={token}
-                  quickActions={(x, y) => openQuickActions(token.id, { x, y })}
+                  selected={!preview && selected === token.id}
+                  quickActions={(x, y) => choose(token, { x, y })}
                   movable={
                     !edits.blocked &&
                     mode === 'move' &&
@@ -370,8 +406,7 @@ export default function Tabletop({
                     (gm || token.controller_id === snapshot.userId)
                   }
                   select={() => {
-                    setSelected(token.id);
-                    selectActor(token.actor_id);
+                    choose(token);
                   }}
                   move={async (x, y, revision) => {
                     return edits.commit('tabletop_move', {
@@ -475,76 +510,13 @@ export default function Tabletop({
               </button>
             </div>
           )}
-          {gm && selectedToken && mode === 'move' && (
-            <div className="canvas-popover">
-              <div className="row">
-                <strong>{selectedToken.label}</strong>
-                <button aria-label="Close token controls" onClick={() => setSelected(undefined)}>
-                  ×
-                </button>
-              </div>
-              <label>
-                Controller
-                <select
-                  value={selectedToken.controller_id}
-                  onChange={(e) =>
-                    run('token_update', {
-                      id: selectedToken.id,
-                      revision: selectedToken.revision,
-                      controller_id: e.target.value,
-                    })
-                  }
-                >
-                  {snapshot.members.map((m) => (
-                    <option key={m.user_id} value={m.user_id}>
-                      {m.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Token size
-                <input
-                  type="range"
-                  min={16}
-                  max={256}
-                  defaultValue={selectedToken.size}
-                  key={`${selectedToken.id}-${selectedToken.size}`}
-                  onPointerUp={(e) =>
-                    run('token_update', {
-                      id: selectedToken.id,
-                      revision: selectedToken.revision,
-                      size: Number(e.currentTarget.value),
-                    })
-                  }
-                  onKeyUp={(e) => {
-                    if (e.key.startsWith('Arrow'))
-                      void run('token_update', {
-                        id: selectedToken.id,
-                        revision: selectedToken.revision,
-                        size: Number(e.currentTarget.value),
-                      });
-                  }}
-                />
-              </label>
-              <button
-                onClick={() =>
-                  run('token_update', {
-                    id: selectedToken.id,
-                    revision: selectedToken.revision,
-                    hidden: !selectedToken.hidden,
-                  })
-                }
-              >
-                {selectedToken.hidden ? 'Show token' : 'Hide token'}
-              </button>
-            </div>
-          )}
         </>
       )}
       <span className="canvas-hint">
         {mode === 'move'
-          ? 'Drag to pan · Scroll to zoom · Drag your token to move'
+          ? preview
+            ? 'Player preview · token actions disabled'
+            : 'Click token for actions · Drag to pan · Scroll to zoom · Drag your token to move'
           : mode === 'measure'
             ? 'Drag to measure a straight-line distance'
             : mode === 'calibrate'

@@ -11,6 +11,7 @@ export function CreatureAdder({
   run,
   label = 'Add creatures',
   disabled = false,
+  onBusyChange,
 }: {
   gameId: string;
   sceneId: string;
@@ -18,6 +19,7 @@ export function CreatureAdder({
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
   label?: string;
   disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const sourceId = source.kind === 'srd' ? source.monster_id : source.actor_id;
   const sourceKind = source.kind;
@@ -27,6 +29,8 @@ export function CreatureAdder({
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState('');
   const locked = useRef(false);
+  useEffect(() => onBusyChange?.(pending || !!attempt), [pending, attempt, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
