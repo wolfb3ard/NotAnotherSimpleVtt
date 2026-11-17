@@ -192,6 +192,62 @@ beforeEach(async () => {
   );
   await as(gm);
 });
+it('keeps journal drafts and assets off the wire and enforces audience on every direct read', async () => {
+  const revision = () => db.query('select revision from room_events where game_id=$1', [game]);
+  const before = (await revision()).rows;
+  const handout = (
+    await db.query<{ id: string }>(
+      "insert into journal_entries(game_id,scene_id,kind,title,body,image) values($1,$2,'handout','Map','Find the bridge',decode('01','hex')) returning id",
+      [game, scene],
+    )
+  ).rows[0].id;
+  const note = (
+    await db.query<{ id: string }>(
+      "insert into journal_entries(game_id,scene_id,kind,title,body) values($1,$2,'note','Secret','Prepare the bridge') returning id",
+      [game, scene],
+    )
+  ).rows[0].id;
+  await expect(
+    db.query('update journal_entries set party=true where id=$1', [note]),
+  ).rejects.toThrow(/check constraint/);
+  expect((await revision()).rows).toEqual(before);
+  expect(
+    (
+      await db.query(
+        "select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='journal_entries'",
+      )
+    ).rows,
+  ).toEqual([]);
+  const read = () =>
+    db.query("select title,encode(image,'hex') img from journal_entries where id in ($1,$2)", [
+      handout,
+      note,
+    ]);
+  await as(player);
+  expect((await read()).rows).toEqual([]);
+  expect(
+    (await db.query('update journal_entries set party=true where id=$1 returning id', [handout]))
+      .rows,
+  ).toEqual([]);
+  await as(gm);
+  await db.query('update journal_entries set recipient_id=$1 where id=$2', [gm, handout]);
+  await as(player);
+  expect((await read()).rows).toEqual([]);
+  await as(gm);
+  await db.query('update journal_entries set recipient_id=$1 where id=$2', [player, handout]);
+  await as(player);
+  expect((await read()).rows).toEqual([{ title: 'Map', img: '01' }]);
+  await as(gm);
+  await db.query('update journal_entries set party=true,recipient_id=null where id=$1', [handout]);
+  await as(outsider);
+  expect((await read()).rows).toEqual([]);
+  await as(player);
+  expect((await read()).rows).toHaveLength(1);
+  await as(gm);
+  await db.query('update journal_entries set party=false where id=$1', [handout]);
+  await as(player);
+  expect((await read()).rows).toEqual([]);
+});
 afterAll(async () => {
   await db?.close();
 });

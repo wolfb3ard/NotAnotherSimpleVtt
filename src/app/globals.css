@@ -1951,3 +1951,12 @@ dialog[aria-labelledby='srd-builder-title'] label.row {
 .room-presence {
   padding: 0.3rem 1rem;
 }
+.journal-page {
+  max-width: 52rem;
+  margin: auto;
+  padding: 1.5rem;
+  overflow-wrap: anywhere;
+}
+.journal-text {
+  white-space: pre-wrap;
+}
