@@ -155,6 +155,8 @@ function FeatChoices({
   total,
   identityLocked = false,
   spellsLocked = false,
+  label = 'Feat',
+  forcedList,
 }: {
   value?: SrdFeatChoice;
   onChange: (value: SrdFeatChoice) => void;
@@ -163,6 +165,8 @@ function FeatChoices({
   total: number;
   identityLocked?: boolean;
   spellsLocked?: boolean;
+  label?: string;
+  forcedList?: 'Cleric' | 'Druid' | 'Wizard';
 }) {
   const current = value ?? blankFeat(),
     entry = srdById.get(current.id);
@@ -183,11 +187,14 @@ function FeatChoices({
         : 0;
   return (
     <fieldset>
-      <legend>Feat</legend>
+      <legend>{label}</legend>
+      <p className="builder-help">
+        A feat is a special talent. Each source grants its own choices.
+      </p>
       <label>
         Choose feat
         <select
-          disabled={identityLocked}
+          disabled={identityLocked || !!forced}
           value={current.id}
           onChange={(e) => onChange(blankFeat(e.target.value))}
         >
@@ -228,10 +235,15 @@ function FeatChoices({
       )}
       {entry?.name === 'Magic Initiate' && (
         <>
+          <p className="builder-help">
+            Choose two cantrips (spells you can cast without spell slots) and one level 1 spell.
+            This feat gives one free cast of its level 1 spell per Long Rest. Your chosen ability
+            affects spell attack rolls and how hard these spells are to resist.
+          </p>
           <label>
             Magic Initiate spell list
             <select
-              disabled={identityLocked}
+              disabled={identityLocked || !!forcedList}
               value={current.spellList ?? ''}
               onChange={(e) =>
                 update({ spellList: e.target.value as 'Cleric' | 'Druid' | 'Wizard', spells: [] })
@@ -243,12 +255,17 @@ function FeatChoices({
               ))}
             </select>
           </label>
+          {forcedList && (
+            <p className="builder-help">Your background grants the {forcedList} spell list.</p>
+          )}
           <label>
             Spellcasting ability
             <select
               disabled={identityLocked}
               value={current.spellAbility ?? ''}
-              onChange={(e) => update({ spellAbility: Number(e.target.value) })}
+              onChange={(e) =>
+                update({ spellAbility: e.target.value === '' ? undefined : Number(e.target.value) })
+              }
             >
               <option value="">Choose…</option>
               {abilityNames.slice(3).map((name, i) => (
@@ -259,23 +276,32 @@ function FeatChoices({
             </select>
           </label>
           <fieldset disabled={spellsLocked}>
-            <Picks
-              label="Magic Initiate spells (two cantrips + one level 1)"
-              values={current.spells}
-              count={3}
-              options={srdCatalog
-                .filter(
-                  (e) =>
-                    e.category === 'spell' &&
-                    e.classes?.includes(current.spellList ?? '') &&
-                    (e.level ?? 10) <= 1,
-                )
-                .map((e) => ({
-                  value: e.id,
-                  label: `${e.name} (${e.level === 0 ? 'cantrip' : 'level 1'})`,
-                }))}
-              onChange={(spells) => update({ spells })}
-            />
+            {[0, 1].map((level) => (
+              <Picks
+                key={level}
+                label={level === 0 ? 'Cantrips' : 'Level 1 spell'}
+                values={current.spells.filter((id) => srdById.get(id)?.level === level)}
+                count={level === 0 ? 2 : 1}
+                options={asOptions(
+                  srdCatalog
+                    .filter(
+                      (e) =>
+                        e.category === 'spell' &&
+                        e.classes?.includes(current.spellList ?? '') &&
+                        e.level === level,
+                    )
+                    .map((e) => e.id),
+                )}
+                onChange={(spells) =>
+                  update({
+                    spells: [
+                      ...current.spells.filter((id) => srdById.get(id)?.level !== level),
+                      ...spells,
+                    ],
+                  })
+                }
+              />
+            ))}
           </fieldset>
         </>
       )}
@@ -647,7 +673,8 @@ function DraftBuilder({
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
-  const patch = (value: Partial<SrdBuilderState>) => setDraft({ ...draft, ...value });
+  const patch = (value: Partial<SrdBuilderState>) =>
+    setDraft((current) => ({ ...current, ...value }));
   const derived = deriveSrd(draft);
   const loadout = deriveEquipment(draft, draftEquipmentItems(sheet, draft), derived.scores);
   const errors = [
@@ -657,6 +684,7 @@ function DraftBuilder({
   ];
   const stale = initial !== JSON.stringify(sheet);
   const counts = classLevels(draft.levels);
+  const backgroundRules = backgrounds[draft.background];
   function addLevel() {
     const previous = draft.levels.findLast((step) => step.className === nextClass);
     const level = blankLevel(nextClass);
@@ -708,6 +736,24 @@ function DraftBuilder({
           Draft only. Apply updates the unsaved sheet; use Save sheet to persist. Cancel/Escape
           discards this draft.
         </p>
+        <nav className="builder-journey" aria-label="Builder sections">
+          <a href="#builder-origin">1. Origin & abilities</a>
+          <a href="#builder-progression">2. Class choices</a>
+          <a href="#builder-equipment">3. Equipment</a>
+          <a href="#builder-review">4. Review & apply</a>
+        </nav>
+        <details className="builder-guide">
+          <summary>New player? Start here</summary>
+          <p>
+            Class is your adventuring role. Background is your life before adventuring; species
+            gives inherited traits. Ability scores describe your strengths, and proficiency means
+            training that adds your proficiency bonus to a roll.
+          </p>
+          <p>
+            Complete origin choices, then your class choices and equipment. Review the preview and
+            remaining selections, Apply, then Save sheet. Nothing is saved by Apply alone.
+          </p>
+        </details>
         <p className="notice">
           Core progression is automated. Review source rules for conditional combat effects,
           conditional encounter effects and any explicitly listed unsupported choices below.
@@ -719,7 +765,7 @@ function DraftBuilder({
             Sheet changed while this draft was open. Cancel and reopen before applying.
           </p>
         )}
-        <details open={!sheet.character?.builder}>
+        <details id="builder-origin" open={!sheet.character?.builder}>
           <summary>Origin & ability generation</summary>
           <fieldset disabled={!!sheet.character?.builder}>
             <legend>Origin (locked after first apply; detach for manual rebuild)</legend>
@@ -837,10 +883,12 @@ function DraftBuilder({
               onChange={(backgroundBoosts) => patch({ backgroundBoosts })}
             />
             <FeatChoices
+              label="Background feat"
               value={draft.originFeat}
               total={0}
               origin
               forced={backgrounds[draft.background].feat}
+              forcedList={'magicList' in backgroundRules ? backgroundRules.magicList : undefined}
               onChange={(originFeat) => patch({ originFeat })}
             />
             <label>
@@ -941,6 +989,7 @@ function DraftBuilder({
             )}
             {draft.species === 'Human' && (
               <FeatChoices
+                label="Human bonus feat"
                 value={draft.humanFeat}
                 total={0}
                 origin
@@ -1029,17 +1078,7 @@ function DraftBuilder({
                 />
               </section>
             ))}
-        <SrdEquipmentControls
-          sheet={sheet}
-          state={draft}
-          onChange={(equipment) => patch({ equipment })}
-        />
-        <SrdShapesControls
-          state={draft}
-          sheet={sheet}
-          onChange={(companions) => patch({ companions })}
-        />
-        <section className="stack" aria-label="Class progression">
+        <section id="builder-progression" className="stack" aria-label="Class progression">
           <h3>Class progression · total level {derived.total}</h3>
           {draft.lineage === 'High Elf' && (
             <Picks
@@ -1112,10 +1151,27 @@ function DraftBuilder({
             </button>
           )}
         </section>
-        <section aria-label="Progression preview">
+        <section id="builder-equipment" className="stack" aria-label="Equipment and companions">
+          <h3>Equipment & companions</h3>
+          <p className="builder-help">
+            Starting equipment comes from your class and background. Choose what to equip; your
+            armor and weapons determine your Armor Class and ready attacks.
+          </p>
+          <SrdEquipmentControls
+            sheet={sheet}
+            state={draft}
+            onChange={(equipment) => patch({ equipment })}
+          />
+          <SrdShapesControls
+            state={draft}
+            sheet={sheet}
+            onChange={(companions) => patch({ companions })}
+          />
+        </section>
+        <section id="builder-review" aria-label="Progression preview">
           <h3>Preview</h3>
           <p>
-            HP maximum {derived.hp} · PB +{derived.pb} · Hit Dice{' '}
+            Hit Point maximum {derived.hp} · Proficiency bonus +{derived.pb} · Hit Dice{' '}
             {Object.entries(derived.hitDice)
               .map(([die, count]) => `${count}d${die}`)
               .join(' + ')}
@@ -1163,7 +1219,7 @@ function DraftBuilder({
           </details>
         )}
         {failure && <p role="alert">{failure}</p>}
-        <div className="row">
+        <div className="row builder-actions">
           <button
             type="button"
             disabled={stale || errors.length > 0}

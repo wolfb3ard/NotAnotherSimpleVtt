@@ -280,6 +280,33 @@ export function DndSheet({
         )}
         {!editable && <span className="dnd-read-only">Read only</span>}
       </div>
+      <details className="dnd-box dnd-guide">
+        <summary>What do these numbers mean?</summary>
+        <dl>
+          <dt>Hit Points (HP) & Armor Class (AC)</dt>
+          <dd>
+            HP measures how much damage you can take. AC is the number an attack must meet to hit
+            you.
+          </dd>
+          <dt>Ability checks, saving throws & proficiency</dt>
+          <dd>
+            Checks attempt a task; saving throws resist danger. Proficiency adds a training bonus.
+            The sheet includes these bonuses in its roll buttons.
+          </dd>
+          <dt>Initiative & Hit Dice</dt>
+          <dd>Initiative sets combat turn order. Hit Dice can restore HP during a Short Rest.</dd>
+          <dt>Advantage & disadvantage</dt>
+          <dd>Roll two d20s: advantage keeps the higher, disadvantage the lower.</dd>
+          <dt>Spell slots & save DC</dt>
+          <dd>
+            Slots fuel levelled spells; cantrips need none. Save DC is the number a target must meet
+            on its saving throw to resist your spell.
+          </dd>
+        </dl>
+        <p>
+          Edit sheet changes your draft. Done editing does not save; use Save sheet before rolling.
+        </p>
+      </details>
       <div className="dnd-roll-toolbar">
         <label>
           Sheet roll mode{' '}
