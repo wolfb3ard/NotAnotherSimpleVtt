@@ -268,7 +268,7 @@ Acceptance: GM preparation stays private until explicitly shared; the party can 
 
 ### Epic 14 — Casting and rest assistance
 
-Status: Implemented. Dependencies: E02, E06, E07. Migration: `20261117205658_assisted_damage.sql`.
+Status: Implemented; [PR #44](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/44) open for review. Dependencies: E02, E06, E07. Migration: `20261117205658_assisted_damage.sql`.
 
 - [x] E14-T01: Add Cast → choose slot/source → preview → confirm, including Pact Magic and upcasting choices.
 - [x] E14-T02: Spend resources atomically and idempotently; allow manual casting without expenditure when appropriate.
@@ -280,6 +280,8 @@ Status: Implemented. Dependencies: E02, E06, E07. Migration: `20261117205658_ass
 Acceptance: resource changes are explicit, understandable, reversible where safe, and never silently inferred.
 
 Policy: SRD 5.2.1 builder pools only for automated casts and rests. Unsupported feature casting, optional recovery choices, effects and house rules remain manual. Damage requires a visible active-scene token and edit access; undo is revision-guarded for both sheet and combat state.
+
+Local verification: 620 unit/database/component tests, lint, TypeScript, production build, formatting, and six Edge auth/smoke tests passed. Hosted multiplayer was not run; no hosted migration was applied.
 
 ### Epic 15 — Remembered windows and usability hardening
 
