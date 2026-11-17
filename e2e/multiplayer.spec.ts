@@ -639,6 +639,47 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(gm.page.locator('.room-presence')).toContainText('Test Player · Online', {
       timeout: 10000,
     });
+    // Epic 11: private drafts never enter snapshots; sharing/reload/dismissal reconcile.
+    await player.page.getByText('Spell templates', { exact: true }).click();
+    await player.page.getByLabel('Template shape', { exact: true }).selectOption('cone');
+    await player.page.getByLabel('Template x', { exact: true }).fill('100');
+    await player.page.getByLabel('Template y', { exact: true }).fill('100');
+    await player.page.getByLabel('Template size', { exact: true }).fill('15');
+    await player.page.getByLabel('Template rotation', { exact: true }).fill('90');
+    await player.page.getByRole('button', { name: 'Preview privately', exact: true }).click();
+    await expect(player.page.locator('.tactical-template-overlay')).toContainText('Only you');
+    const privateState = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+    expect(privateState.tacticalTemplates).toEqual([]);
+    await player.page
+      .getByRole('button', { name: 'Share template with everyone', exact: true })
+      .click();
+    await expect(gm.page.locator('.tactical-template-overlay')).toContainText(
+      'Test Player · Shared',
+    );
+    await player.page.reload();
+    await expect(player.page.locator('.tactical-template-overlay')).toContainText('15 ft length');
+    await player.page.getByText('Spell templates', { exact: true }).click();
+    await player.page
+      .getByRole('button', { name: 'Move/edit Test Player template', exact: true })
+      .click();
+    await player.page.getByLabel('Template x', { exact: true }).fill('120');
+    const unmoved = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+    expect(unmoved.tacticalTemplates[0].area.x).toBe(100);
+    await player.page
+      .getByRole('button', { name: 'Share template with everyone', exact: true })
+      .click();
+    await expect
+      .poll(async () => {
+        const state = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+        return state.tacticalTemplates[0]?.area.x;
+      })
+      .toBe(120);
+    await player.page
+      .getByRole('button', { name: 'Dismiss Test Player shared template', exact: true })
+      .click();
+    await expect(gm.page.locator('.tactical-template-overlay')).not.toContainText(
+      'Test Player · Shared',
+    );
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {

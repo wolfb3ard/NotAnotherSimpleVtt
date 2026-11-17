@@ -10,7 +10,7 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
   if (!user) throw new Error('Login required');
   const { data: game, error } = await db.from('games').select('*').eq('id', gameId).single();
   if (error || !game) throw new Error('Game access denied');
-  const [queries, encounterQuery] = await Promise.all([
+  const [queries, encounterQuery, tacticalQuery] = await Promise.all([
     Promise.all([
       db.from('memberships').select('user_id,role,display_name').eq('game_id', gameId),
       db.from('actors').select('*').eq('game_id', gameId).order('name'),
@@ -29,8 +29,9 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
         .limit(50),
     ]),
     db.rpc('encounter_snapshot', { p_game: gameId, p_scene: game.active_scene_id }),
+    db.rpc('tactical_template_snapshot', { p_game: gameId }),
   ]);
-  for (const q of [...queries, encounterQuery])
+  for (const q of [...queries, encounterQuery, tacticalQuery])
     if (q.error) throw new Error('Unable to load room data.');
   const [members, actors, scenes, tokens, templates, rollCues] = queries.map((q) => q.data ?? []);
   // Read the results after the cues: a newly committed cue must not outrun
@@ -104,6 +105,7 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
     rollCues,
     grants: grants.data ?? [],
     encounter: encounterQuery.data ?? null,
+    tacticalTemplates: tacticalQuery.data ?? [],
     onboarding,
   } as Snapshot;
 }

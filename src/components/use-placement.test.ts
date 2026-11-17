@@ -110,6 +110,46 @@ it('persists exact grid retries independently from placement and never calls a f
   expect(grid!.message).toBe('Grid change confirmed.');
   expect(sessionStorage.length).toBe(0);
 });
+it('retains exact shared-template retries across reload without storing private drafts', async () => {
+  const run = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({ confirmed: 'true' });
+  let template: ReturnType<typeof useConfirmedMapCommand<'tactical_template'>>;
+  function Harness() {
+    template = useConfirmedMapCommand('user:game:scene', run, 'tactical_template');
+    return null;
+  }
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Harness)));
+  expect(sessionStorage.length).toBe(0);
+  const p = {
+    scene_id: payload.scene_id,
+    scene_revision: 3,
+    owner_id: payload.actor_id,
+    revision: 0,
+    area: { kind: 'circle' as const, x: 100, y: 100, size: 20, width: 5, rotation: 0 },
+  };
+  await act(async () => {
+    await template.commit(p);
+    await template.commit(p);
+  });
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(template!.message).toContain('unconfirmed');
+  const request = run.mock.calls[0][1];
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Harness)));
+  expect(template!.uncertain).toBe(true);
+  await act(async () => {
+    await template.retry();
+  });
+  expect(run).toHaveBeenLastCalledWith('tactical_template', request);
+  expect(template!.message).toBe('Template change confirmed.');
+  expect(sessionStorage.length).toBe(0);
+});
 it('does not let a late old-scene response erase a newer remounted grid attempt', async () => {
   let finish!: (value: { confirmed: string }) => void;
   const run = vi

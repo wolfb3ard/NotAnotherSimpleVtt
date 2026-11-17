@@ -18,14 +18,15 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 
 ## Progress snapshot — 2026-11-17
 
-- Epics 01–09 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 10 continues Phase 3.
+- Epics 01–10 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 11 continues Phase 3.
 - Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
 - Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
 - Epic 08 merged in [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) on 2026-11-17 (commit `a6447f1`).
 - Epic 09 merged in [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) on 2026-11-17 (commit `ea5a336`).
-- Epic 10 adds ephemeral fog-safe pings, explicit GM camera Follow/Decline, tab-aware presence, and separate live-channel/snapshot health; [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) ready for review, not merged.
+- Epic 10 merged in [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) on 2026-11-17 (commit `da02551`).
+- Epic 11 implements private-first calibrated tactical templates, explicit sharing and owner/GM editing/dismissal; review PR pending.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
-- Latest local implementation verification: E10's 578 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Latest local implementation verification: E11's 605 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
 
 ## Current foundation
@@ -205,7 +206,7 @@ Local verification: 549 unit/database/component tests, production build/TypeScri
 
 ### Epic 10 — Shared attention and connection confidence
 
-Status: Implemented; [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) ready for review, not merged. Dependencies: E09 (merged).
+Status: Complete; [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) merged into `main` on 2026-11-17 (commit `da02551`). Dependencies: E09 (merged).
 
 - [x] E10-T01: Add ephemeral, rate-limited player pings with accessible labels and reduced-motion behavior.
 - [x] E10-T02: Add an explicit GM Bring everyone here action with a player follow/decline policy.
@@ -222,15 +223,19 @@ Local verification: 578 unit/database/component tests, production build/TypeScri
 
 ### Epic 11 — Tactical spell templates
 
-Status: Planned. Dependencies: E09, E10.
+Status: Implemented; review PR pending. Dependencies: E09, E10 (merged).
 
-- [ ] E11-T01: Add calibrated circle, cone, line, and cube templates with rotation and readable dimensions.
-- [ ] E11-T02: Support private preview and explicit sharing, moving, dismissal, and ownership.
-- [ ] E11-T03: Define grid interaction and edge inclusion; leave targeting/adjudication overridable.
-- [ ] E11-T04: Provide numeric/keyboard alternatives to pointer gestures and non-color-only presentation.
-- [ ] E11-T05: Test geometry at different zooms, units, grid settings, permissions, and scene transitions.
+- [x] E11-T01: Add calibrated circle, cone, line, and cube templates with rotation and readable dimensions.
+- [x] E11-T02: Support private preview and explicit sharing, moving, dismissal, and ownership.
+- [x] E11-T03: Define grid interaction and edge inclusion; leave targeting/adjudication overridable.
+- [x] E11-T04: Provide numeric/keyboard alternatives to pointer gestures and non-color-only presentation.
+- [x] E11-T05: Test geometry at different zooms, units, grid settings, permissions, and scene transitions.
 
 Acceptance: a player can show a spell's area without drawing it freehand or accidentally sharing a private preview.
+
+Implementation policy: browser-memory private drafts never enter server snapshots before explicit Share. Calibrated scene units define circle radius, 90° circular-sector cone length, line length/width and centered cube side; clockwise rotation begins at map-right. Areas ignore grid/snapping and include their mathematical edge; cell/creature targeting, obstacles and rules remain manual/overridable. Pointer origin placement has numeric/keyboard equivalents. Solid/shared versus dashed/private labels do not rely on color or motion. One persistent shared slot per member/scene, changed only by its owner or GM while preserving ownership. Game-first locking, scene/template revision checks and private exact-request receipts protect concurrent moves/dismissal/retries; unconfirmed writes persist per user/game/scene in optional session storage. Active-scene snapshot reads revalidate membership, scene revision and revealed origins, even for GMs; no token-derived locations or raw realtime payloads. Map edits hide areas pending explicit review/reshare. Inactive-scene shared state returns on reactivation; private drafts reset on scene switches/reload. Dismissal has no Undo.
+
+Local verification: 605 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting and six Edge auth/smoke tests passed. Geometry tests cover unit scaling, inclusive boundaries and rotated circle/cone/line/cube footprints. PGlite applies every migration and checks direct-table/anonymous/outsider denial, ownership/GM overrides, invalid/hidden/stale/other-scene areas, exact retries, stale concurrent updates, dismissal without resurrection, independent slots, read-time fog filtering, reconnect and revocation. Components cover transformed pointer origins, explicit private/share behavior, calibration/preview guards, zoom/grid/unit independence, stale draft revisions, shared labels/permission controls and persisted exact retries. The opt-in multiplayer scenario now covers private snapshot absence, explicit sharing, private moving, reload and dismissal, but was skipped. Migration: `20261117153741_tactical_templates.sql`. No hosted migration applied; local advisors could not connect to the unavailable local Supabase stack.
 
 ## Phase 4 — GM preparation and campaign continuity
 
@@ -299,6 +304,5 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 
 ## Unresolved Questions
 
-- None blocking E09. Euclidean diagonals; alternate distance rules remain manual/future configuration. Character claims require explicit GM ownership assignment; hidden/other-scene locations remain undisclosed.
-- Before E10: forced camera or opt-in follow? Default: opt-in.
+- None blocking E11. Templates are grid-independent with inclusive geometric boundaries; targeting/adjudication remain manual. Euclidean diagonals; alternate distance rules remain manual/future configuration. Character claims require explicit GM ownership assignment; hidden/other-scene locations remain undisclosed. Camera requests use explicit opt-in Follow.
 - Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.

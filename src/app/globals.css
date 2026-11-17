@@ -722,6 +722,40 @@ summary {
     25px 25px;
   overflow: hidden;
 }
+.tactical-template-tools {
+  pointer-events: auto;
+  width: min(540px, 100%);
+  max-height: 45dvh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px;
+  background: #1b2528f5;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.tactical-template-tools summary {
+  margin: 0;
+}
+.tactical-template-tools fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.tactical-template-tools label {
+  width: 140px;
+  max-width: 100%;
+}
+.tactical-template-tools button {
+  font-size: 12px;
+}
+.tactical-template-tools p {
+  margin: 8px 0;
+}
+.tactical-template-overlay {
+  z-index: 1;
+}
 .tabletop-controls {
   position: absolute;
   top: 20px;
