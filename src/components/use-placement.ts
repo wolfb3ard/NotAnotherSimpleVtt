@@ -4,15 +4,23 @@ import { commandSchemas, type Command } from '@/lib/commands';
 import type { z } from 'zod';
 
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
-export function useConfirmedMapCommand<K extends 'token_place' | 'scene_grid'>(
-  scope: string,
-  run: Run,
-  command: K,
-) {
+export function useConfirmedMapCommand<
+  K extends 'token_place' | 'scene_grid' | 'tactical_template',
+>(scope: string, run: Run, command: K) {
   type Request = z.infer<(typeof commandSchemas)[K]>;
-  const label = command === 'token_place' ? 'Placement' : 'Grid change';
+  const label =
+    command === 'token_place'
+      ? 'Placement'
+      : command === 'scene_grid'
+        ? 'Grid change'
+        : 'Template change';
   const schema = commandSchemas[command];
-  const key = command === 'token_place' ? `vtt-placement:${scope}` : `vtt-grid:${scope}`;
+  const key =
+    command === 'token_place'
+      ? `vtt-placement:${scope}`
+      : command === 'scene_grid'
+        ? `vtt-grid:${scope}`
+        : `vtt-tactical:${scope}`;
   const [state, setState] = useState<{ scope: string; attempt?: Request; message: string }>({
     scope: '',
     message: '',
@@ -65,7 +73,7 @@ export function useConfirmedMapCommand<K extends 'token_place' | 'scene_grid'>(
     setState({
       scope,
       attempt: request,
-      message: command === 'token_place' ? 'Placing token…' : 'Saving grid…',
+      message: command === 'token_place' ? 'Placing token…' : `Saving ${label.toLowerCase()}…`,
     });
     try {
       sessionStorage.setItem(key, JSON.stringify(request));

@@ -116,6 +116,7 @@ export type Encounter = {
   participants: { token_id: string; label: string; initiative: number }[];
 };
 export type Snapshot = {
+  tacticalTemplates?: import('./tactical-templates').SharedArea[];
   game: Game;
   role: Role;
   userId: string;

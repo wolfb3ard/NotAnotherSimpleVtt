@@ -25,10 +25,24 @@ import { useMapView } from './use-map-view';
 import { GridSettings } from './grid-settings';
 import { SharedAttention, AttentionMarkers } from './shared-attention';
 import type { RoomAttention } from './use-room-attention';
+import {
+  useTacticalTemplates,
+  TacticalTemplateTools,
+  TacticalTemplateOverlay,
+} from './tactical-templates';
 
 type Point = { x: number; y: number };
 type Mode =
-  'move' | 'measure' | 'calibrate' | 'reveal' | 'conceal' | 'place' | 'spawn' | 'ping' | 'camera';
+  | 'move'
+  | 'measure'
+  | 'calibrate'
+  | 'reveal'
+  | 'conceal'
+  | 'place'
+  | 'spawn'
+  | 'ping'
+  | 'camera'
+  | 'template';
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
 function useImage(url: string | undefined) {
   const [loaded, setLoaded] = useState<{ url: string; image: HTMLImageElement }>();
@@ -244,6 +258,7 @@ function TabletopScene({
   const [setupMessage, setSetupMessage] = useState('');
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
   const scope = `${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`;
+  const tactical = useTacticalTemplates(snapshot, run, preview);
   const { view, update: updateView } = useMapView(scope, scene, dimensions);
   const { scale, ...position } = view;
   const setPosition = (p: Point) => updateView({ ...p, scale });
@@ -332,6 +347,12 @@ function TabletopScene({
     pointerGesture.current = true;
     if (spacePan) return;
     if (mode === 'move' || e.evt.button !== 0) return;
+    if (mode === 'template') {
+      const p = point();
+      if (p && scene && !preview) tactical.place(p);
+      setMode('move');
+      return;
+    }
     if (mode === 'ping' || mode === 'camera') {
       const p = point();
       if (p && scene && !preview) void attention?.send(mode, p, scene);
@@ -641,6 +662,7 @@ function TabletopScene({
             </>
           )}
         </div>
+        <TacticalTemplateTools tools={tactical} selectOrigin={() => setMode('template')} />
         {attention && scene && (
           <SharedAttention
             attention={attention}
@@ -847,6 +869,7 @@ function TabletopScene({
                 ))}
             </Layer>
           </Stage>
+          <TacticalTemplateOverlay tools={tactical} view={view} />
           {attention && !preview && (
             <AttentionMarkers signals={attention.signals} snapshot={snapshot} view={view} />
           )}

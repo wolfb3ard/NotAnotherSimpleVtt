@@ -144,6 +144,15 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - Placements are scene-revision checked, server-authorized and idempotent. Uncertain requests retain the exact operation through same-tab reload when session storage is available. **Retry placement** cannot create another token; dismissal does not undo a committed placement. GMs can intentionally place additional linked tokens with new operations. Placement/spawn changes are not in move/fog Undo.
 - Apply `supabase/migrations/20261117143225_guided_first_session.sql` after earlier migrations. Existing sheets and scenes remain valid. Pre-existing non-default scales count as calibrated; use **Set scale** to explicitly confirm a default-valued scale. No hosted migration is applied during implementation.
 
+### Tactical spell templates
+
+- Open **Spell templates** on a calibrated map. Choose circle radius, 90° cone length, line length/width, or cube side (a centered square footprint). Dimensions use scene units; clockwise rotation starts at map-right. Numeric inputs and **Preview privately** support keyboard-only use; **Click template origin** uses transformed map coordinates.
+- Drafts exist only in browser memory. Nothing is sent until **Share template with everyone**. One shared area per member/scene; sharing replaces your area. **Move/edit** makes a private draft; explicitly Share to publish. Only the owner or GM can move/edit/dismiss shared areas; GMs preserve ownership. Dismissal is not Undo.
+- Solid labelled outlines identify shared areas; dashed, labelled outlines identify private previews. Shapes ignore grid size/origin/snapping and include their mathematical boundary. No automatic cell inclusion, creature targeting, obstacles, spell casting, damage or rule adjudication. Manually override targeting/rules as needed.
+- Shared origins must be in revealed map space, even for GMs. Shapes may extend beyond their origin; the overlay is clipped to map bounds and reveals no underlying map/token information. Map revisions (including fog, scale and grid edits) hide shared areas until explicitly reshared. Private previews also require renewed review after map edits. Player preview disables template actions.
+- Shared state persists across reload/reconnect and is visible only in its active scene. Exact unconfirmed share/move/dismiss requests survive same-tab reload and offer Retry/Dismiss; retries cannot duplicate or resurrect an older area. Private drafts do not survive reload/scene switches.
+- Apply `supabase/migrations/20261117153741_tactical_templates.sql` before deployment. RPC-only, RLS-enabled tables expose no raw template/receipt data or realtime payloads. Room events trigger authorized snapshot reconciliation. No hosted migration applied during implementation.
+
 ### Navigation, grid and movement
 
 - **Fit map / Reset view** is in the top toolbar; **Fit map** also remains beside zoom controls. **Find my character** centers only an explicitly chosen, visible owned/controlled token, never hidden or off-scene locations.
@@ -362,4 +371,4 @@ docs/                   Architecture, operating limits, and release status
 - Up to 20 sheet sections, each with 40 fields and 30 abilities.
 - UI shows the latest 50 authorized rolls; older history remains in Postgres.
 - Target: one GM plus eight players. Hosted load testing remains a launch check.
-- Grid snapping, mobile controls, automatic vision, dynamic lighting, and ruleset-specific automation are deferred.
+- Mobile controls, automatic vision, dynamic lighting, and comprehensive ruleset-specific automation are deferred.

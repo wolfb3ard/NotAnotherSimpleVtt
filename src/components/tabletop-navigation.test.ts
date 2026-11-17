@@ -161,6 +161,110 @@ afterEach(async () => {
   run.mockClear();
   vi.unstubAllGlobals();
 });
+it('keeps template pointer placement and numeric edits private until explicit Share; dimensions ignore zoom/grid', async () => {
+  const userId = '00000000-0000-4000-8000-000000000003';
+  await render({ ...snapshot, userId });
+  expect(container.textContent).not.toContain('Only you · Private preview · circle');
+  await click('Click template origin');
+  canvas.point = { x: 125, y: 100 };
+  await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Template x"]')!.value).toBe(
+    '75.00',
+  );
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Template y"]')!.value).toBe(
+    '50.00',
+  );
+  expect(container.querySelector('svg path')!.getAttribute('d')).toContain('A 200 200');
+  expect(run).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('Only you · Private preview');
+  await click('Share template with everyone');
+  expect(run).toHaveBeenCalledWith('tactical_template', {
+    owner_id: userId,
+    revision: 0,
+    scene_id: sceneId,
+    scene_revision: 3,
+    operation_id: expect.any(String),
+    area: { kind: 'circle', x: 75, y: 50, size: 20, width: 5, rotation: 0 },
+  });
+  expect(container.textContent).toContain('Template change confirmed.');
+  expect(container.querySelector('svg path')).toBeNull();
+});
+it('supports keyboard-only private preview/dismissal and does not silently share or recover private drafts after map edits', async () => {
+  await render();
+  await click('Preview privately');
+  expect(container.querySelector('svg path')).not.toBeNull();
+  await render({ ...snapshot, scenes: [{ ...snapshot.scenes[0], revision: 4 }] });
+  expect(container.querySelector('svg path')).toBeNull();
+  await click('Preview privately');
+  expect(container.querySelector('svg path')).not.toBeNull();
+  await click('Dismiss private preview');
+  expect(container.querySelector('svg path')).toBeNull();
+  expect(run).not.toHaveBeenCalled();
+});
+it('filters shared templates by scene/fog/revision and exposes edit/dismiss only to owner or GM', async () => {
+  const area = { kind: 'line' as const, x: 100, y: 100, size: 30, width: 5, rotation: 90 };
+  const shared = { owner_id: 'other', scene_id: sceneId, scene_revision: 3, revision: 2, area };
+  const s = {
+    ...snapshot,
+    members: [{ user_id: 'other', role: 'player' as const, display_name: 'Wizard' }],
+    tacticalTemplates: [shared],
+  };
+  await render(s);
+  expect(container.textContent).toContain('Wizard · Shared');
+  expect(container.textContent).not.toContain('Move/edit Wizard template');
+  await render({ ...s, role: 'gm' });
+  await click('Move/edit Wizard template');
+  expect(container.textContent).toContain('Editing Wizard’s area (private draft)');
+  expect(run).not.toHaveBeenCalled();
+  await click('Dismiss private preview');
+  await render({ ...s, scenes: [{ ...snapshot.scenes[0], fog: [] }] });
+  expect(container.querySelector('svg path')).toBeNull();
+  await render({ ...s, tacticalTemplates: [{ ...shared, scene_revision: 2 }] });
+  expect(container.querySelector('svg path')).toBeNull();
+  await render({ ...s, tacticalTemplates: [{ ...shared, scene_id: 'inactive' }] });
+  expect(container.querySelector('svg path')).toBeNull();
+});
+it('does not rebase an old private draft over a newer shared revision', async () => {
+  const userId = '00000000-0000-4000-8000-000000000003';
+  const slot = {
+    owner_id: userId,
+    scene_id: sceneId,
+    scene_revision: 3,
+    revision: 1,
+    area: { kind: 'circle' as const, x: 100, y: 100, size: 15, width: 5, rotation: 0 },
+  };
+  await render({ ...snapshot, userId, tacticalTemplates: [slot] });
+  await click('Preview privately');
+  await render({ ...snapshot, userId, tacticalTemplates: [{ ...slot, revision: 2 }] });
+  await click('Share template with everyone');
+  expect(run).toHaveBeenCalledWith('tactical_template', expect.objectContaining({ revision: 1 }));
+});
+it('keeps geometry in scene units across zoom and grid changes; unit labels follow scene calibration', async () => {
+  const s = { ...snapshot, scenes: [{ ...snapshot.scenes[0], units_per_pixel: 0.5, unit: 'm' }] };
+  await render(s);
+  await click('Preview privately');
+  const path = container.querySelector('svg path')!.getAttribute('d');
+  expect(path).toContain('A 40 40');
+  expect(container.querySelector('svg')!.textContent).toContain('20 m radius');
+  await act(async () => canvas.stage.onWheel({ evt: { preventDefault() {}, deltaY: -1 } }));
+  expect(container.querySelector('svg path')!.getAttribute('d')).toBe(path);
+  await render({
+    ...s,
+    scenes: [{ ...s.scenes[0], grid: { enabled: false, size: 100, origin_x: 30, origin_y: 40 } }],
+  });
+  expect(container.querySelector('svg path')!.getAttribute('d')).toBe(path);
+});
+it('blocks template creation on uncalibrated scenes and all template actions in GM preview', async () => {
+  await render({ ...snapshot, scenes: [{ ...snapshot.scenes[0], calibrated: false }] });
+  await click('Preview privately');
+  expect(container.querySelector('svg path')).toBeNull();
+  await render({ ...snapshot, role: 'gm' });
+  await click('Preview privately');
+  await click('Player view');
+  expect(container.querySelector('svg')).toBeNull();
+  await click('Share template with everyone');
+  expect(run).not.toHaveBeenCalled();
+});
 it('shares a transformed explicit point without moving a token or the camera; Space-pan never sends a ping', async () => {
   const send = vi.fn();
   const attention = {

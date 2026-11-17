@@ -48,6 +48,23 @@ it('routes shared grid settings to their authorized revision-checked boundary', 
   await mutate(game, 'scene_grid', p);
   expect(rpc).toHaveBeenCalledWith('configure_scene_grid', { p_game: game, p });
 });
+it('routes templates to the authorized boundary and validates dimensions before RPC', async () => {
+  const p = {
+    scene_id: scene,
+    scene_revision: 2,
+    owner_id: game,
+    revision: 0,
+    operation_id: operation,
+    area: { kind: 'cone', x: 20, y: 20, size: 15, width: 5, rotation: 90 },
+  };
+  await mutate(game, 'tactical_template', p);
+  expect(rpc).toHaveBeenCalledWith('tactical_template_command', { p_game: game, p });
+  rpc.mockClear();
+  expect(
+    await mutate(game, 'tactical_template', { ...p, area: { ...p.area, size: 0 } }),
+  ).toHaveProperty('error');
+  expect(rpc).not.toHaveBeenCalled();
+});
 it.each([0, -5, NaN, Infinity, 1025])(
   'rejects invalid grid cell size %s before RPC',
   async (size) => {

@@ -4,6 +4,7 @@ import { tokenRings } from './token-appearance';
 import { encounterCommandSchema } from './encounter-commands';
 import { combatCommandSchema } from './combat';
 import { gridSchema } from './navigation';
+import { tacticalCommandSchema } from './tactical-templates';
 
 const id = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -20,6 +21,7 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  tactical_template: tacticalCommandSchema,
   scene_grid: z.object({ scene_id: id, revision, operation_id: id, grid: gridSchema }),
   scene_calibrate: z.object({
     scene_id: id,
