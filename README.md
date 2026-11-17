@@ -134,6 +134,16 @@ To reproduce the import, install Python and PyMuPDF (`python -m pip install PyMu
 - Placements are scene-revision checked, server-authorized and idempotent. Uncertain requests retain the exact operation through same-tab reload when session storage is available. **Retry placement** cannot create another token; dismissal does not undo a committed placement. GMs can intentionally place additional linked tokens with new operations. Placement/spawn changes are not in move/fog Undo.
 - Apply `supabase/migrations/20261117143225_guided_first_session.sql` after earlier migrations. Existing sheets and scenes remain valid. Pre-existing non-default scales count as calibrated; use **Set scale** to explicitly confirm a default-valued scale. No hosted migration is applied during implementation.
 
+### Navigation, grid and movement
+
+- **Fit map / Reset view** is in the top toolbar; **Fit map** also remains beside zoom controls. **Find my character** centers only an explicitly chosen, visible owned/controlled token, never hidden or off-scene locations.
+- Views are browser-local per user/game/scene, restored across refresh/scene switches and clamped after resizing. Storage is optional; **Reset view** fits the map again. Camera changes do not move tokens or enter Undo history.
+- **Map help & shortcuts** explains controls inside the room. Drag empty map in Move mode, or hold **Space before dragging** to pan in any tool, including over tokens. Text fields, buttons, editable content and in-progress token/drawing gestures are not intercepted; releasing Space restores the tool after the pan ends.
+- Scroll zooms around the pointer; zoom buttons use viewport center. While dragging a controlled token, a zoom-independent label and line show calibrated **Euclidean straight-line displacement**, including diagonals. This is not travelled path, speed, terrain, wall or rules adjudication. Uncalibrated scenes explicitly show an estimate.
+- GM **Grid settings** → configure shared square-cell size/origin in map pixels → **Apply grid**. This aligns the overlay, not the distance scale; use **Calibrate → Set scale** for actual scene units. Existing maps default to grid off. Grid changes are revision-checked, GM-authorized and idempotent; uncertain requests offer exact Retry/Dismiss and survive same-tab reload. Grid configuration is not undoable.
+- **Snap to grid** is an optional local toggle, off by default. Movement snaps token centers to cell centers with the configured origin, clamps within map bounds, and still uses the existing authoritative fog/permission/revision checks and Undo. Turn snapping off for free movement; placement remains explicit, unsnapped map coordinates.
+- Apply `supabase/migrations/20261117145441_navigation_grid.sql` after earlier migrations. No hosted migration applied during implementation.
+
 ### Undo tabletop edits
 
 - **Undo: Move token / Edit fog** in the map toolbar, or **Ctrl/Cmd+Z** outside text inputs, reverses your latest eligible action in the active scene. A drag commits once on drop. Painted fog and Reveal/Conceal entire scene are supported.

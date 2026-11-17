@@ -3,10 +3,16 @@ import { useEffect, useRef, useState } from 'react';
 import { commandSchemas, type Command } from '@/lib/commands';
 import type { z } from 'zod';
 
-type Request = z.infer<typeof commandSchemas.token_place>;
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
-export function usePlacement(scope: string, run: Run) {
-  const key = `vtt-placement:${scope}`;
+export function useConfirmedMapCommand<K extends 'token_place' | 'scene_grid'>(
+  scope: string,
+  run: Run,
+  command: K,
+) {
+  type Request = z.infer<(typeof commandSchemas)[K]>;
+  const label = command === 'token_place' ? 'Placement' : 'Grid change';
+  const schema = commandSchemas[command];
+  const key = command === 'token_place' ? `vtt-placement:${scope}` : `vtt-grid:${scope}`;
   const [state, setState] = useState<{ scope: string; attempt?: Request; message: string }>({
     scope: '',
     message: '',
@@ -20,8 +26,8 @@ export function usePlacement(scope: string, run: Run) {
     let attempt: Request | undefined;
     try {
       const raw = sessionStorage.getItem(key);
-      const parsed = raw && commandSchemas.token_place.safeParse(JSON.parse(raw));
-      if (parsed && parsed.success) attempt = parsed.data;
+      const parsed = raw && schema.safeParse(JSON.parse(raw));
+      if (parsed && parsed.success) attempt = parsed.data as Request;
     } catch {
       /* Storage is optional. */
     }
@@ -31,13 +37,13 @@ export function usePlacement(scope: string, run: Run) {
         setState({
           scope,
           attempt,
-          message: attempt ? 'Placement unconfirmed. Retry the same request.' : '',
+          message: attempt ? `${label} unconfirmed. Retry the same request.` : '',
         });
     });
     return () => {
       generation.current = current + 1;
     };
-  }, [key, scope]);
+  }, [key, scope, schema, label]);
   useEffect(() => {
     function unload(e: BeforeUnloadEvent) {
       if (busy || state.attempt) {
@@ -56,7 +62,11 @@ export function usePlacement(scope: string, run: Run) {
     unconfirmed.current = request;
     const current = generation.current;
     setBusy(true);
-    setState({ scope, attempt: request, message: 'Placing token…' });
+    setState({
+      scope,
+      attempt: request,
+      message: command === 'token_place' ? 'Placing token…' : 'Saving grid…',
+    });
     try {
       sessionStorage.setItem(key, JSON.stringify(request));
     } catch {
@@ -64,14 +74,16 @@ export function usePlacement(scope: string, run: Run) {
     }
     let confirmed = false;
     try {
-      confirmed = (await run('token_place', request))?.confirmed === 'true';
+      confirmed = (await run(command, request))?.confirmed === 'true';
     } catch {
       /* Retain exact retry. */
     }
     if (confirmed) {
       if (generation.current === current) unconfirmed.current = undefined;
       try {
-        sessionStorage.removeItem(key);
+        // A scene can unmount/remount while an older response is in flight.
+        // Do not erase a newer request stored by the replacement view.
+        if (sessionStorage.getItem(key) === JSON.stringify(request)) sessionStorage.removeItem(key);
       } catch {
         /* Optional. */
       }
@@ -81,12 +93,11 @@ export function usePlacement(scope: string, run: Run) {
       setBusy(false);
       setState(
         confirmed
-          ? { scope, message: 'Placement confirmed.' }
+          ? { scope, message: `${label} confirmed.` }
           : {
               scope,
               attempt: request,
-              message:
-                'Placement failed or unconfirmed. Retry cannot create a second token. If stale, dismiss and choose again.',
+              message: `${label} failed or unconfirmed. Retry the exact request safely. If stale, dismiss and choose again.`,
             },
       );
     }
@@ -99,7 +110,7 @@ export function usePlacement(scope: string, run: Run) {
     uncertain: ready && !!state.attempt && !busy,
     commit: (payload: Omit<Request, 'operation_id'>) => {
       if (blocked || lock.current || unconfirmed.current) return Promise.resolve(false);
-      const parsed = commandSchemas.token_place.safeParse({
+      const parsed = schema.safeParse({
         ...payload,
         operation_id: crypto.randomUUID(),
       });
@@ -107,14 +118,14 @@ export function usePlacement(scope: string, run: Run) {
         setState({ scope, message: parsed.error.issues[0].message });
         return Promise.resolve(false);
       }
-      return send(parsed.data);
+      return send(parsed.data as Request);
     },
     retry: () => (ready && state.attempt && !busy ? send(state.attempt) : Promise.resolve(false)),
     dismiss: () => {
       if (
         lock.current ||
         !window.confirm(
-          'Dismiss this attempt? It may already have committed. This does not remove any token; review the map before placing again.',
+          `Dismiss this attempt? It may already have committed. This does not undo it; review the map before trying again.`,
         )
       )
         return;
@@ -127,4 +138,8 @@ export function usePlacement(scope: string, run: Run) {
       setState({ scope, message: 'Attempt dismissed. Review the map before placing again.' });
     },
   };
+}
+
+export function usePlacement(scope: string, run: Run) {
+  return useConfirmedMapCommand(scope, run, 'token_place');
 }

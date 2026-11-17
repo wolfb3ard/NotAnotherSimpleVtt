@@ -18,12 +18,13 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 
 ## Progress snapshot — 2026-11-17
 
-- Epics 01–07 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 08 starts Phase 3.
+- Epics 01–08 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 09 continues Phase 3.
 - Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
 - Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
-- Epic 08 adds state-derived first-session guides, authorized party placement/spawn and fog-safe character finding; [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) ready for review, not merged.
+- Epic 08 merged in [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) on 2026-11-17 (commit `a6447f1`).
+- Epic 09 adds shared grid calibration, optional snapping, Euclidean drag feedback, Space-pan, room help and browser-local scene viewports; review PR pending publication.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
-- Latest local implementation verification: E08's 517 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Latest local implementation verification: E09's 549 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
 
 ## Current foundation
@@ -168,7 +169,7 @@ Local verification: 500 unit/database/component tests, lint, production build/Ty
 
 ### Epic 08 — Guided first session and sensible placement
 
-Status: Implemented; [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) ready for review, not merged. Dependencies: E01, E04 (merged).
+Status: Complete; [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) merged into `main` on 2026-11-17 (commit `a6447f1`). Dependencies: E01, E04 (merged).
 
 - [x] E08-T01: Add role-specific, dismissible/resumable checklists derived from actual campaign state.
 - [x] E08-T02: Guide GMs through invitations, map upload, scale, party placement, and initial reveal.
@@ -186,16 +187,20 @@ Local verification: 517 unit/database/component tests, production build/TypeScri
 
 ### Epic 09 — Navigation, grid, and movement feedback
 
-Status: Planned. Dependencies: E03, E08.
+Status: Implemented; review PR pending publication. Dependencies: E03, E08 (merged).
 
-- [ ] E09-T01: Add configurable grid overlay, size/origin calibration, and optional snapping; keep free movement.
-- [ ] E09-T02: Show measured movement distance while dragging using scene scale and an explicit distance convention.
-- [ ] E09-T03: Add Space-drag pan without intercepting typing or breaking token dragging.
-- [ ] E09-T04: Make Fit map and Center on my token discoverable; document shortcuts in an in-room help panel.
-- [ ] E09-T05: Remember viewport per user/game/scene; clamp restored views and offer reset.
-- [ ] E09-T06: Test zoom/scale, grid offsets, map bounds, fog-safe centering, keyboard inputs, and reconnect.
+- [x] E09-T01: Add configurable grid overlay, size/origin calibration, and optional snapping; keep free movement.
+- [x] E09-T02: Show measured movement distance while dragging using scene scale and an explicit distance convention.
+- [x] E09-T03: Add Space-drag pan without intercepting typing or breaking token dragging.
+- [x] E09-T04: Make Fit map and Center on my token discoverable; document shortcuts in an in-room help panel.
+- [x] E09-T05: Remember viewport per user/game/scene; clamp restored views and offer reset.
+- [x] E09-T06: Test zoom/scale, grid offsets, map bounds, fog-safe centering, keyboard inputs, and reconnect.
 
 Acceptance: players can locate their tokens and move a known distance without guessing pixel scale.
+
+Implementation policy: square-grid visibility/cell size/origin are shared scene settings, defaulting off on existing/new maps. GM-only Apply uses game-first serialization, scene revisions and private durable idempotency receipts; exact unconfirmed requests survive same-tab reload and offer Retry/Dismiss. Grid calibration uses map pixels and does not change scene distance scale. Optional local snapping defaults off, aligns token centers to offset cell centers, and clamps destinations inside the map. Free movement, existing authoritative fog/control checks and move/fog Undo remain; grid settings are not undoable. A zoom-independent drag label and dashed line show Euclidean displacement using scene scale; uncalibrated measurements are explicitly estimates. Path length, walls, terrain, speed and alternate diagonal rules remain manual. Space held before a gesture pans in any tool, including over tokens, without intercepting inputs/buttons/editable content or interrupting token/drawing gestures. Fit map / Reset view and fog-safe Find my character remain prominent; in-room help documents navigation and undo. Viewports persist only in this browser per user/game/scene, tolerate unavailable/corrupt storage, clamp zoom/pan after restore/resize and reset through Fit map. Scene changes clear unfinished gestures/drafts; reconnect does not reset the current camera.
+
+Local verification: 549 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting and six Edge auth/smoke tests passed. Tests cover offset/cell-center snapping, free movement and bounds, scale/zoom-independent distance, Space-pan/typing/active-gesture guards, fog-safe centering, separate user/game/scene cameras, corruption/storage failure, resize/reset/reconnect, stale grid drafts, GM preview, private receipts, exact retries and late-response isolation. PGlite applies every migration and verifies GM/member/outsider/anonymous/direct-write authorization, defaults, validation, stale editors, scene/game boundaries, and existing move/undo behavior on a configured grid. Migration: `20261117145441_navigation_grid.sql`. No hosted migration applied; local advisors could not connect to the unavailable local Supabase stack. The opt-in multiplayer scenario covers shared grid/help/camera restoration but was skipped.
 
 ### Epic 10 — Shared attention and connection confidence
 
@@ -289,7 +294,6 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 
 ## Unresolved Questions
 
-- None blocking E08. Character claims require explicit GM ownership assignment; hidden/other-scene locations remain undisclosed.
-- Before E09: diagonal distance rule? Default: Euclidean; configurable later.
+- None blocking E09. Euclidean diagonals; alternate distance rules remain manual/future configuration. Character claims require explicit GM ownership assignment; hidden/other-scene locations remain undisclosed.
 - Before E10: forced camera or opt-in follow? Default: opt-in.
 - Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.

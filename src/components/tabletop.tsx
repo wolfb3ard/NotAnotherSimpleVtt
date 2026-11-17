@@ -10,7 +10,19 @@ import type { useTabletopEdits } from './use-tabletop-edits';
 import { portraitCrop, tokenRings } from '@/lib/token-appearance';
 import { boardEncounter } from '@/lib/encounter-view';
 import { findableTokens } from '@/lib/onboarding';
-import { usePlacement } from './use-placement';
+import { useConfirmedMapCommand, usePlacement } from './use-placement';
+import {
+  clampView,
+  defaultGrid,
+  fitView,
+  gridLines,
+  movementPoint,
+  navigationInput,
+  zoomView,
+  type Grid,
+} from '@/lib/navigation';
+import { useMapView } from './use-map-view';
+import { GridSettings } from './grid-settings';
 
 type Point = { x: number; y: number };
 type Mode = 'move' | 'measure' | 'calibrate' | 'reveal' | 'conceal' | 'place' | 'spawn';
@@ -47,6 +59,10 @@ function ActorToken({
   quickActions,
   active,
   selected,
+  destination,
+  distanceLabel,
+  gesture,
+  zoom,
 }: {
   token: Token;
   movable: boolean;
@@ -55,10 +71,15 @@ function ActorToken({
   quickActions: (x: number, y: number) => void;
   active: boolean;
   selected: boolean;
+  destination: (p: Point) => Point;
+  distanceLabel: (from: Point, to: Point) => string;
+  gesture: (active: boolean) => void;
+  zoom: number;
 }) {
   const { image } = useImage(token.asset_id ? `/api/images/${token.asset_id}` : undefined);
   const [dragPosition, setDragPosition] = useState<Point | null>(null);
   const draggingRevision = useRef(token.revision);
+  const [draggingOrigin, setDraggingOrigin] = useState<Point>({ x: token.x, y: token.y });
   return (
     <Group
       x={dragPosition?.x ?? token.x}
@@ -78,18 +99,29 @@ function ActorToken({
         quickActions(e.evt.clientX, e.evt.clientY);
       }}
       onDragStart={(e) => {
+        e.cancelBubble = true;
+        gesture(true);
         setDragPosition(e.target.position());
         draggingRevision.current = token.revision;
+        setDraggingOrigin({ x: token.x, y: token.y });
       }}
       onDragMove={(e) => {
-        const point = e.target.position();
+        e.cancelBubble = true;
+        const point = destination(e.target.position());
+        e.target.position(point);
         setDragPosition(point);
       }}
       onDragEnd={async (e) => {
-        const point = e.target.position();
+        e.cancelBubble = true;
+        const point = destination(e.target.position());
+        e.target.position(point);
         setDragPosition(point);
-        await move(point.x, point.y, draggingRevision.current);
-        setDragPosition(null);
+        try {
+          await move(point.x, point.y, draggingRevision.current);
+        } finally {
+          setDragPosition(null);
+          gesture(false);
+        }
       }}
     >
       {selected && (
@@ -147,11 +179,34 @@ function ActorToken({
         shadowColor="#000"
         shadowBlur={4}
       />
+      {dragPosition && (
+        <>
+          <Line
+            points={[draggingOrigin.x - dragPosition.x, draggingOrigin.y - dragPosition.y, 0, 0]}
+            stroke="#fff4bf"
+            strokeWidth={2 / zoom}
+            dash={[5 / zoom, 4 / zoom]}
+            listening={false}
+          />
+          <Text
+            text={distanceLabel(draggingOrigin, dragPosition)}
+            x={-120 / zoom}
+            y={-token.size / 2 - 28 / zoom}
+            width={240 / zoom}
+            align="center"
+            fill="#fff4bf"
+            fontSize={14 / zoom}
+            shadowColor="#000"
+            shadowBlur={5}
+            listening={false}
+          />
+        </>
+      )}
     </Group>
   );
 }
 
-export default function Tabletop({
+function TabletopScene({
   snapshot,
   edits,
   run,
@@ -170,8 +225,6 @@ export default function Tabletop({
   const controls = useRef<HTMLDivElement>(null);
   const stage = useRef<Konva.Stage>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState<Point>({ x: 50, y: 50 });
   const [mode, setMode] = useState<Mode>('move');
   const [preview, setPreview] = useState(false);
   const [start, setStart] = useState<Point | null>(null);
@@ -185,10 +238,20 @@ export default function Tabletop({
   const [placementY, setPlacementY] = useState('0');
   const [setupMessage, setSetupMessage] = useState('');
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
-  const placement = usePlacement(
-    `${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`,
-    run,
-  );
+  const scope = `${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`;
+  const { view, update: updateView } = useMapView(scope, scene, dimensions);
+  const { scale, ...position } = view;
+  const setPosition = (p: Point) => updateView({ ...p, scale });
+  const [spacePan, setSpacePan] = useState(false);
+  const spaceHeld = useRef(false);
+  const tokenGesture = useRef(false);
+  const pointerGesture = useRef(false);
+  const [showGrid, setShowGrid] = useState(false);
+  const [snap, setSnap] = useState(false);
+  const grid = scene?.grid ?? defaultGrid;
+  const gridEdits = useConfirmedMapCommand(scope, run, 'scene_grid');
+  const placement = usePlacement(scope, run);
+  const mapBlocked = edits.blocked || gridEdits.blocked || placement.blocked;
   const findable = findableTokens(snapshot);
   const gm = snapshot.role === 'gm';
   const encounter = boardEncounter(snapshot);
@@ -196,6 +259,43 @@ export default function Tabletop({
     ? `/api/images/${scene.id}?scene=1&r=${scene.revision}&preview=${preview ? 1 : 0}`
     : undefined;
   const { image, failed } = useImage(imageUrl);
+  useEffect(() => {
+    function down(e: KeyboardEvent) {
+      if (
+        e.code !== 'Space' ||
+        e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        navigationInput(e.target) ||
+        tokenGesture.current ||
+        pointerGesture.current
+      )
+        return;
+      if (e.target !== document.body && !container.current?.contains(e.target as Node)) return;
+      e.preventDefault();
+      spaceHeld.current = true;
+      setSpacePan(true);
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        spaceHeld.current = false;
+        if (!pointerGesture.current) setSpacePan(false);
+      }
+    };
+    const blur = () => {
+      spaceHeld.current = false;
+      setSpacePan(false);
+      pointerGesture.current = false;
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
   useEffect(() => {
     const element = container.current;
     if (!element) return;
@@ -213,16 +313,7 @@ export default function Tabletop({
     };
   }, []);
   function fit(s: Scene) {
-    const next = Math.min(
-      (dimensions.width - 80) / s.width,
-      (dimensions.height - 80) / s.height,
-      2,
-    );
-    setScale(Math.max(0.05, next));
-    setPosition({
-      x: (dimensions.width - s.width * next) / 2,
-      y: (dimensions.height - s.height * next) / 2,
-    });
+    updateView(fitView(s, dimensions));
   }
   function point(): Point | null {
     const p = stage.current?.getPointerPosition();
@@ -233,20 +324,22 @@ export default function Tabletop({
     };
   }
   function down(e: KonvaEventObject<MouseEvent>) {
+    pointerGesture.current = true;
+    if (spacePan) return;
     if (mode === 'move' || e.evt.button !== 0) return;
     if (mode === 'place' || mode === 'spawn') {
       const p = point();
       if (p) void placeAt(p);
       return;
     }
-    if (edits.blocked && ['reveal', 'conceal'].includes(mode)) return;
+    if (mapBlocked && ['reveal', 'conceal'].includes(mode)) return;
     const p = point();
     setStart(p);
     setEnd(p);
     setDrawing(true);
   }
   async function placeAt(p?: Point, spawn = mode === 'spawn') {
-    if (!scene || preview || edits.blocked || placement.blocked) return;
+    if (!scene || preview || mapBlocked) return;
     if (
       p &&
       (!Number.isFinite(p.x) ||
@@ -294,12 +387,15 @@ export default function Tabletop({
     setSelected(token.id);
   }
   async function up() {
+    pointerGesture.current = false;
+    setSpacePan(spaceHeld.current);
     setDrawing(false);
+    if (!drawing || spacePan) return;
     if (!scene || !start || !end || !['reveal', 'conceal'].includes(mode)) return;
     const width = Math.abs(start.x - end.x),
       height = Math.abs(start.y - end.y);
     if (width < 1 || height < 1) return;
-    if (edits.blocked) return;
+    if (mapBlocked) return;
     await edits.commit('tabletop_fog', {
       id: scene.id,
       revision: scene.revision,
@@ -323,7 +419,7 @@ export default function Tabletop({
       (!preview || (!t.hidden && !!scene && visibleAt(scene.fog, t.x, t.y))),
   );
   function choose(token: Token, anchor?: Point) {
-    if (preview || mode !== 'move') return;
+    if (preview || spacePan || mode !== 'move') return;
     const rect = container.current?.getBoundingClientRect();
     const accepted = openQuickActions(
       token.id,
@@ -335,16 +431,77 @@ export default function Tabletop({
     if (accepted !== false) setSelected(token.id);
   }
   return (
-    <div className="tabletop" ref={container}>
+    <div className="tabletop" ref={container} tabIndex={0} aria-label="Tabletop map">
       <div className="tabletop-controls" ref={controls}>
         <div className="canvas-tools" aria-label="Map setup controls" tabIndex={-1}>
+          {scene && (
+            <button onClick={() => fit(scene)} title="Fit the whole map in your viewport">
+              Fit map / Reset view
+            </button>
+          )}
+          <details className="map-help">
+            <summary>Map help &amp; shortcuts</summary>
+            <div className="map-help-content">
+              <p>
+                Fit map / Reset view shows the whole map. Find my character centers only your
+                visible active-scene token; choose explicitly when there are several.
+              </p>
+              <p>
+                Drag empty map to pan in Move mode. Hold Space before dragging to pan in any tool,
+                even over tokens. Release Space to return to your tool. Typing and active token
+                drags are never intercepted.
+              </p>
+              <p>
+                Scroll to zoom around the pointer; +/− buttons zoom around the viewport center. Drag
+                your token to see straight-line Euclidean distance (diagonals use √(x²+y²)), not
+                path length or a movement allowance. Walls, terrain and speed remain manual.
+              </p>
+              <p>
+                Enable Snap to grid for cell-center movement; turn it off for free movement. GM grid
+                size/origin are shared; scale uses Calibrate. Uncalibrated distances are estimates.
+              </p>
+              <p>
+                Ctrl/Cmd+Z undoes eligible map edits outside text inputs. Your view is remembered
+                only in this browser per user/game/scene; Reset view recovers an awkward view.
+              </p>
+            </div>
+          </details>
+          {scene && (
+            <>
+              <label className="map-snap">
+                <input
+                  type="checkbox"
+                  checked={snap}
+                  disabled={!grid.enabled}
+                  onChange={(e) => setSnap(e.target.checked)}
+                />{' '}
+                Snap to grid
+              </label>
+              {gm && (
+                <button disabled={preview || mapBlocked} onClick={() => setShowGrid(!showGrid)}>
+                  Grid settings
+                </button>
+              )}
+              <span className="small muted">
+                Distance: Euclidean ·{' '}
+                {scene.calibrated
+                  ? `${scene.units_per_pixel} ${scene.unit}/px`
+                  : 'uncalibrated estimate'}
+              </span>
+            </>
+          )}
           {findable.length === 1 ? (
-            <button disabled={preview} onClick={() => centerToken(findable[0].id)}>
+            <button
+              disabled={preview}
+              title="Center on my token in visible space"
+              onClick={() => centerToken(findable[0].id)}
+            >
               Find my character
             </button>
           ) : (
             <select
               aria-label="Find my character"
+              title="Center on my token in visible space"
               value=""
               disabled={preview || !findable.length}
               onChange={(e) => centerToken(e.target.value)}
@@ -381,22 +538,19 @@ export default function Tabletop({
                   ))}
               </select>
               <button
-                disabled={preview || !placingActor || placement.blocked || edits.blocked}
+                disabled={preview || !placingActor || mapBlocked}
                 onClick={() => setMode('place')}
               >
                 Click to place
               </button>
               <button
-                disabled={preview || !placingActor || placement.blocked || edits.blocked}
+                disabled={preview || !placingActor || mapBlocked}
                 onClick={() => void placeAt(undefined, false)}
               >
                 Place at party spawn
               </button>
               {gm && (
-                <button
-                  disabled={preview || placement.blocked || edits.blocked}
-                  onClick={() => setMode('spawn')}
-                >
+                <button disabled={preview || mapBlocked} onClick={() => setMode('spawn')}>
                   Set party spawn
                 </button>
               )}
@@ -424,7 +578,7 @@ export default function Tabletop({
             ))}
           </select>
           <button
-            disabled={edits.blocked || !edits.entry}
+            disabled={mapBlocked || !edits.entry}
             onClick={() => void edits.undo()}
             title="Ctrl/Cmd+Z. Last 20 moves/fog edits, within 24 hours, in this scene."
           >
@@ -486,12 +640,21 @@ export default function Tabletop({
             </>
           )}
           {edits.message}
+          {gridEdits.message}
+          {gridEdits.uncertain && (
+            <>
+              <button disabled={preview} onClick={() => void gridEdits.retry()}>
+                Retry grid change
+              </button>
+              <button onClick={gridEdits.dismiss}>Dismiss grid attempt</button>
+            </>
+          )}
           <details>
             <summary>Undo limits</summary>
             Last 20 committed token moves and fog edits per user/game, for 24 hours. Only this scene
-            is shown. Later changes or lost permission can block undo. Scale, visibility, size,
-            control, creation and deletion are not undoable. Undo cannot erase information players
-            already saw.
+            is shown. Later changes or lost permission can block undo. Grid, scale, visibility,
+            size, control, creation and deletion are not undoable. Undo cannot erase information
+            players already saw.
           </details>
         </div>
       </div>
@@ -515,7 +678,11 @@ export default function Tabletop({
             y={position.y}
             scaleX={scale}
             scaleY={scale}
-            draggable={mode === 'move'}
+            draggable={mode === 'move' || spacePan}
+            dragBoundFunc={(p) => {
+              const { x, y } = clampView({ ...p, scale }, scene, dimensions);
+              return { x, y };
+            }}
             onDragEnd={(e) => {
               if (e.target === stage.current) setPosition(e.target.position());
             }}
@@ -525,23 +692,48 @@ export default function Tabletop({
             }}
             onMouseUp={up}
             onMouseLeave={() => {
+              pointerGesture.current = false;
+              setSpacePan(spaceHeld.current);
               if (drawing) void up();
             }}
             onWheel={(e) => {
               e.evt.preventDefault();
               const p = stage.current?.getPointerPosition();
               if (!p) return;
-              const next = Math.min(5, Math.max(0.05, scale * (e.evt.deltaY > 0 ? 0.9 : 1.1)));
-              setPosition({
-                x: p.x - ((p.x - position.x) / scale) * next,
-                y: p.y - ((p.y - position.y) / scale) * next,
-              });
-              setScale(next);
+              updateView(zoomView(view, p, scale * (e.evt.deltaY > 0 ? 0.9 : 1.1)));
             }}
           >
             <Layer>
               <Rect width={scene.width} height={scene.height} fill="#0d1420" />
               {image && <CanvasImage image={image} width={scene.width} height={scene.height} />}
+              {grid.enabled && (
+                <Group
+                  listening={false}
+                  clipX={0}
+                  clipY={0}
+                  clipWidth={scene.width}
+                  clipHeight={scene.height}
+                >
+                  {gridLines(scene.width, grid.size, grid.origin_x).map((x) => (
+                    <Line
+                      key={`x${x}`}
+                      points={[x, 0, x, scene.height]}
+                      stroke="#c1d6e8"
+                      opacity={0.35}
+                      strokeWidth={1 / scale}
+                    />
+                  ))}
+                  {gridLines(scene.height, grid.size, grid.origin_y).map((y) => (
+                    <Line
+                      key={`y${y}`}
+                      points={[0, y, scene.width, y]}
+                      stroke="#c1d6e8"
+                      opacity={0.35}
+                      strokeWidth={1 / scale}
+                    />
+                  ))}
+                </Group>
+              )}
               {gm && !preview && snapshot.onboarding?.spawn && (
                 <Group
                   listening={false}
@@ -566,14 +758,22 @@ export default function Tabletop({
                   key={`${scene.id}:${token.id}`}
                   token={token}
                   selected={!preview && selected === token.id}
+                  zoom={scale}
                   quickActions={(x, y) => choose(token, { x, y })}
                   movable={
-                    !placement.blocked &&
-                    !edits.blocked &&
+                    !spacePan &&
+                    !mapBlocked &&
                     mode === 'move' &&
                     !preview &&
                     (gm || token.controller_id === snapshot.userId)
                   }
+                  destination={(p) => movementPoint(p, scene, grid, snap)}
+                  distanceLabel={(from, to) =>
+                    `${distance(from, to, scene.units_per_pixel).toFixed(2)} ${scene.unit} · Euclidean${scene.calibrated ? '' : ' · estimate'}`
+                  }
+                  gesture={(active) => {
+                    tokenGesture.current = active;
+                  }}
                   select={() => {
                     choose(token);
                   }}
@@ -611,7 +811,7 @@ export default function Tabletop({
                     <Text
                       x={end.x + 10 / scale}
                       y={end.y}
-                      text={`${distance(start, end, scene.units_per_pixel).toFixed(2)} ${scene.unit}`}
+                      text={`${distance(start, end, scene.units_per_pixel).toFixed(2)} ${scene.unit} · Euclidean${scene.calibrated ? '' : ' · estimate'}`}
                       fill="#fff"
                       fontSize={15 / scale}
                       shadowColor="#000"
@@ -630,15 +830,48 @@ export default function Tabletop({
             <span className="scene-label">◈ {scene.name}</span>
             <div className="row">
               <button onClick={() => fit(scene)}>Fit map</button>
-              <button aria-label="Zoom out" onClick={() => setScale(Math.max(0.05, scale * 0.8))}>
+              <button
+                aria-label="Zoom out"
+                onClick={() =>
+                  updateView(
+                    zoomView(
+                      view,
+                      { x: dimensions.width / 2, y: dimensions.height / 2 },
+                      scale * 0.8,
+                    ),
+                  )
+                }
+              >
                 −
               </button>
               <span>{Math.round(scale * 100)}%</span>
-              <button aria-label="Zoom in" onClick={() => setScale(Math.min(5, scale * 1.2))}>
+              <button
+                aria-label="Zoom in"
+                onClick={() =>
+                  updateView(
+                    zoomView(
+                      view,
+                      { x: dimensions.width / 2, y: dimensions.height / 2 },
+                      scale * 1.2,
+                    ),
+                  )
+                }
+              >
                 +
               </button>
             </div>
           </div>
+          {showGrid && gm && !preview && (
+            <GridSettings
+              key={scene.id}
+              scene={scene}
+              blocked={mapBlocked}
+              close={() => setShowGrid(false)}
+              save={(grid: Grid, revision: number) =>
+                gridEdits.commit({ scene_id: scene.id, revision, grid })
+              }
+            />
+          )}
           {(mode === 'place' || mode === 'spawn') && !preview && (
             <div className="canvas-popover">
               <strong>{mode === 'spawn' ? 'Set party spawn' : 'Place character'}</strong>
@@ -713,7 +946,14 @@ export default function Tabletop({
               </div>
               <button
                 disabled={
-                  !start || !end || distance(start, end, 1) === 0 || Number(calibration) <= 0
+                  mapBlocked ||
+                  preview ||
+                  !start ||
+                  !end ||
+                  distance(start, end, 1) === 0 ||
+                  !Number.isFinite(Number(calibration)) ||
+                  Number(calibration) <= 0 ||
+                  !unit.trim()
                 }
                 onClick={async () => {
                   if (start && end) {
@@ -748,5 +988,14 @@ export default function Tabletop({
       </span>
       {children}
     </div>
+  );
+}
+
+export default function Tabletop(props: React.ComponentProps<typeof TabletopScene>) {
+  return (
+    <TabletopScene
+      key={`${props.snapshot.userId}:${props.snapshot.game.id}:${props.snapshot.game.active_scene_id}`}
+      {...props}
+    />
   );
 }
