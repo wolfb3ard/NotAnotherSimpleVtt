@@ -1046,7 +1046,7 @@ summary {
 /* Non-modal sheets leave the tabletop usable; dice remain above the window. */
 .sheet-window {
   position: fixed;
-  z-index: 40;
+  z-index: 46;
   width: min(1320px, calc(100vw - 48px));
   height: min(850px, calc(100vh - 90px));
   max-width: calc(100vw - 16px);
