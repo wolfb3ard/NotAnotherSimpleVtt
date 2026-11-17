@@ -12,11 +12,13 @@ const tabs = [
   'Abilities',
   'Features & Traits',
   'Resources',
+  'Inventory',
   'Notes & Source',
 ] as const;
 const scores = ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'];
 
 export default function MonsterSheet({
+  inventory,
   sheet,
   name,
   portrait,
@@ -29,6 +31,7 @@ export default function MonsterSheet({
   onRoll,
 }: {
   sheet: Sheet;
+  inventory?: ReactNode;
   name?: string;
   portrait?: ReactNode;
   onCustomize?: () => void;
@@ -472,6 +475,7 @@ export default function MonsterSheet({
       </>
     ),
     Resources: resourcePanel,
+    Inventory: inventory,
     'Notes & Source': (
       <section className="dnd-box">
         <div className="monster-stat-grid">

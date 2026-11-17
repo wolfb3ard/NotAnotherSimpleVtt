@@ -203,8 +203,10 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
     const first = gm.page.getByRole('dialog', { name: 'Aboleth A quick actions' });
     await first.getByRole('button', { name: 'Open character sheet' }).click();
     const creature = gm.page.getByRole('dialog', { name: 'Aboleth A', exact: true });
-    await creature.getByText('Monster equipment', { exact: true }).click();
-    await creature.getByRole('button', { name: 'Equip additional shield' }).click();
+    await creature.getByRole('tab', { name: 'Inventory', exact: true }).click();
+    await creature.getByLabel('Item name').fill('Shield');
+    await creature.getByRole('button', { name: 'Add item', exact: true }).click();
+    await creature.getByRole('button', { name: 'Equip Shield', exact: true }).click();
     await expect(
       creature.getByRole('status').filter({ hasText: `AC ${monsterAC} → ${monsterAC + 2}` }),
     ).toBeVisible();

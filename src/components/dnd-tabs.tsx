@@ -13,7 +13,7 @@ import { srdCastingSources } from '@/lib/srd-casting';
 import { dndNumbers } from '@/lib/dnd';
 import type { QuickUpdate } from '@/lib/resources';
 import { castChoices } from '@/lib/play-assistance';
-import { equipmentEntry, isShield, armorProfile, resolveLoadout } from '@/lib/srd-equipment';
+import { PlayInventory } from './play-inventory';
 
 const tabs = [
   'Actions',
@@ -62,6 +62,7 @@ export function DndTabs({
   quickEditable = editable,
 }: Props) {
   const [tab, setTab] = useState<Tab>('Actions');
+  const [castPractice, setCastPractice] = useState('');
   const id = useId();
   const details = sheet.character ?? emptyCharacterDetails();
   const castingSources = details.builder ? srdCastingSources(details.builder) : [];
@@ -195,12 +196,78 @@ export function DndTabs({
   const spells = [...details.spells].sort(
     (a, b) => a.level - b.level || a.name.localeCompare(b.name),
   );
+  function spellCard(spell: CharacterDetails['spells'][number]) {
+    const choices =
+      spell.level && spell.prepared
+        ? castChoices(sheet, spell).filter((c) => c.changes.length)
+        : [];
+    const canCast = spell.level === 0 || spell.prepared;
+    return (
+      <article className="dnd-box" key={spell.id}>
+        <h4>
+          {spell.name} · {spell.level ? `Level ${spell.level}` : 'Cantrip'}
+        </h4>
+        <p>
+          {spell.actionType}
+          {!canCast && ' · Not prepared'}
+        </p>
+        <p className="dnd-description">{spell.description || 'No description recorded.'}</p>
+        {choices.map((c) => (
+          <button
+            key={c.key}
+            disabled={!quickUpdate || !quickEditable || !c.available || dirty}
+            onClick={() => quickUpdate?.(c.changes)}
+          >
+            Cast {spell.name} · {c.label}
+          </button>
+        ))}
+        {spell.level === 0 && (
+          <button
+            disabled={!rollable || dirty}
+            onClick={() =>
+              setCastPractice(`${spell.name}: no slot spent. Resolve its effect at the table.`)
+            }
+          >
+            Cast {spell.name} · No slot
+          </button>
+        )}
+        {!!spell.level && canCast && !choices.length && (
+          <p>No tracked casting option. Resolve the spell and any cost manually.</p>
+        )}
+        {canCast &&
+          spell.casting?.map((c) => {
+            const source = castingSources.find((s) => s.id === c.sourceId);
+            return (
+              source && (
+                <div key={source.id}>
+                  {source.label} · Save DC {computed[dndId(source.dcKey)]}
+                  {/spell attack/i.test(spell.description) && (
+                    <button
+                      disabled={!rollable || dirty}
+                      onClick={() =>
+                        onRoll(
+                          `${d20} + @{${dndId(source.attackKey)}}`,
+                          `Spell attack with ${spell.name} (${source.label})`,
+                        )
+                      }
+                    >
+                      Roll {spell.name} ({source.label})
+                    </button>
+                  )}
+                </div>
+              )
+            );
+          })}
+      </article>
+    );
+  }
   const customAbilities = sheet.sections
     .flatMap((s) => s.abilities)
     .filter((a) => !a.id.startsWith('5e202024-'));
 
   return (
     <div className="dnd-tabbed">
+      {castPractice && <p role="status">{castPractice}</p>}
       <div role="tablist" aria-label="Character details" className="dnd-tabs">
         {tabs.map((label, index) => (
           <button
@@ -252,14 +319,7 @@ export function DndTabs({
                     {availableSpells.length + features.length === 0 && (
                       <p className="muted">No entries. Add spells or features in their tabs.</p>
                     )}
-                    {availableSpells.map((spell) => (
-                      <article key={spell.id}>
-                        <h4>
-                          {spell.name} · {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
-                        </h4>
-                        <p className="dnd-description">{spell.description}</p>
-                      </article>
-                    ))}
+                    {tab === label && availableSpells.map(spellCard)}
                     {features.map((feature) => (
                       <article key={feature.id}>
                         <h4>
@@ -296,59 +356,7 @@ export function DndTabs({
                 of their level or higher.
               </p>
               {!spells.length && <p>No spells on this sheet.</p>}
-              {spells.map((spell) => (
-                <article className="dnd-box" key={spell.id}>
-                  <h3>{spell.name}</h3>
-                  <p>
-                    {spell.level
-                      ? `Level ${spell.level} · ${spell.prepared ? 'Prepared' : 'Not prepared'}`
-                      : 'Cantrip'}{' '}
-                    · {spell.actionType}
-                  </p>
-                  <p>{spell.description.split('\n').find(Boolean) || 'No description recorded.'}</p>
-                  {spell.casting?.map((c) => {
-                    const source = castingSources.find((s) => s.id === c.sourceId);
-                    return (
-                      source && (
-                        <div key={source.id}>
-                          {source.label} · Save DC {computed[dndId(source.dcKey)]}
-                          {/spell attack/i.test(spell.description) && (
-                            <button
-                              disabled={!rollable || dirty}
-                              onClick={() =>
-                                onRoll(
-                                  `${d20} + @{${dndId(source.attackKey)}}`,
-                                  `Spell attack with ${spell.name} (${source.label})`,
-                                )
-                              }
-                            >
-                              Roll {spell.name} ({source.label})
-                            </button>
-                          )}
-                        </div>
-                      )
-                    );
-                  })}
-                  <details>
-                    <summary>Rules and casting options</summary>
-                    <p className="dnd-description">{spell.description}</p>
-                    {castChoices(sheet, spell)
-                      .filter((c) => c.changes.length)
-                      .map((c) => (
-                        <button
-                          key={c.key}
-                          disabled={!quickUpdate || !quickEditable || !c.available || dirty}
-                          onClick={() => quickUpdate?.(c.changes)}
-                        >
-                          Cast · {c.label}
-                        </button>
-                      ))}
-                    {spell.level === 0 && (
-                      <p>Cast without spending a slot. Resolve the effect described above.</p>
-                    )}
-                  </details>
-                </article>
-              ))}
+              {spells.map(spellCard)}
             </section>
           )}
           {label === 'Spell' && (
@@ -529,52 +537,11 @@ export function DndTabs({
             </>
           )}
           {label === 'Inventory' && playing && tab === label && (
-            <section className="stack">
-              {!details.items.length && <p>No inventory items.</p>}
-              {details.items.map((item) => {
-                const source = equipmentEntry(item.name);
-                const loadout = details.builder && resolveLoadout(details.builder, details.items);
-                const worn = [loadout?.armor?.id, loadout?.shield?.id].includes(item.id);
-                return (
-                  <article key={item.id} className="dnd-box">
-                    <h3>
-                      {item.name} ×{item.quantity}
-                    </h3>
-                    <p>
-                      {item.description.split('\n').find(Boolean) ||
-                        source?.kind ||
-                        'No description recorded.'}
-                      {worn && ' · Equipped'}
-                    </p>
-                    <details>
-                      <summary>Item details</summary>
-                      <p className="dnd-description">{item.description || 'No personal notes.'}</p>
-                      {source && (
-                        <p className="dnd-description">
-                          SRD p.{source.page}: {source.text}
-                        </p>
-                      )}
-                    </details>
-                    {loadout && (isShield(item.name) || armorProfile(item.name)) && (
-                      <button
-                        disabled={!quickEditable || !onEquip || dirty || !item.quantity}
-                        onClick={() => onEquip?.(item.id)}
-                      >
-                        {worn ? 'Unequip' : 'Equip'} {item.name}
-                      </button>
-                    )}
-                    {!worn && !loadout?.weapons.some((w) => w?.id === item.id) && (
-                      <button
-                        disabled={!onUseItem || !quickEditable || dirty || item.quantity < 1}
-                        onClick={() => onUseItem?.(item.id)}
-                      >
-                        Use one {item.name} (−1)
-                      </button>
-                    )}
-                  </article>
-                );
-              })}
-            </section>
+            <PlayInventory
+              sheet={sheet}
+              disabled={!quickEditable || dirty || !onEquip || !onUseItem}
+              onChange={(action) => (action.type === 'toggle' ? onEquip : onUseItem)?.(action.id)}
+            />
           )}
           {label === 'Inventory' && !playing && (
             <>
