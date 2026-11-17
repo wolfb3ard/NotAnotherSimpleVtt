@@ -21,7 +21,7 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 - Epics 01–07 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 08 starts Phase 3.
 - Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
 - Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
-- Epic 08 adds state-derived first-session guides, authorized party placement/spawn and fog-safe character finding; implemented, pending review PR.
+- Epic 08 adds state-derived first-session guides, authorized party placement/spawn and fog-safe character finding; [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) ready for review, not merged.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
 - Latest local implementation verification: E08's 517 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
@@ -168,7 +168,7 @@ Local verification: 500 unit/database/component tests, lint, production build/Ty
 
 ### Epic 08 — Guided first session and sensible placement
 
-Status: Implemented; pending review PR. Dependencies: E01, E04 (merged).
+Status: Implemented; [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) ready for review, not merged. Dependencies: E01, E04 (merged).
 
 - [x] E08-T01: Add role-specific, dismissible/resumable checklists derived from actual campaign state.
 - [x] E08-T02: Guide GMs through invitations, map upload, scale, party placement, and initial reveal.
