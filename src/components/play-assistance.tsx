@@ -280,9 +280,10 @@ export function PlayAssistance({
                 </select>
               </label>
             )}
+            {selected?.note && <p className="small">{selected.note}</p>}
             <p className="small">
-              Only supported prepared SRD spells offer tracked slots. Rituals, feature-based free
-              casting, homebrew, targeting, effects and rolls are manual.
+              Supported SRD options show what you spend. Confirm requirements, targets, and effects
+              at the table. Homebrew costs are manual.
             </p>
           </>
         )}
