@@ -19,6 +19,28 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  scene_calibrate: z.object({
+    scene_id: id,
+    revision,
+    units_per_pixel: z.number().finite().positive().max(100000000),
+    unit: z.string().trim().min(1).max(20),
+  }),
+  party_spawn: z.object({
+    scene_id: id,
+    revision,
+    x: z.number().finite().min(0).max(4096),
+    y: z.number().finite().min(0).max(4096),
+  }),
+  token_place: z
+    .object({
+      actor_id: id,
+      scene_id: id,
+      revision,
+      operation_id: id,
+      x: z.number().finite().min(0).max(4096).optional(),
+      y: z.number().finite().min(0).max(4096).optional(),
+    })
+    .refine((p) => (p.x === undefined) === (p.y === undefined), 'Choose both coordinates.'),
   actor_combat: combatCommandSchema,
   encounter: encounterCommandSchema,
   invite: z.object({}),

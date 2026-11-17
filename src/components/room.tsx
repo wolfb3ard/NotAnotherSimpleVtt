@@ -21,6 +21,7 @@ import { TokenQuickActions } from './token-quick-actions';
 import { useTabletopEdits } from './use-tabletop-edits';
 import { monsterId } from '@/lib/monster-sheet';
 import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
+import { FirstSessionGuide } from './first-session-guide';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -462,6 +463,31 @@ export function Room({ initial }: { initial: Snapshot }) {
             </div>
           )}
           <div className="panel">
+            <FirstSessionGuide
+              snapshot={snapshot}
+              onGo={(action) => {
+                if (action === 'map') {
+                  document.querySelector<HTMLElement>('[aria-label="Map setup controls"]')?.focus();
+                } else if (action === 'sheet') {
+                  const mine = snapshot.actors.find(
+                    (a) => a.kind === 'character' && a.owner_id === snapshot.userId,
+                  );
+                  if (mine) openSheet(mine.id);
+                  else {
+                    setTab('party');
+                    setCreateActor(true);
+                  }
+                } else {
+                  setTab(action);
+                  if (action === 'party')
+                    setCreateActor(
+                      !snapshot.actors.some(
+                        (a) => a.kind === 'character' && a.owner_id === snapshot.userId,
+                      ),
+                    );
+                }
+              }}
+            />
             {tab === 'encounter' && (
               <EncounterPanel
                 key={`${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`}
@@ -595,57 +621,11 @@ export function Room({ initial }: { initial: Snapshot }) {
                     </div>
                   )}
                   {scene && (
-                    <details>
-                      <summary>Add character token to scene</summary>
-                      <form
-                        className="stack"
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          setPending(true);
-                          setError('');
-                          const form = new FormData(e.currentTarget);
-                          try {
-                            await run('token_create', {
-                              actor_id: form.get('actor_id'),
-                              scene_id: scene.id,
-                            });
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : 'Upload failed.');
-                          } finally {
-                            setPending(false);
-                          }
-                        }}
-                      >
-                        <label>
-                          Actor
-                          <select name="actor_id" aria-label="Actor" required>
-                            <option value="">Choose character…</option>
-                            {snapshot.actors
-                              .filter((a) => gm || a.owner_id === snapshot.userId)
-                              .map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  {a.name}
-                                </option>
-                              ))}
-                          </select>
-                        </label>
-                        <p className="small muted">
-                          Uses the portrait and ring saved on the character sheet.
-                        </p>
-                        {gm && (
-                          <p className="small">
-                            This places a linked token: all tokens of this actor share its sheet, HP
-                            and resources. Use SRD monsters or Duplicate as independent creature for
-                            separate enemies. Player character state stays shared across scenes.
-                          </p>
-                        )}
-                        <button disabled={pending}>Place token</button>
-                        <p className="small muted">
-                          New tokens start near the map’s top-left. The GM may need to reveal that
-                          area.
-                        </p>
-                      </form>
-                    </details>
+                    <p className="small muted">
+                      To place a linked token, choose a character in the map toolbar, then Click to
+                      place or Place at party spawn. Tokens use the sheet’s portrait/ring and share
+                      its resources.
+                    </p>
                   )}
                 </>
               </>

@@ -18,11 +18,12 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 
 ## Progress snapshot — 2026-11-17
 
-- Epics 01–06 are complete and merged into `main`. Phase 1 is complete; Phase 2 still requires Epic 07 merge.
+- Epics 01–07 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 08 starts Phase 3.
 - Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
-- Epic 07 implementation extends the merged resource/health foundation with selected-token attacks, initiative and unified GM controls; ready for review, not merged.
+- Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
+- Epic 08 adds state-derived first-session guides, authorized party placement/spawn and fog-safe character finding; implemented, pending review PR.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
-- Latest local implementation verification: 500 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Latest local implementation verification: E08's 517 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
 
 ## Current foundation
@@ -146,7 +147,7 @@ Local verification: 486 unit/database/component tests, lint, production build/Ty
 
 ### Epic 07 — Token quick actions
 
-Status: Implemented; [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) ready for review, not merged. Dependencies: E05 and E06 (merged).
+Status: Complete; [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) merged into `main` on 2026-11-17 (commit `65787f4`). Dependencies: E05 and E06 (merged).
 
 Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. E06 adds condition/survival controls.
 
@@ -167,17 +168,21 @@ Local verification: 500 unit/database/component tests, lint, production build/Ty
 
 ### Epic 08 — Guided first session and sensible placement
 
-Status: Planned. Dependencies: E01, E04.
+Status: Implemented; pending review PR. Dependencies: E01, E04 (merged).
 
-- [ ] E08-T01: Add role-specific, dismissible/resumable checklists derived from actual campaign state.
-- [ ] E08-T02: Guide GMs through invitations, map upload, scale, party placement, and initial reveal.
-- [ ] E08-T03: Guide players through joining, creating/claiming a character, portrait, placement, and a test roll.
-- [ ] E08-T04: Make claiming a character GM-authorized; do not infer ownership from a name.
-- [ ] E08-T05: Add click-to-place and a GM-defined party spawn point instead of top-left placement.
-- [ ] E08-T06: Add Find my character; handle multiple tokens, no token, other scenes, and concealed locations safely.
-- [ ] E08-T07: Test new/existing games, interrupted onboarding, ownership transfer, fog, and placement retries.
+- [x] E08-T01: Add role-specific, dismissible/resumable checklists derived from actual campaign state.
+- [x] E08-T02: Guide GMs through invitations, map upload, scale, party placement, and initial reveal.
+- [x] E08-T03: Guide players through joining, creating/claiming a character, portrait, placement, and a test roll.
+- [x] E08-T04: Make claiming a character GM-authorized; do not infer ownership from a name.
+- [x] E08-T05: Add click-to-place and a GM-defined party spawn point instead of top-left placement.
+- [x] E08-T06: Add Find my character; handle multiple tokens, no token, other scenes, and concealed locations safely.
+- [x] E08-T07: Test new/existing games, interrupted onboarding, ownership transfer, fog, and placement retries.
 
 Acceptance: a new group can reach a visible, controllable party on a calibrated scene without reading the README.
+
+Implementation policy: role-specific guides derive readiness from current membership/invitations, active map, explicit calibration, assigned characters/control, portraits, visible tokens and durable own roll history. Dismissal is browser-local per user/game/role; no checklist grants permissions or blocks existing play. Existing characters are requested verbally/outside the app and assigned through the existing GM-only, revision-checked ownership controls; there is no automatic name claim or claim inbox. Map controls offer click/numeric placement or a per-scene GM-private spawn, with center fallback. Player placements require owned characters in the active scene and revealed destination space; existing concealed placements never yield coordinates/IDs. Exact placement retries are durable and survive same-tab reload when storage is available; players cannot duplicate an existing scene placement, while GMs may intentionally add linked tokens. Spawn/placement are not undoable. Find my character only centers explicitly selected visible active-scene owned/controlled tokens; absent/other-scene/concealed cases share safe GM guidance. GM preview disables placement/finding/spawn and hides spawn markers. Existing PCs/sheets/placements stay valid and unchanged.
+
+Local verification: 517 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting and six Edge auth/smoke tests passed. New PGlite tests apply every migration and exercise private spawn/receipt access, default/explicit calibration, revealed-space placement, center fallback, scene switching, revision conflicts, exact retries, permissions and ownership transfer. Component/unit tests cover interrupted/resumed guides, ownership filtering, transformed clicks/numeric placement, default spawn, safe finding and GM preview. The opt-in multiplayer scenario is updated but remains unrun. Migration: `20261117143225_guided_first_session.sql`. No hosted migration applied; local advisors could not connect to the unavailable local stack.
 
 ### Epic 09 — Navigation, grid, and movement feedback
 
@@ -284,7 +289,7 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 
 ## Unresolved Questions
 
-- None blocking E07. E06 is merged; turn advancement and encounter initiative changes remain GM-only.
+- None blocking E08. Character claims require explicit GM ownership assignment; hidden/other-scene locations remain undisclosed.
 - Before E09: diagonal distance rule? Default: Euclidean; configurable later.
 - Before E10: forced camera or opt-in follow? Default: opt-in.
 - Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.

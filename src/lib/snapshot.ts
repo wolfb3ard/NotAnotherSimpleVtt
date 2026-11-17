@@ -58,6 +58,38 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
     ? await db.from('sheet_grants').select('*').in('actor_id', actorIds)
     : { data: [], error: null };
   if (grants.error) throw new Error('Unable to load sheet permissions.');
+  const gm = game.gm_id === user.id;
+  const ownRoll = await db
+    .from('rolls')
+    .select('id')
+    .eq('game_id', gameId)
+    .eq('author_id', user.id)
+    .limit(1);
+  if (ownRoll.error) throw new Error('Unable to load setup state.');
+  let onboarding: Snapshot['onboarding'] = {
+    invited: false,
+    spawn: null,
+    hasRolled: !!ownRoll.data?.length,
+  };
+  if (gm) {
+    const [invitations, spawn] = await Promise.all([
+      db
+        .from('invitations')
+        .select('game_id')
+        .eq('game_id', gameId)
+        .eq('revoked', false)
+        .gt('expires_at', new Date().toISOString())
+        .limit(1),
+      db
+        .from('party_spawns')
+        .select('x,y')
+        .eq('game_id', gameId)
+        .eq('scene_id', game.active_scene_id ?? '00000000-0000-0000-0000-000000000000')
+        .maybeSingle(),
+    ]);
+    if (invitations.error || spawn.error) throw new Error('Unable to load setup state.');
+    onboarding = { ...onboarding, invited: !!invitations.data?.length, spawn: spawn.data };
+  }
   return {
     game,
     role: game.gm_id === user.id ? 'gm' : 'player',
@@ -72,5 +104,6 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
     rollCues,
     grants: grants.data ?? [],
     encounter: encounterQuery.data ?? null,
+    onboarding,
   } as Snapshot;
 }
