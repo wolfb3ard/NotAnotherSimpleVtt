@@ -27,6 +27,8 @@ export type Actor = {
   encounter_instance?: boolean;
   definition_actor_id?: string | null;
   appearance_source_id?: string | null;
+  combat?: import('./combat').Combat;
+  combat_revision?: number;
 };
 export type Game = {
   id: string;

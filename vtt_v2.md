@@ -19,10 +19,10 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 ## Progress snapshot — 2026-11-17
 
 - Epics 01–05 are complete and merged into `main`. Phase 1 is complete; Phase 2 still requires Epics 06–07.
-- Next: Epic 06 (conditions, concentration, death saves). Its E05 dependency is merged; no implementation started.
+- Epic 06 (conditions, concentration, death saves) is implemented awaiting review/merge. E05 is merged; E07 remains blocked on E06 merge.
 - Epic 07 has a merged resource/health quick-actions foundation, not the complete planned action menu.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
-- Latest local implementation verification: 455 unit/database/component tests, production build/TypeScript, lint, formatting with native line endings, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Latest local implementation verification: 486 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
 
 ## Current foundation
@@ -129,22 +129,26 @@ Local verification: 446 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 06 — Conditions, concentration, and death saves
 
-Status: Next; not started. Dependencies: E05 (merged).
+Status: Implemented; PR pending creation/review, not merged. Dependencies: E05 (merged).
 
-- [ ] E06-T01: Add condition markers with source, notes, optional duration, and manual removal.
-- [ ] E06-T02: Support start/end-of-turn expiry prompts and overrides; do not silently adjudicate ambiguous rules.
-- [ ] E06-T03: Track concentration; prompt for relevant checks when damage is applied.
-- [ ] E06-T04: Add death-save controls and explicit recovery/reset actions.
-- [ ] E06-T05: Show authorized HP/condition summaries in tracker and token controls.
-- [ ] E06-T06: Test durations, defeated/revived creatures, hidden conditions, independent instances, and overrides.
+- [x] E06-T01: Add condition markers with source, notes, optional duration, and manual removal.
+- [x] E06-T02: Support start/end-of-turn expiry prompts and overrides; do not silently adjudicate ambiguous rules.
+- [x] E06-T03: Track concentration; prompt for relevant checks when damage is applied.
+- [x] E06-T04: Add death-save controls and explicit recovery/reset actions.
+- [x] E06-T05: Show authorized HP/condition summaries in tracker and token controls.
+- [x] E06-T06: Test durations, defeated/revived creatures, hidden conditions, independent instances, and overrides.
 
 Acceptance: combat bookkeeping is visible and editable without implying that every conditional rule is automated.
 
+Implementation policy: combat state is actor-scoped and private to existing sheet readers; edits require GM/owner/edit-grant authorization, never token control alone. Existing actors default to empty bookkeeping. Independent creatures do not share state; linked placements/PCs retain shared state. Up to 30 editable markers include source/notes and optional exact round/start-or-end-of-own-turn timing in one encounter. Turns persist review flags, never remove markers. Other-creature/time-based/ambiguous durations remain manual. Concentration reminders infer committed D&D/monster HP/temporary-HP loss (including manual edits), suggest the 2024 DC, and require explicit outcome/removal. Actual damage, resistance, overkill and separate sources need manual adjudication; at 100 pending reminders additional losses aggregate into the last reminder. Death-save d20 rolls use the existing server roll service/audience; counters, stabilize and recovery/reset are explicit and never change HP automatically. Combat has independent revisions, game-first serialization and private idempotency receipts; exact unconfirmed requests persist in same-tab storage and use existing quick-action draft/close guards.
+
+Local verification: 486 unit/database/component tests, lint, production build/TypeScript, native-line-ending formatting and six Edge auth/smoke tests passed. PGlite applies all migrations and tests validation, permissions/revocation, private projections, retry deduplication, stale edits, own-turn start/end timing, pause/end, six same-definition independent creatures, PC/monster HP and temporary-HP concentration prompts, and recovery overrides. Components cover marker edits, read-only/dirty guards, death rolls, persisted uncertain retries across reload and manual check outcomes. The opt-in multiplayer scenario now checks marker persistence/privacy but remains unrun. Migration: `20261117134351_combat_bookkeeping.sql`. No hosted migration applied; local advisors could not connect to the unavailable local stack.
+
 ### Epic 07 — Token quick actions
 
-Status: Partially delivered through merged follow-ups; full epic not complete. Dependencies: E05 (merged), E06 (not started).
+Status: Partially delivered through merged follow-ups; full epic not complete. Dependencies: E05 (merged), E06 (implemented, awaiting merge).
 
-Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. Left-click still opens the sheet; token-level Attack/Conditions/Initiative shortcuts, unified GM controls, and the full acceptance scenarios remain outstanding. Tasks below stay unchecked until their complete scope is delivered.
+Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. E06 adds condition/survival controls pending merge. Left-click still opens the sheet; token-level Attack/Initiative shortcuts, unified GM controls, and the full acceptance scenarios remain outstanding. Tasks below stay unchecked until their complete scope is delivered.
 
 - [ ] E07-T01: Separate token selection from opening its sheet; support keyboard-accessible equivalent controls.
 - [ ] E07-T02: Add Sheet, Attack, Damage/heal, Conditions, and Initiative actions appropriate to permissions.

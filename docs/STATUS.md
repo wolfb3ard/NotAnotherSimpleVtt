@@ -1,10 +1,12 @@
 # Implementation status
 
-Progress reconciled with merged GitHub PRs on 2026-11-17. Epics 01–05 are complete; Epic 06 is next and Epic 07 has only a partial quick-actions foundation. Merge status does not establish hosted deployment or acceptance verification.
+Progress reconciled on 2026-11-17. Epics 01–05 are merged; Epic 06 is implemented awaiting review/merge, and Epic 07 still has only a partial quick-actions foundation. Merge status does not establish hosted deployment or acceptance verification.
 
 ## Built
 
-- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) merged on 2026-11-16. Epic 06 is unblocked for planning, not started.
+- VTT v2 Epic 06: private actor conditions/source/notes, manual removal/editing, persistent start/end-of-own-turn expiry reviews, concentration loss reminders/manual outcomes, death-save rolls/counters and explicit stabilize/recovery resets. Tracker/token summaries require sheet access. Independent combat revisions, game-serialized authorization and exact persisted retries preserve shared state without adjudicating rules. Apply `20261117134351_combat_bookkeeping.sql` before deployment. PR pending creation; not merged.
+
+- VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) merged on 2026-11-16.
 
 - VTT v2 Epic 04: all 336 SRD monster stat blocks, GM library-to-board group creation, independent sheets/resources, source-linked appearance with instance overrides, explicit legacy-linked placement, monster attack/critical/check/save/spell controls and manual casting/use/recharge. Apply `20261116202045_encounter_creatures.sql` before deployment. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) merged on 2026-11-16.
 
@@ -30,6 +32,8 @@ Progress reconciled with merged GitHub PRs on 2026-11-17. Epics 01–05 are comp
 - Source-traceable SRD 5.2.1 catalog and guided character creation/progression through level 20, including multiclass choices, feats, spell lists, class resources, and separate Pact Magic.
 
 ## Verified locally
+
+- VTT v2 Epic 06: 486 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting and six Edge auth/smoke tests passed. PGlite applies all migrations and exercises validation, direct-write denial, private projections, revoked grants/retries, stale writes, own-turn start/end duration reviews, pause/end, six same-definition independent creatures, PC/monster HP and temporary-HP reminders, retry deduplication and recovery overrides. Components cover source/notes edits, read-only/dirty guards, death rolls, durable retry after reload and manual check outcomes. The updated opt-in multiplayer scenario is skipped. No hosted migration applied; local Supabase advisors could not connect to the unavailable local stack.
 
 - Latest merged implementation ([PR #32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32)): 455 unit/database/component tests, production build/TypeScript, lint, formatting with `--end-of-line auto`, and six Edge auth/smoke tests passed. Catalog-wide tests retain every action, roll and editable field exactly once for all 336 monsters; component tests cover keyboard tabs, independent IDs, roll mode, immediate HP writes, blocked actions, renamed/customized expressions, continued sections, orphaned rolls and homebrew spells. Isolated wide/narrow browser checks found no horizontal overflow or console errors. The opt-in multiplayer test was skipped; no hosted data changed. Earlier counts below are historical per-epic checks, not the current suite total.
 

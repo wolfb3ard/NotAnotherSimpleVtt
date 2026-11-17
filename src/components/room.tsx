@@ -374,6 +374,7 @@ export function Room({ initial }: { initial: Snapshot }) {
             busy={quickBusy}
             run={run}
             onBusyChange={setQuickBusy}
+            onRoll={sendRoll}
             onClose={() => {
               if (leaveQuickActions()) {
                 setQuickActions(undefined);
