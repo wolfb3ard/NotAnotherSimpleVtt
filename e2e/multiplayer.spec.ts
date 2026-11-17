@@ -189,7 +189,8 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
     await expect(builder).toHaveCount(0);
     await quick.getByText('Attack / sheet rolls', { exact: true }).click();
     await quick.getByLabel('Token attack or ability').selectOption('attack:0');
-    await quick.getByRole('button', { name: 'Roll selected action' }).click();
+    const rollAction = quick.getByRole('button', { name: 'Roll selected action' });
+    await rollAction.click();
     const totalKey = dndId('weapon-total:0');
     expect(dndNumbers(hero)[dndId('pb')]).toBe(2);
     await expect
@@ -198,7 +199,11 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
         return snapshot.rolls[0]?.result.modifiers[totalKey];
       })
       .toBe(dndNumbers(hero)[totalKey] + 1);
+    // The roll is persisted before the client's refresh finishes. Closing
+    // during that window prompts for confirmation, which Playwright dismisses.
+    await expect(rollAction).toBeEnabled();
     await quick.getByLabel('Close quick actions').click();
+    await expect(quick).toHaveCount(0);
     await select.selectOption({ label: 'Aboleth A' });
     const first = gm.page.getByRole('dialog', { name: 'Aboleth A quick actions' });
     await first.getByRole('button', { name: 'Open character sheet' }).click();
@@ -213,6 +218,7 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
     await creature.getByLabel('Close character sheet').click();
     await expect(first.getByText(`Armor Class: ${monsterAC + 2}`, { exact: true })).toBeVisible();
     await first.getByLabel('Close quick actions').click();
+    await expect(first).toHaveCount(0);
     await select.selectOption({ label: 'Aboleth B' });
     await expect(
       gm.page
