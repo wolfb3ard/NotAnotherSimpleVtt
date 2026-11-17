@@ -4,7 +4,7 @@ Progress reconciled on 2026-11-17. Epics 01–05 are merged; Epic 06 is implemen
 
 ## Built
 
-- VTT v2 Epic 06: private actor conditions/source/notes, manual removal/editing, persistent start/end-of-own-turn expiry reviews, concentration loss reminders/manual outcomes, death-save rolls/counters and explicit stabilize/recovery resets. Tracker/token summaries require sheet access. Independent combat revisions, game-serialized authorization and exact persisted retries preserve shared state without adjudicating rules. Apply `20261117134351_combat_bookkeeping.sql` before deployment. PR pending creation; not merged.
+- VTT v2 Epic 06: private actor conditions/source/notes, manual removal/editing, persistent start/end-of-own-turn expiry reviews, concentration loss reminders/manual outcomes, death-save rolls/counters and explicit stabilize/recovery resets. Tracker/token summaries require sheet access. Independent combat revisions, game-serialized authorization and exact persisted retries preserve shared state without adjudicating rules. Apply `20261117134351_combat_bookkeeping.sql` before deployment. [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) ready for review; not merged.
 
 - VTT v2 Epic 05: scene-scoped encounters, selected-token initiative with atomic private server rolls, manual scores/ties/order, participant changes, GM-only turns/rounds, pause/resume/end, filtered player trackers, active-token markers and persistent Your turn cues. Apply `20261116210025_encounter_initiative.sql` before deployment. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) merged on 2026-11-16.
 

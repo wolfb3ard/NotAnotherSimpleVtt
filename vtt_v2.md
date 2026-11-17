@@ -129,7 +129,7 @@ Local verification: 446 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 06 — Conditions, concentration, and death saves
 
-Status: Implemented; PR pending creation/review, not merged. Dependencies: E05 (merged).
+Status: Implemented; [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) ready for review, not merged. Dependencies: E05 (merged).
 
 - [x] E06-T01: Add condition markers with source, notes, optional duration, and manual removal.
 - [x] E06-T02: Support start/end-of-turn expiry prompts and overrides; do not silently adjudicate ambiguous rules.
