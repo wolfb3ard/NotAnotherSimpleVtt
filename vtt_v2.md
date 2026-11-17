@@ -16,6 +16,15 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 - Assistance must explain changes, offer manual overrides, and avoid claiming full rules automation.
 - Desktop first. Mobile support, integrated voice/video, and a complete rules engine are not prerequisites.
 
+## Progress snapshot — 2026-11-17
+
+- Epics 01–05 are complete and merged into `main`. Phase 1 is complete; Phase 2 still requires Epics 06–07.
+- Next: Epic 06 (conditions, concentration, death saves). Its E05 dependency is merged; no implementation started.
+- Epic 07 has a merged resource/health quick-actions foundation, not the complete planned action menu.
+- Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
+- Latest local implementation verification: 455 unit/database/component tests, production build/TypeScript, lint, formatting with native line endings, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
+
 ## Current foundation
 
 `src/components/room.tsx` owns room panels, synchronization, shared roll settings, and sheet windows. `tabletop.tsx` provides pan/zoom, Fit map, calibration, manual fog, token controls, and player preview. `sheet-editor.tsx`, `dnd-sheet.tsx`, and `dnd-tabs.tsx` already support play/edit views, structured D&D actions, and immediate sheet rolls. Actor ownership, grants, and token control are separate permissions.
@@ -51,13 +60,15 @@ Status: Complete; [PR #23](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull
 
 Acceptance: routine resource use does not require configuration mode or a whole-sheet save; failures never look saved.
 
-Inventory/save policy: `sheet-editor.tsx` previously drafted generic current/max values; `dnd-sheet.tsx` drafted HP, class counters and grouped Hit Dice; `dnd-tabs.tsx` drafted feature uses and spell-slot Use/Recover actions. Current values and feature uses now save through Play resources/the existing Use/Recover buttons. Field definitions/maxima, names, inventory, biography, preparation, exhaustion and builder configuration remain Apply/Save drafts. Dirty configuration blocks quick updates; pending/unconfirmed resources block configuration and participate in close/switch guards.
+Inventory/save policy: `sheet-editor.tsx` previously drafted generic current/max values; `dnd-sheet.tsx` drafted HP, class counters and grouped Hit Dice; `dnd-tabs.tsx` drafted feature uses and spell-slot Use/Recover actions. Current values and feature uses save through token quick actions/the existing Use/Recover buttons; compact monster sheets also expose immediate HP/temporary HP controls. Field definitions/maxima, names, inventory, biography, preparation, exhaustion and builder configuration remain Apply/Save drafts. Dirty configuration blocks quick updates; pending/unconfirmed resources block configuration and participate in close/switch guards.
+
+Merged follow-up: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), 2026-11-16 (commit `0be7c93`), moved Play resources off character sheets into a condensed, movable token quick-actions card. Right-click and a keyboard chooser expose health/resource controls, immediate save/retry feedback, permission filtering, and cross-window draft guards. This delivers part of E07, not the complete epic.
 
 Local verification: 327 unit/database/component tests, lint, TypeScript, production build, and six browser auth/smoke tests (Edge) passed. Full formatting passes with `--end-of-line auto`. Revision, permission, atomicity and retry tests run against all migrations in local PGlite; component tests cover rapid edits, rollback, dirty drafts, offline reload, remote renames and reconnect reconciliation. The opt-in multiplayer browser scenario now checks generic quick saves across reload, but was not run for this epic. No hosted migration was applied. Migration: `20261116152232_quick_actor_resources.sql`.
 
 ### Epic 03 — Reversible tabletop edits
 
-Status: Implemented; [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) ready for review, not merged. Dependencies: E02 (merged).
+Status: Complete; [PR #26](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/26) merged into `main` on 2026-11-16 (commit `0acac34`). Dependencies: E02 (merged).
 
 - [x] E03-T01: Define a bounded, per-user undo history for committed token moves and fog edits.
 - [x] E03-T02: Add revision-checked inverse operations; reject undo that would overwrite another user's later change.
@@ -89,6 +100,7 @@ Status: Complete; [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull
 - [x] E04-T10: Make every monster's printed spells accessible from its sheet with rules text and immediate casting/attack/damage/save-DC controls as applicable. Support the monster's actual casting rules, including at-will, limited-use, and slot-based casting where printed; track uses/recharge independently and provide manual overrides. Do not require a PC class/level or defer basic monster casting to E14's advanced assistance.
 - [x] E04-T11: Keep monster sheets, unrevealed tokens, and private rolls GM-only by default; honor explicit sheet-access/control grants and existing roll audiences without revealing full stat blocks merely because a token is visible.
 - [x] E04-T12: Validate library completeness and exact stat-block fidelity against the PDF; test representative spellcasters, multiattack, recharge/limited-use abilities, unusual/legendary actions, image changes, attack/damage/casting controls, permissions, and independent resources across reload/reconnect. Keep unsupported automation explicitly manual while retaining the complete printed rules.
+- [x] E04-T13: Match the player sheet's compact combat header and accessible tabs; group action rolls, collapse rules/source, and deduplicate casting restrictions without losing saved/customized controls.
 
 Acceptance: the GM can select any monster/stat-block variant in `SRD_CC_v5.2.1.pdf`, add it directly to the board, and open a source-accurate, fully usable monster sheet. Applicable player-sheet controls work for monsters, including image changes, attack/damage rolls, and spellcasting. Adding a group never requires manually creating six sheets; damaging or spending a use on one creature does not affect the others. Exact stat-block content is required; full rules automation is not.
 
@@ -96,9 +108,11 @@ Implementation policy: all 336 printed blocks (including six spell/item creature
 
 Local verification: 407 unit/database/component tests, lint, TypeScript, production build, six Edge auth/smoke tests, PDF import/check and full formatting with `--end-of-line auto` passed. All 336 generated sheets pass application and Postgres validation. Migration: `20261116202045_encounter_creatures.sql`. No hosted migration applied. Authenticated multiplayer scenarios are extended but remain unrun; local Docker/Supabase and advisors are unavailable.
 
+Merged layout follow-up: [PR #32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32), 2026-11-16 (commit `cc4cd4a`). Monster sheets now use portrait/name and combat essentials, quick ability checks, one d20 roll-mode selector, and Actions/Spell/Abilities/Features & Traits/Resources/Notes & Source tabs. Action, damage, critical and recharge rolls are grouped; full rules and source are collapsed. All 336 monsters retain every generated action, roll and editable field exactly once; customized expressions, continued sections, orphaned rolls and homebrew spells remain usable. Verification: 455 tests, lint, production build/TypeScript, native-line-ending formatting and six Edge smoke tests passed; wide/narrow browser checks found no horizontal overflow or console errors. No schema changes.
+
 ### Epic 05 — Initiative and encounter lifecycle
 
-Status: Implemented; [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) ready for review, not merged. Dependencies: E04 (merged).
+Status: Complete; [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) merged into `main` on 2026-11-16 (commit `4580ae4`). Dependencies: E04 (merged).
 
 - [x] E05-T01: Model encounters, participants, initiative, round, and active turn with authorized server operations.
 - [x] E05-T02: Start an encounter from selected tokens; roll initiative through the existing authoritative dice service.
@@ -115,7 +129,7 @@ Local verification: 446 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 06 — Conditions, concentration, and death saves
 
-Status: Planned. Dependencies: E05.
+Status: Next; not started. Dependencies: E05 (merged).
 
 - [ ] E06-T01: Add condition markers with source, notes, optional duration, and manual removal.
 - [ ] E06-T02: Support start/end-of-turn expiry prompts and overrides; do not silently adjudicate ambiguous rules.
@@ -128,7 +142,9 @@ Acceptance: combat bookkeeping is visible and editable without implying that eve
 
 ### Epic 07 — Token quick actions
 
-Status: Planned. Dependencies: E05, E06.
+Status: Partially delivered through merged follow-ups; full epic not complete. Dependencies: E05 (merged), E06 (not started).
+
+Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. Left-click still opens the sheet; token-level Attack/Conditions/Initiative shortcuts, unified GM controls, and the full acceptance scenarios remain outstanding. Tasks below stay unchecked until their complete scope is delivered.
 
 - [ ] E07-T01: Separate token selection from opening its sheet; support keyboard-accessible equivalent controls.
 - [ ] E07-T02: Add Sheet, Attack, Damage/heal, Conditions, and Initiative actions appropriate to permissions.
@@ -260,7 +276,7 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 
 ## Unresolved Questions
 
-- None blocking E05. Turn advancement is GM-only.
+- None blocking E06 planning. E05 is merged; turn advancement remains GM-only.
 - Before E09: diagonal distance rule? Default: Euclidean; configurable later.
 - Before E10: forced camera or opt-in follow? Default: opt-in.
 - Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.
