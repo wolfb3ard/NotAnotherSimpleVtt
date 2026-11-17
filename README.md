@@ -43,6 +43,13 @@ This work includes material from the System Reference Document 5.2.1 (“SRD 5.2
 
 The rules have been adapted into an interactive sheet and calculations. Source: the supplied `SRD_CC_v5.2.1.pdf`, especially pp. 6–9 (D20 tests/proficiency), 13 (initiative), 16 (damage/critical hits), and the Exhaustion rules glossary entry.
 
+### Casting, rests & damage
+
+- Select a token → **Quick Actions → Casting, rests & damage**. On builder sheets, **Cast** previews spending one eligible shared spell slot or Pact Magic slot at its displayed level. Choose manual casting or a cantrip to spend nothing. Cast confirmation is bookkeeping only: it doesn't roll dice, publish a cast, apply effects, or start concentration.
+- **Short rest** previews supported class recovery. Enter your rolled Hit Dice results by die size to spend them and heal. **Long rest** restores supported counters, HP and all spent Hit Dice. Exclude individual recoveries for manual handling. Rest timing, exhaustion, reduced maxima, optional feature effects and custom counters aren't automated.
+- **Apply damage** previews final damage against the selected active-scene token. You need both token visibility and sheet edit access. Enter the amount after resolving saves and defenses; temporary HP goes first. **Undo last assisted damage** restores the HP and any concentration prompt it added, but refuses if sheet or combat state changed afterward. Death saves and custom HP systems remain manual.
+- Resource and damage confirmations are atomic. If a response is lost, use **Retry same request** rather than making another operation; the originating tab retains the request where session storage is available. Apply `supabase/migrations/20261117205658_assisted_damage.sql` before deploying assisted damage.
+
 ### SRD catalog & progression
 
 - **SRD 5.2.1 catalog & complete source pages** provides searchable classes/subclasses, species, backgrounds, feats, class features/options, spells, mundane equipment, and magic items. Original text from all 364 PDF pages remains accessible; long sheet entries link back to the full catalog text.

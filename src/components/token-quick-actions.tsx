@@ -8,6 +8,7 @@ import { CreatureAdder } from './creature-adder';
 import { CombatControls } from './combat-controls';
 import { tokenRolls } from '@/lib/token-rolls';
 import { TokenInitiative } from './token-initiative';
+import { PlayAssistance } from './play-assistance';
 
 const noRefresh = async () => {};
 
@@ -52,6 +53,7 @@ export function TokenQuickActions({
   const [position, setPosition] = useState(anchor);
   const [resourceBusy, setResourceBusy] = useState(false);
   const [combatBusy, setCombatBusy] = useState(false);
+  const [assistanceBusy, setAssistanceBusy] = useState(false);
   const [initiativeBusy, setInitiativeBusy] = useState(false);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
@@ -78,6 +80,7 @@ export function TokenQuickActions({
     busy ||
     resourceBusy ||
     combatBusy ||
+    assistanceBusy ||
     initiativeBusy ||
     duplicateBusy ||
     actionBusy ||
@@ -85,11 +88,18 @@ export function TokenQuickActions({
   useEffect(
     () =>
       onBusyChange(
-        resourceBusy || combatBusy || initiativeBusy || duplicateBusy || actionBusy || rollPending,
+        resourceBusy ||
+          combatBusy ||
+          assistanceBusy ||
+          initiativeBusy ||
+          duplicateBusy ||
+          actionBusy ||
+          rollPending,
       ),
     [
       resourceBusy,
       combatBusy,
+      assistanceBusy,
       initiativeBusy,
       duplicateBusy,
       actionBusy,
@@ -289,7 +299,13 @@ export function TokenQuickActions({
             actor={actor}
             snapshot={snapshot}
             disabled={
-              blocked || resourceBusy || combatBusy || duplicateBusy || actionBusy || rollPending
+              blocked ||
+              resourceBusy ||
+              combatBusy ||
+              assistanceBusy ||
+              duplicateBusy ||
+              actionBusy ||
+              rollPending
             }
             run={run}
             refresh={refresh}
@@ -408,6 +424,7 @@ export function TokenQuickActions({
                     blocked ||
                     resourceBusy ||
                     combatBusy ||
+                    assistanceBusy ||
                     initiativeBusy ||
                     actionBusy ||
                     rollPending
@@ -425,7 +442,14 @@ export function TokenQuickActions({
               key={actor.id}
               actor={actor}
               editable={editable}
-              blocked={blocked || combatBusy || initiativeBusy || duplicateBusy || actionBusy}
+              blocked={
+                blocked ||
+                combatBusy ||
+                assistanceBusy ||
+                initiativeBusy ||
+                duplicateBusy ||
+                actionBusy
+              }
               run={run}
               onBusyChange={setResourceBusy}
               onCommitted={onCommitted}
@@ -435,11 +459,30 @@ export function TokenQuickActions({
               actor={actor}
               snapshot={snapshot}
               editable={editable}
-              blocked={blocked || resourceBusy || initiativeBusy || duplicateBusy || actionBusy}
+              blocked={
+                blocked ||
+                resourceBusy ||
+                assistanceBusy ||
+                initiativeBusy ||
+                duplicateBusy ||
+                actionBusy
+              }
               run={run}
               onBusyChange={setCombatBusy}
               onRoll={onRoll}
             />
+            {editable && (
+              <PlayAssistance
+                key={`assistance:${snapshot.userId}:${actor.id}`}
+                actor={actor}
+                token={token}
+                userId={snapshot.userId}
+                disabled={locked}
+                active={token.scene_id === snapshot.game.active_scene_id}
+                run={run}
+                onBusyChange={setAssistanceBusy}
+              />
+            )}
             {!actor.sheet.sections.some((s) => s.fields.some((f) => f.kind === 'resource')) &&
               !actor.sheet.character?.features.some((f) => f.maxUses > 0) && (
                 <p className="small">

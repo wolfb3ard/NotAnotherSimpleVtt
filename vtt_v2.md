@@ -268,16 +268,18 @@ Acceptance: GM preparation stays private until explicitly shared; the party can 
 
 ### Epic 14 — Casting and rest assistance
 
-Status: Planned. Dependencies: E02, E06, E07.
+Status: Implemented. Dependencies: E02, E06, E07. Migration: `20261117205658_assisted_damage.sql`.
 
-- [ ] E14-T01: Add Cast → choose slot/source → preview → confirm, including Pact Magic and upcasting choices.
-- [ ] E14-T02: Spend resources atomically and idempotently; allow manual casting without expenditure when appropriate.
-- [ ] E14-T03: Add Apply damage to selected target with a clear preview, authorized target access, and undo.
-- [ ] E14-T04: Add Short rest/Long rest previews with source-aware recovery, Hit Dice choices, and manual exclusions.
-- [ ] E14-T05: Preserve unsupported/homebrew rules as manual actions with explicit automation limitations.
-- [ ] E14-T06: Test double submission, insufficient resources, multiclass casting, concurrent updates, undo, and custom sheets.
+- [x] E14-T01: Add Cast → choose slot/source → preview → confirm, including Pact Magic and upcasting choices.
+- [x] E14-T02: Spend resources atomically and idempotently; allow manual casting without expenditure when appropriate.
+- [x] E14-T03: Add Apply damage to selected target with a clear preview, authorized target access, and undo.
+- [x] E14-T04: Add Short rest/Long rest previews with source-aware recovery, Hit Dice choices, and manual exclusions.
+- [x] E14-T05: Preserve unsupported/homebrew rules as manual actions with explicit automation limitations.
+- [x] E14-T06: Test double submission, insufficient resources, multiclass casting, concurrent updates, undo, and custom sheets.
 
 Acceptance: resource changes are explicit, understandable, reversible where safe, and never silently inferred.
+
+Policy: SRD 5.2.1 builder pools only for automated casts and rests. Unsupported feature casting, optional recovery choices, effects and house rules remain manual. Damage requires a visible active-scene token and edit access; undo is revision-guarded for both sheet and combat state.
 
 ### Epic 15 — Remembered windows and usability hardening
 
@@ -305,4 +307,3 @@ Acceptance: the workspace survives a refresh and a real remote group can complet
 ## Unresolved Questions
 
 - None blocking E11. Templates are grid-independent with inclusive geometric boundaries; targeting/adjudication remain manual. Euclidean diagonals; alternate distance rules remain manual/future configuration. Character claims require explicit GM ownership assignment; hidden/other-scene locations remain undisclosed. Camera requests use explicit opt-in Follow.
-- Before E14: which optional rest/house rules? Default: SRD 5.2.1 with manual overrides.

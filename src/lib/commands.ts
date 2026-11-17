@@ -66,6 +66,27 @@ export const commandSchemas = {
     })
     .refine((p) => (p.x === undefined) === (p.y === undefined), 'Choose both coordinates.'),
   actor_combat: combatCommandSchema,
+  assist_damage: z.discriminatedUnion('action', [
+    z
+      .object({
+        action: z.literal('apply'),
+        id,
+        token_id: id,
+        operation_id: id,
+        revision,
+        combat_revision: revision,
+        amount: z.number().int().min(1).max(1e12),
+      })
+      .strict(),
+    z
+      .object({
+        action: z.literal('undo'),
+        id,
+        token_id: id,
+        operation_id: id,
+      })
+      .strict(),
+  ]),
   encounter: encounterCommandSchema,
   invite: z.object({}),
   revoke_invites: z.object({}),
