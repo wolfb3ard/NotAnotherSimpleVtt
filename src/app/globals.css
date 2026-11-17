@@ -768,6 +768,42 @@ summary {
   gap: 8px;
   pointer-events: none;
 }
+.practice-dialog {
+  width: min(38rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  color: inherit;
+  background: #182226;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+}
+.practice-dialog::backdrop {
+  background: #071012d9;
+}
+.practice-map {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  background: #101a19;
+}
+.practice-tile {
+  display: grid;
+  place-items: center;
+  min-height: 4rem;
+  padding: 0.4rem;
+  background: #284239;
+  color: #f0f7ef;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.practice-tile[data-fog='true'] {
+  background: #30383a;
+}
+.practice-token {
+  border: 2px solid #9ce9b2;
+}
 .canvas-tools {
   display: flex;
   gap: 5px;
