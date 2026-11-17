@@ -22,6 +22,7 @@ import { useTabletopEdits } from './use-tabletop-edits';
 import { monsterId } from '@/lib/monster-sheet';
 import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
 import { FirstSessionGuide } from './first-session-guide';
+import { useRoomAttention } from './use-room-attention';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -49,8 +50,11 @@ export function Room({ initial }: { initial: Snapshot }) {
   }>();
   const [quickBusy, setQuickBusy] = useState(false);
   const [error, setError] = useState('');
-  const [sync, setSync] = useState('Connecting');
+  const [sync, setSync] = useState('Snapshot loaded');
+  const [live, setLive] = useState(false);
+  const [syncedAt, setSyncedAt] = useState(() => Date.now());
   const [denied, setDenied] = useState(false);
+  const attention = useRoomAttention(snapshot, live, !denied);
   const [pending, setPending] = useState(false);
   const [invite, setInvite] = useState('');
   const [expression, setExpression] = useState('1d20');
@@ -167,16 +171,18 @@ export function Room({ initial }: { initial: Snapshot }) {
             ? current
             : '',
         );
-        setSync('Connected');
+        setSync('Snapshot synced');
+        setSyncedAt(Date.now());
       } while (refreshAgain.current);
     } catch {
-      setSync('Reconnecting…');
+      setSync('Snapshot sync failed');
     } finally {
       refreshRunning.current = false;
     }
   }, [initial.game.id]);
   useEffect(() => {
     const db = supabaseBrowser();
+    let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const queue = () => {
       clearTimeout(timer);
@@ -205,9 +211,9 @@ export function Room({ initial }: { initial: Snapshot }) {
         queue,
       )
       .subscribe((status) => {
+        if (!active) return;
+        setLive(status === 'SUBSCRIBED');
         if (status === 'SUBSCRIBED') void refresh();
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')
-          setSync('Reconnecting…');
       });
     const interval = setInterval(() => {
       if (!document.hidden) void refresh();
@@ -215,18 +221,26 @@ export function Room({ initial }: { initial: Snapshot }) {
     const foreground = () => {
       if (!document.hidden) void refresh();
     };
+    const offline = () => setLive(false);
     window.addEventListener('online', foreground);
+    window.addEventListener('offline', offline);
     document.addEventListener('visibilitychange', foreground);
     return () => {
+      active = false;
       clearTimeout(timer);
       clearInterval(interval);
       window.removeEventListener('online', foreground);
+      window.removeEventListener('offline', offline);
       document.removeEventListener('visibilitychange', foreground);
       void db.removeChannel(channel);
     };
   }, [initial.game.id, refresh]);
   async function run(command: Command, payload: unknown) {
     setError('');
+    if (!navigator.onLine) {
+      setError('Offline. Change not sent. Previously unconfirmed changes may still have saved.');
+      return;
+    }
     try {
       const result = await mutate(snapshot.game.id, command, payload);
       if (result.error) {
@@ -241,6 +255,10 @@ export function Room({ initial }: { initial: Snapshot }) {
     }
   }
   async function sendRoll(sheetRoll?: { actorId: string; expression: string; rollType: string }) {
+    if (!navigator.onLine) {
+      setError('Offline. Roll not sent. Previously unconfirmed rolls may still have saved.');
+      return;
+    }
     if (rollPending.current) return;
     rollPending.current = true;
     setPending(true);
@@ -329,8 +347,18 @@ export function Room({ initial }: { initial: Snapshot }) {
             {gm ? 'Game Master' : 'Player'} · {snapshot.members.length} adventurers
           </span>
         </div>
-        <span className={`connection ${sync === 'Connected' ? 'connected' : ''}`} role="status">
-          ● {sync}
+        <span className={`connection ${live && attention.online ? 'connected' : ''}`} role="status">
+          {attention.online
+            ? live
+              ? 'Live channel connected'
+              : 'Live channel reconnecting'
+            : 'Offline'}
+          {' · '}
+          {sync}
+          <span aria-live="off">
+            {' · '}
+            {Math.max(0, Math.floor((attention.now - syncedAt) / 1000))}s ago
+          </span>
         </span>
         <Link className="button ghost" href="/">
           Leave table ↗
@@ -348,12 +376,43 @@ export function Room({ initial }: { initial: Snapshot }) {
         }}
       />
       <EncounterTurnCue snapshot={snapshot} />
+      <details className="room-presence">
+        <summary>
+          Who is online {attention.fresh ? `(${attention.members.length})` : '(unknown)'}
+        </summary>
+        <p>
+          Presence uses heartbeats, not activity. Tabs expire after 12 seconds; suspended tabs may
+          appear offline. Live-channel state is separate from snapshot polling.
+        </p>
+        <ul>
+          {snapshot.members.map((m) => {
+            const presence = attention.members.find((p) => p.user_id === m.user_id);
+            return (
+              <li key={m.user_id}>
+                {m.display_name} ·{' '}
+                {!attention.fresh
+                  ? 'Unknown — presence unavailable'
+                  : !presence
+                    ? 'Offline'
+                    : `${presence.live ? 'Online · live' : 'Online · reconnecting live channel'} · ${presence.tabs} tab(s)`}
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+      {!attention.online && (
+        <p role="alert">
+          Offline. New changes cannot be confirmed. Do not repeat unconfirmed writes with new
+          inputs; reconnect and check their state.
+        </p>
+      )}
       <div className="room-body">
         <Tabletop
           key={scene?.id ?? 'empty'}
           snapshot={snapshot}
           edits={tabletopEdits}
           run={run}
+          attention={attention}
           openQuickActions={(tokenId, anchor) => {
             if (quickActions?.tokenId !== tokenId && !leaveQuickActions()) return false;
             const target = snapshot.tokens.find((t) => t.id === tokenId);

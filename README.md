@@ -15,6 +15,16 @@
 - Server-generated dice rolls: custom die sizes, mixed dice, arithmetic, parentheses, keep-highest/lowest, modifiers, and saved rolls using sheet fields.
 - Animated 3D polyhedral dice over the tabletop (d4/d6/d8/d10/d12/d20), anonymous private-player roll cues, and per-user dice material customization.
 - Public/private roll history, optimistic revision checks, reconnect reconciliation, and database-enforced access controls.
+- Fog-safe ephemeral pings, explicit Follow/Decline for GM camera requests, tab-aware presence, and separate snapshot/live-channel health.
+
+## Shared attention & connection confidence
+
+- **Ping map** then click revealed space, or use **Attention coordinates & policy** for keyboard/numeric entry. Pings are static, labelled, non-flashing markers lasting 8 seconds, independent of zoom. Hidden tokens are never used as attention targets; no token IDs or private metadata are transmitted.
+- GM **Bring everyone here** chooses an explicit point in revealed space. Each player chooses **Follow camera request** or **Decline camera request**; nothing follows automatically. Following rechecks the server's current scene/fog/expiry and preserves personal zoom. Requests expire after 20 seconds; scene switches discard them. GM player preview blocks sharing/following and hides markers.
+- Requests are throttled server-side per user/type across tabs (one per two seconds), replace the previous request of that type, and are not history or undoable. Lost acknowledgements report **not confirmed**; they are not automatically retried. Sharing never claims recipient delivery.
+- **Who is online** is distinct from campaign membership. A server heartbeat runs about every 3 seconds per open tab (up to eight tabs/user/game); leases expire after 12 seconds, plus polling delay. Idle tabs count as online; closed, disconnected or browser-suspended tabs eventually expire. At least one live tab makes the member **Online · live**; otherwise a fresh heartbeat says **Online · reconnecting live channel**. If this client's presence poll fails/stales, status is **Unknown**, not a claim that everyone disconnected.
+- The header reports **live-channel health** separately from **snapshot sync** and the last successful snapshot's age. Successful fallback polling does not imply a connected WebSocket. Browser offline reports honestly; existing pending/unconfirmed-write retry and reconciliation guards remain. Check saved state after reconnect before repeating a write with changed inputs.
+- Apply `supabase/migrations/20261117151604_shared_attention.sql` after earlier migrations. Ephemeral transport uses private RPC-only tables with membership, scene revision, fog and GM checks on the server; no client broadcast or new table replication is enabled. Slots are bounded and lazily pruned during room use; expired rows in inactive games are inaccessible, not a durable journal. No hosted changes occur at application startup.
 
 ## Physical dice & 5.5e sheets
 

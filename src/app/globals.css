@@ -1877,3 +1877,43 @@ dialog[aria-labelledby='srd-builder-title'] label.row {
 .token-appearance > .row > p {
   flex: 1;
 }
+.shared-attention-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: auto;
+  max-width: 100%;
+  padding: 6px;
+  border-radius: 6px;
+  background: #1b2528eb;
+}
+.shared-attention-tools > details {
+  max-width: 36rem;
+}
+.shared-attention-tools p {
+  margin: 0.2rem 0;
+}
+.shared-attention-tools input {
+  width: 6rem;
+}
+.attention-marker {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  color: #fff4bf;
+  font-size: 2rem;
+  text-shadow: 0 1px 4px #000;
+}
+.attention-marker span {
+  display: block;
+  background: #131e26;
+  border: 1px solid #fff4bf;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.75rem;
+}
+.room-presence {
+  padding: 0.3rem 1rem;
+}

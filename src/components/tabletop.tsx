@@ -23,9 +23,12 @@ import {
 } from '@/lib/navigation';
 import { useMapView } from './use-map-view';
 import { GridSettings } from './grid-settings';
+import { SharedAttention, AttentionMarkers } from './shared-attention';
+import type { RoomAttention } from './use-room-attention';
 
 type Point = { x: number; y: number };
-type Mode = 'move' | 'measure' | 'calibrate' | 'reveal' | 'conceal' | 'place' | 'spawn';
+type Mode =
+  'move' | 'measure' | 'calibrate' | 'reveal' | 'conceal' | 'place' | 'spawn' | 'ping' | 'camera';
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
 function useImage(url: string | undefined) {
   const [loaded, setLoaded] = useState<{ url: string; image: HTMLImageElement }>();
@@ -213,6 +216,7 @@ function TabletopScene({
   openQuickActions,
   onPreviewChange,
   children,
+  attention,
 }: {
   snapshot: Snapshot;
   edits: ReturnType<typeof useTabletopEdits>;
@@ -220,6 +224,7 @@ function TabletopScene({
   openQuickActions: (tokenId: string, anchor: Point) => boolean | void;
   onPreviewChange?: (preview: boolean) => boolean;
   children?: React.ReactNode;
+  attention?: RoomAttention;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
@@ -327,6 +332,12 @@ function TabletopScene({
     pointerGesture.current = true;
     if (spacePan) return;
     if (mode === 'move' || e.evt.button !== 0) return;
+    if (mode === 'ping' || mode === 'camera') {
+      const p = point();
+      if (p && scene && !preview) void attention?.send(mode, p, scene);
+      setMode('move');
+      return;
+    }
     if (mode === 'place' || mode === 'spawn') {
       const p = point();
       if (p) void placeAt(p);
@@ -630,6 +641,21 @@ function TabletopScene({
             </>
           )}
         </div>
+        {attention && scene && (
+          <SharedAttention
+            attention={attention}
+            snapshot={snapshot}
+            scene={scene}
+            preview={preview}
+            selectMode={setMode}
+            center={(point) =>
+              setPosition({
+                x: dimensions.width / 2 - point.x * scale,
+                y: dimensions.height / 2 - point.y * scale,
+              })
+            }
+          />
+        )}
         <div className="tabletop-undo-status" role="status">
           {placement.message}
           {setupMessage && <p>{setupMessage}</p>}
@@ -821,6 +847,9 @@ function TabletopScene({
                 ))}
             </Layer>
           </Stage>
+          {attention && !preview && (
+            <AttentionMarkers signals={attention.signals} snapshot={snapshot} view={view} />
+          )}
           {!image && (
             <div className="map-loading" role="status">
               {failed ? 'Map could not load. Reload the room to retry.' : 'Preparing map…'}
@@ -978,13 +1007,15 @@ function TabletopScene({
           ? preview
             ? 'Player preview · token actions disabled'
             : 'Click token for actions · Drag to pan · Scroll to zoom · Drag your token to move'
-          : mode === 'place' || mode === 'spawn'
-            ? 'Click the map to choose a starting point · numeric controls available'
-            : mode === 'measure'
-              ? 'Drag to measure a straight-line distance'
-              : mode === 'calibrate'
-                ? 'Drag between two points with a known distance'
-                : 'Drag a rectangle over the map'}
+          : mode === 'ping' || mode === 'camera'
+            ? 'Click revealed map space to share attention · numeric controls available · Move cancels'
+            : mode === 'place' || mode === 'spawn'
+              ? 'Click the map to choose a starting point · numeric controls available'
+              : mode === 'measure'
+                ? 'Drag to measure a straight-line distance'
+                : mode === 'calibrate'
+                  ? 'Drag between two points with a known distance'
+                  : 'Drag a rectangle over the map'}
       </span>
       {children}
     </div>
