@@ -95,15 +95,15 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
         })),
       )
       .throwOnError();
-    const path = `${gameId}/${assetId}.png`;
+    const path = `${gameId}/${assetId}.webp`;
     const image = await sharp({
       create: { width: 300, height: 300, channels: 3, background: '#555' },
     })
-      .png()
+      .webp()
       .toBuffer();
     const upload = await admin.storage
       .from('tabletop')
-      .upload(path, image, { contentType: 'image/png' });
+      .upload(path, image, { contentType: 'image/webp' });
     if (upload.error) throw upload.error;
     await admin
       .from('assets')
@@ -221,7 +221,7 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
     await Promise.all(contexts.map((c) => c.close()));
     await admin.storage
       .from('tabletop')
-      .remove([`${gameId}/${assetId}.png`, `masked/${gameId}/${sceneId}/0.png`]);
+      .remove([`${gameId}/${assetId}.webp`, `masked/${gameId}/${sceneId}/0.png`]);
     await admin.from('games').update({ active_scene_id: null }).eq('id', gameId);
     await admin.from('games').delete().eq('id', gameId);
     for (const user of users) await admin.auth.admin.deleteUser(user);
