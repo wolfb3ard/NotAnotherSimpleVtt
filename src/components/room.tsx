@@ -283,6 +283,41 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
       void db.removeChannel(channel);
     };
   }, [initial.game.id, refresh]);
+  // A subscribed socket can miss an invalidation during reconnect. While a
+  // creature is open, check one small RLS-filtered revision rather than
+  // downloading the whole room on a fast timer.
+  const inspectingActor = !!quickActions || !!selectedActor;
+  useEffect(() => {
+    if (!inspectingActor) return;
+    const db = supabaseBrowser();
+    let active = true;
+    let checking = false;
+    let revision: number | undefined;
+    async function check() {
+      if (checking || document.hidden || !navigator.onLine) return;
+      checking = true;
+      try {
+        const { data } = await db
+          .from('room_events')
+          .select('revision')
+          .eq('game_id', initial.game.id)
+          .maybeSingle();
+        if (active && data && data.revision !== revision) {
+          revision = data.revision;
+          await refresh();
+        }
+      } catch {
+        // The existing channel and foreground/full refresh remain available.
+      } finally {
+        checking = false;
+      }
+    }
+    const timer = setInterval(() => void check(), 1800);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [inspectingActor, initial.game.id, refresh]);
   async function run(command: Command, payload: unknown) {
     setError('');
     if (!navigator.onLine) {
