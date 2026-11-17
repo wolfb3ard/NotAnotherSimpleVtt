@@ -140,6 +140,106 @@ afterAll(async () => {
   await db?.close();
 });
 
+it('applies assisted damage once, protects target access, and undoes HP and concentration together', async () => {
+  const sheet = createDndSheet();
+  const hp = dndId('hp');
+  sheet.sections
+    .find((s) => s.fields.some((f) => f.id === hp))!
+    .fields.push({
+      id: temporaryHpId,
+      label: 'Temporary HP',
+      kind: 'resource',
+      value: 3,
+      max: 10,
+    });
+  const state = emptyCombat();
+  state.concentration = { source: 'Bless', notes: '', checks: [] };
+  await db.exec('reset role');
+  await db.query('update games set active_scene_id=$1 where id=$2', [scene, game]);
+  await db.query(
+    'update actors set sheet=$1::jsonb,combat=$2::jsonb,revision=0,combat_revision=0 where id=$3',
+    [JSON.stringify(sheet), JSON.stringify(state), actor],
+  );
+  const op = randomUUID();
+  const damage = async (
+    operation = op,
+    undo = false,
+    token = heroToken,
+    target = actor,
+    targetGame = game,
+  ) =>
+    (
+      await db.query<{ v: { revision: string } }>(
+        'select assist_damage($1,$2,$3,$4,$5,$6,$7,$8) v',
+        [
+          targetGame,
+          token,
+          target,
+          operation,
+          undo ? null : 0,
+          undo ? null : 0,
+          undo ? null : 5,
+          undo,
+        ],
+      )
+    ).rows[0].v;
+  const health = async () => {
+    const row = (
+      await db.query<{ sheet: typeof sheet }>('select sheet from actors where id=$1', [actor])
+    ).rows[0];
+    const fields = row.sheet.sections.flatMap((s) => s.fields);
+    return [hp, temporaryHpId].map((id) => fields.find((f) => f.id === id)?.value);
+  };
+  await as(outsider);
+  await expect(damage()).rejects.toThrow('Damage target unavailable');
+  await as(player);
+  await expect(damage(randomUUID(), false, enemyToken, enemy)).rejects.toThrow(
+    'Damage target unavailable',
+  );
+  await db.exec('reset role');
+  await db.query('update tokens set hidden=true where id=$1', [heroToken]);
+  await as(player);
+  await expect(damage()).rejects.toThrow('Damage target unavailable');
+  await db.exec('reset role');
+  await db.query('update tokens set hidden=false where id=$1', [heroToken]);
+  await as(gm);
+  await expect(damage(randomUUID(), false, enemyToken)).rejects.toThrow(
+    'Damage target unavailable',
+  );
+  await expect(damage(randomUUID(), false, heroToken, actor, randomUUID())).rejects.toThrow(
+    'Damage target unavailable',
+  );
+  const first = await damage();
+  expect(await damage()).toEqual(first);
+  expect(await health()).toEqual([8, 0]);
+  const after = await read();
+  expect(after.combat.concentration?.checks).toEqual([
+    expect.objectContaining({ damage: 5, dc: 10 }),
+  ]);
+  await expect(damage(randomUUID())).rejects.toThrow('Target changed');
+  const undone = await damage(op, true);
+  expect(await damage(op, true)).toEqual(undone);
+  expect(await health()).toEqual([10, 3]);
+  expect((await read()).combat).toEqual(state);
+  const later = randomUUID();
+  await db.query('select assist_damage($1,$2,$3,$4,$5,$6,5,false)', [
+    game,
+    heroToken,
+    actor,
+    later,
+    Number(undone.revision),
+    (await read()).combat_revision,
+  ]);
+  const newer = await read();
+  await save(emptyCombat(), newer.combat_revision);
+  await expect(damage(later, true)).rejects.toThrow('Undo would overwrite newer edits');
+  await db.exec('reset role');
+  await db.query('update actors set sheet=$1::jsonb,revision=0 where id=$2', [
+    JSON.stringify(createDndSheet()),
+    actor,
+  ]);
+});
+
 it('defaults old actors safely and rejects direct writes', async () => {
   expect((await read()).combat).toEqual(emptyCombat());
   await expect(

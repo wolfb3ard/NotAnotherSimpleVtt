@@ -236,6 +236,21 @@ export async function mutate(
       if (error) throw new Error(error.message);
       return { data };
     }
+    if (command === 'assist_damage') {
+      const request = commandSchemas.assist_damage.parse(validated);
+      const { data, error } = await db.rpc('assist_damage', {
+        p_game: gameId,
+        p_token: request.token_id,
+        p_actor: request.id,
+        p_operation: request.operation_id,
+        p_undo: request.action === 'undo',
+        p_revision: request.action === 'apply' ? request.revision : null,
+        p_combat_revision: request.action === 'apply' ? request.combat_revision : null,
+        p_amount: request.action === 'apply' ? request.amount : null,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     if (command === 'actor_combat') {
       const request = commandSchemas.actor_combat.parse(validated);
       const { data, error } = await db.rpc('save_actor_combat', {

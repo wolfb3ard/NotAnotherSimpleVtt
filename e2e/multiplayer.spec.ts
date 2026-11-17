@@ -565,6 +565,24 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(quick.getByRole('status').filter({ hasText: 'Resources:' })).toHaveText(
       'Resources: Saved',
     );
+    const assistance = quick
+      .locator('details')
+      .filter({
+        has: quick.getByText('Casting, rests & damage', { exact: true }),
+      })
+      .last();
+    await quick.getByText('Casting, rests & damage', { exact: true }).click();
+    await assistance.getByLabel('Assistance', { exact: true }).selectOption('damage');
+    await assistance.getByLabel('Final damage to Builder hero').fill('1');
+    await assistance.getByRole('button', { name: 'Preview damage', exact: true }).click();
+    await expect(assistance.getByLabel('Assistance preview')).toContainText(
+      `Hit Points: ${nextHp} → ${nextHp - 1}`,
+    );
+    await expect(hp).toHaveValue(String(nextHp));
+    await assistance.getByRole('button', { name: 'Confirm damage', exact: true }).click();
+    await expect(hp).toHaveValue(String(nextHp - 1));
+    await assistance.getByRole('button', { name: 'Undo last assisted damage' }).click();
+    await expect(hp).toHaveValue(String(nextHp));
     await expect(
       player.page.getByRole('dialog', { name: 'Builder hero', exact: true }),
     ).toHaveCount(0);
