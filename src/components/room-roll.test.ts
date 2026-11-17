@@ -208,6 +208,9 @@ it.each(['public', 'private'] as const)(
       select.value = visibility;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="My character"]')!.click(),
+    );
     const quickVisibility = container.querySelector<HTMLSelectElement>(
       '[aria-label="Quick roll visibility"]',
     )!;
@@ -478,7 +481,7 @@ it('restores a resized roll window after remount, isolates rooms and users, and 
   expect(dialog()).toBeNull();
   await render(snapshot);
   expect(dialog()?.style.width).toBe(width);
-  await click('Room');
+  await click('Settings');
   await click('Reset layout');
   expect(dialog()).toBeNull();
   await click('Dice');

@@ -12,6 +12,8 @@ import type { Sheet } from '@/lib/types';
 import { srdCastingSources } from '@/lib/srd-casting';
 import { dndNumbers } from '@/lib/dnd';
 import type { QuickUpdate } from '@/lib/resources';
+import { castChoices } from '@/lib/play-assistance';
+import { equipmentEntry, isShield, armorProfile, resolveLoadout } from '@/lib/srd-equipment';
 
 const tabs = [
   'Actions',
@@ -23,6 +25,9 @@ const tabs = [
 ] as const;
 type Tab = (typeof tabs)[number];
 type Props = {
+  playing?: boolean;
+  onEquip?: (id: string) => void;
+  onUseItem?: (id: string) => void;
   sheet: Sheet;
   editable: boolean;
   rollable: boolean;
@@ -39,6 +44,9 @@ type Props = {
 };
 
 export function DndTabs({
+  playing,
+  onEquip,
+  onUseItem,
   sheet,
   editable,
   rollable,
@@ -280,169 +288,295 @@ export function DndTabs({
               ))}
             </>
           )}
-          {label === 'Spell' && (
-            <>
-              <section className="dnd-box">
-                <h3>Spellcasting</h3>
-                {input('spell-ability')}
-                {input('spell-dc')}
-                {spellAttack}
-                <div className="dnd-entry-grid">
-                  {Array.from({ length: 9 }, (_, level) => {
-                    const slot = sheet.sections
-                      .flatMap((s) => s.fields)
-                      .find((f) => f.id === dndId(`slot:${level}`));
+          {label === 'Spell' && playing && tab === label && (
+            <section className="stack">
+              <h3>Spellcasting</h3>
+              <p>
+                A spell is a magical effect. A cantrip needs no slot. Most other spells spend a slot
+                of their level or higher.
+              </p>
+              {!spells.length && <p>No spells on this sheet.</p>}
+              {spells.map((spell) => (
+                <article className="dnd-box" key={spell.id}>
+                  <h3>{spell.name}</h3>
+                  <p>
+                    {spell.level
+                      ? `Level ${spell.level} · ${spell.prepared ? 'Prepared' : 'Not prepared'}`
+                      : 'Cantrip'}{' '}
+                    · {spell.actionType}
+                  </p>
+                  <p>{spell.description.split('\n').find(Boolean) || 'No description recorded.'}</p>
+                  {spell.casting?.map((c) => {
+                    const source = castingSources.find((s) => s.id === c.sourceId);
                     return (
-                      slot && (
-                        <div className="dnd-box" key={level}>
-                          {input(`slot:${level}`, `Level ${level + 1} slots remaining`)}
-                          <div className="wrap">
+                      source && (
+                        <div key={source.id}>
+                          {source.label} · Save DC {computed[dndId(source.dcKey)]}
+                          {/spell attack/i.test(spell.description) && (
                             <button
-                              disabled={!editable || !quickEditable || Number(slot.value) <= 0}
+                              disabled={!rollable || dirty}
                               onClick={() =>
-                                quickUpdate
-                                  ? quickUpdate([{ id: slot.id, value: Number(slot.value) - 1 }])
-                                  : update((copy) => {
-                                      const f = copy.sections
-                                        .flatMap((s) => s.fields)
-                                        .find((f) => f.id === slot.id)!;
-                                      f.value = Number(f.value) - 1;
-                                    })
+                                onRoll(
+                                  `${d20} + @{${dndId(source.attackKey)}}`,
+                                  `Spell attack with ${spell.name} (${source.label})`,
+                                )
                               }
                             >
-                              Use level {level + 1} slot
+                              Roll {spell.name} ({source.label})
                             </button>
-                            <button
-                              disabled={
-                                !editable || !quickEditable || Number(slot.value) >= (slot.max ?? 0)
-                              }
-                              onClick={() =>
-                                quickUpdate
-                                  ? quickUpdate([{ id: slot.id, value: Number(slot.value) + 1 }])
-                                  : update((copy) => {
-                                      const f = copy.sections
-                                        .flatMap((s) => s.fields)
-                                        .find((f) => f.id === slot.id)!;
-                                      f.value = Number(f.value) + 1;
-                                    })
-                              }
-                            >
-                              Recover level {level + 1} slot
-                            </button>
-                          </div>
+                          )}
                         </div>
                       )
                     );
                   })}
-                </div>
-              </section>
-              {editable && (
-                <button
-                  disabled={spells.length >= 200}
-                  onClick={() =>
-                    edit((d) => {
-                      d.spells.push({
-                        id: crypto.randomUUID(),
-                        name: 'New spell',
-                        description: '',
-                        level: 0,
-                        prepared: false,
-                        actionType: 'Action',
-                      });
-                    })
-                  }
-                >
-                  Add spell
-                </button>
-              )}
-              {Array.from({ length: 10 }, (_, level) => (
-                <section className="dnd-box" key={level}>
-                  <h3>{level === 0 ? 'Cantrips' : `Level ${level}`}</h3>
-                  {!spells.some((s) => s.level === level) && <p className="muted">No spells.</p>}
-                  {spells
-                    .filter((s) => s.level === level)
-                    .map((spell) => (
-                      <article className="dnd-entry" key={spell.id}>
-                        {spell.casting?.map((casting) => {
-                          const source = castingSources.find(
-                            (source) => source.id === casting.sourceId,
-                          );
-                          if (!source) return null;
-                          return (
-                            <div key={source.id} className="wrap">
-                              <span className="small">
-                                {source.label} · Save DC {computed[dndId(source.dcKey)]}
-                              </span>
-                              {/spell attack/i.test(spell.description) && (
-                                <button
-                                  disabled={!rollable || dirty}
-                                  onClick={() =>
-                                    onRoll(
-                                      `${d20} + @{${dndId(source.attackKey)}}`,
-                                      `Spell attack with ${spell.name} (${source.label})`,
-                                    )
-                                  }
-                                >
-                                  Roll {spell.name} ({source.label})
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {text('Spell name', spell.name, (v) =>
-                          edit((d) => {
-                            d.spells.find((s) => s.id === spell.id)!.name = v;
-                          }),
-                        )}
-                        {number(
-                          `${spell.name} level`,
-                          spell.level,
-                          (v) =>
-                            edit((d) => {
-                              d.spells.find((s) => s.id === spell.id)!.level = v;
-                            }),
-                          9,
-                        )}
-                        {select(`${spell.name} casting time`, spell.actionType, actionTypes, (v) =>
-                          edit((d) => {
-                            d.spells.find((s) => s.id === spell.id)!.actionType =
-                              v as typeof spell.actionType;
-                          }),
-                        )}
-                        {spell.level > 0 &&
-                          check(`Prepare ${spell.name}`, spell.prepared, (v) =>
-                            edit((d) => {
-                              d.spells.find((s) => s.id === spell.id)!.prepared = v;
-                            }),
-                          )}
-                        {text(
-                          `${spell.name} description`,
-                          spell.description,
-                          (v) =>
-                            edit((d) => {
-                              d.spells.find((s) => s.id === spell.id)!.description = v;
-                            }),
-                          true,
-                        )}
-                        {editable && (
-                          <button
-                            onClick={() =>
-                              edit((d) => {
-                                d.spells = d.spells.filter((s) => s.id !== spell.id);
-                              })
-                            }
-                          >
-                            Remove {spell.name}
-                          </button>
-                        )}
-                      </article>
-                    ))}
-                </section>
+                  <details>
+                    <summary>Rules and casting options</summary>
+                    <p className="dnd-description">{spell.description}</p>
+                    {castChoices(sheet, spell)
+                      .filter((c) => c.changes.length)
+                      .map((c) => (
+                        <button
+                          key={c.key}
+                          disabled={!quickUpdate || !quickEditable || !c.available || dirty}
+                          onClick={() => quickUpdate?.(c.changes)}
+                        >
+                          Cast · {c.label}
+                        </button>
+                      ))}
+                    {spell.level === 0 && (
+                      <p>Cast without spending a slot. Resolve the effect described above.</p>
+                    )}
+                  </details>
+                </article>
               ))}
-              {input('spells', 'Existing spell notes', true)}
+            </section>
+          )}
+          {label === 'Spell' && (
+            <>
+              <details open={!playing}>
+                <summary>Spell slots and casting statistics</summary>
+                <section className="dnd-box">
+                  <h3>Spellcasting</h3>
+                  {input('spell-ability')}
+                  {input('spell-dc')}
+                  {spellAttack}
+                  <div className="dnd-entry-grid">
+                    {Array.from({ length: 9 }, (_, level) => {
+                      const slot = sheet.sections
+                        .flatMap((s) => s.fields)
+                        .find((f) => f.id === dndId(`slot:${level}`));
+                      return (
+                        slot && (
+                          <div className="dnd-box" key={level}>
+                            {input(`slot:${level}`, `Level ${level + 1} slots remaining`)}
+                            <div className="wrap">
+                              <button
+                                disabled={!editable || !quickEditable || Number(slot.value) <= 0}
+                                onClick={() =>
+                                  quickUpdate
+                                    ? quickUpdate([{ id: slot.id, value: Number(slot.value) - 1 }])
+                                    : update((copy) => {
+                                        const f = copy.sections
+                                          .flatMap((s) => s.fields)
+                                          .find((f) => f.id === slot.id)!;
+                                        f.value = Number(f.value) - 1;
+                                      })
+                                }
+                              >
+                                Use level {level + 1} slot
+                              </button>
+                              <button
+                                disabled={
+                                  !editable ||
+                                  !quickEditable ||
+                                  Number(slot.value) >= (slot.max ?? 0)
+                                }
+                                onClick={() =>
+                                  quickUpdate
+                                    ? quickUpdate([{ id: slot.id, value: Number(slot.value) + 1 }])
+                                    : update((copy) => {
+                                        const f = copy.sections
+                                          .flatMap((s) => s.fields)
+                                          .find((f) => f.id === slot.id)!;
+                                        f.value = Number(f.value) + 1;
+                                      })
+                                }
+                              >
+                                Recover level {level + 1} slot
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      );
+                    })}
+                  </div>
+                </section>
+              </details>
+              {!playing && (
+                <>
+                  {editable && (
+                    <button
+                      disabled={spells.length >= 200}
+                      onClick={() =>
+                        edit((d) => {
+                          d.spells.push({
+                            id: crypto.randomUUID(),
+                            name: 'New spell',
+                            description: '',
+                            level: 0,
+                            prepared: false,
+                            actionType: 'Action',
+                          });
+                        })
+                      }
+                    >
+                      Add spell
+                    </button>
+                  )}
+                  {Array.from({ length: 10 }, (_, level) => (
+                    <section className="dnd-box" key={level}>
+                      <h3>{level === 0 ? 'Cantrips' : `Level ${level}`}</h3>
+                      {!spells.some((s) => s.level === level) && (
+                        <p className="muted">No spells.</p>
+                      )}
+                      {spells
+                        .filter((s) => s.level === level)
+                        .map((spell) => (
+                          <article className="dnd-entry" key={spell.id}>
+                            {spell.casting?.map((casting) => {
+                              const source = castingSources.find(
+                                (source) => source.id === casting.sourceId,
+                              );
+                              if (!source) return null;
+                              return (
+                                <div key={source.id} className="wrap">
+                                  <span className="small">
+                                    {source.label} · Save DC {computed[dndId(source.dcKey)]}
+                                  </span>
+                                  {/spell attack/i.test(spell.description) && (
+                                    <button
+                                      disabled={!rollable || dirty}
+                                      onClick={() =>
+                                        onRoll(
+                                          `${d20} + @{${dndId(source.attackKey)}}`,
+                                          `Spell attack with ${spell.name} (${source.label})`,
+                                        )
+                                      }
+                                    >
+                                      Roll {spell.name} ({source.label})
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {text('Spell name', spell.name, (v) =>
+                              edit((d) => {
+                                d.spells.find((s) => s.id === spell.id)!.name = v;
+                              }),
+                            )}
+                            {number(
+                              `${spell.name} level`,
+                              spell.level,
+                              (v) =>
+                                edit((d) => {
+                                  d.spells.find((s) => s.id === spell.id)!.level = v;
+                                }),
+                              9,
+                            )}
+                            {select(
+                              `${spell.name} casting time`,
+                              spell.actionType,
+                              actionTypes,
+                              (v) =>
+                                edit((d) => {
+                                  d.spells.find((s) => s.id === spell.id)!.actionType =
+                                    v as typeof spell.actionType;
+                                }),
+                            )}
+                            {spell.level > 0 &&
+                              check(`Prepare ${spell.name}`, spell.prepared, (v) =>
+                                edit((d) => {
+                                  d.spells.find((s) => s.id === spell.id)!.prepared = v;
+                                }),
+                              )}
+                            {text(
+                              `${spell.name} description`,
+                              spell.description,
+                              (v) =>
+                                edit((d) => {
+                                  d.spells.find((s) => s.id === spell.id)!.description = v;
+                                }),
+                              true,
+                            )}
+                            {editable && (
+                              <button
+                                onClick={() =>
+                                  edit((d) => {
+                                    d.spells = d.spells.filter((s) => s.id !== spell.id);
+                                  })
+                                }
+                              >
+                                Remove {spell.name}
+                              </button>
+                            )}
+                          </article>
+                        ))}
+                    </section>
+                  ))}
+                  {input('spells', 'Existing spell notes', true)}
+                </>
+              )}
             </>
           )}
-          {label === 'Inventory' && (
+          {label === 'Inventory' && playing && tab === label && (
+            <section className="stack">
+              {!details.items.length && <p>No inventory items.</p>}
+              {details.items.map((item) => {
+                const source = equipmentEntry(item.name);
+                const loadout = details.builder && resolveLoadout(details.builder, details.items);
+                const worn = [loadout?.armor?.id, loadout?.shield?.id].includes(item.id);
+                return (
+                  <article key={item.id} className="dnd-box">
+                    <h3>
+                      {item.name} ×{item.quantity}
+                    </h3>
+                    <p>
+                      {item.description.split('\n').find(Boolean) ||
+                        source?.kind ||
+                        'No description recorded.'}
+                      {worn && ' · Equipped'}
+                    </p>
+                    <details>
+                      <summary>Item details</summary>
+                      <p className="dnd-description">{item.description || 'No personal notes.'}</p>
+                      {source && (
+                        <p className="dnd-description">
+                          SRD p.{source.page}: {source.text}
+                        </p>
+                      )}
+                    </details>
+                    {loadout && (isShield(item.name) || armorProfile(item.name)) && (
+                      <button
+                        disabled={!quickEditable || !onEquip || dirty || !item.quantity}
+                        onClick={() => onEquip?.(item.id)}
+                      >
+                        {worn ? 'Unequip' : 'Equip'} {item.name}
+                      </button>
+                    )}
+                    {!worn && !loadout?.weapons.some((w) => w?.id === item.id) && (
+                      <button
+                        disabled={!onUseItem || !quickEditable || dirty || item.quantity < 1}
+                        onClick={() => onUseItem?.(item.id)}
+                      >
+                        Use one {item.name} (−1)
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
+          )}
+          {label === 'Inventory' && !playing && (
             <>
               <p>
                 Attuned: {details.items.filter((i) => i.attuned).length} / {attunementLimit}

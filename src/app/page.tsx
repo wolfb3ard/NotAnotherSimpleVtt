@@ -92,6 +92,12 @@ export default async function Home() {
           <p className="muted">You’ll be the GM. Invite your party once your room is ready.</p>
           <ActionForm action={createGame} label="Create game →">
             <label>
+              Table rules
+              <select name="rule_system" defaultValue="dnd-2024-srd-5.2.1">
+                <option value="dnd-2024-srd-5.2.1">D&D 5.5e · SRD 5.2.1</option>
+              </select>
+            </label>
+            <label>
               Game name
               <input name="name" placeholder="The lost coast" required maxLength={100} />
             </label>

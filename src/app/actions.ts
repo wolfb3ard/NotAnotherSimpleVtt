@@ -8,7 +8,8 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { commandSchemas, type Command } from '@/lib/commands';
 import { rollDice } from '@/lib/dice';
-import { numericFields, sheetSchema } from '@/lib/sheets';
+import { sheetSchema } from '@/lib/sheets';
+import { tableSystem } from '@/lib/table-system';
 import { diceStyleSchema } from '@/lib/dice-style';
 import { invitationUrl } from '@/lib/invitations';
 import { authCallbackPath, authNextCookie, safeAuthNext } from '@/lib/auth-redirect';
@@ -78,6 +79,7 @@ export async function logout() {
 export async function createGame(form: FormData) {
   let gameId: string;
   try {
+    tableSystem({ rule_system: String(form.get('rule_system') ?? 'dnd-2024-srd-5.2.1') });
     const db = await supabaseServer();
     const { data, error } = await db.rpc('create_game', {
       p_name: title.parse(form.get('name')),
@@ -410,7 +412,7 @@ export async function roll(gameId: string, payload: unknown) {
         .single();
       // Sheet access and character control are separate; record_roll checks control again.
       if (!actor) throw new Error('Character sheet access denied.');
-      fields = numericFields(sheetSchema.parse(actor.sheet));
+      fields = tableSystem(game).numbers(sheetSchema.parse(actor.sheet));
     }
     const result = rollDice(input.expression, game.dice, fields);
     const admin = supabaseAdmin();

@@ -8,6 +8,7 @@ import type { Actor, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 
 export function SheetWindow({
+  audience,
   actor,
   snapshot,
   run,
@@ -21,6 +22,7 @@ export function SheetWindow({
   onSave,
 }: {
   actor: Actor;
+  audience?: React.ReactNode;
   snapshot: Snapshot;
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
   onRoll: (actorId: string, expression: string, rollType?: string) => void;
@@ -60,6 +62,7 @@ export function SheetWindow({
           {error}
         </p>
       )}
+      {audience}
       <SheetEditor
         actor={actor}
         snapshot={snapshot}

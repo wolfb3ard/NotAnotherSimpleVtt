@@ -364,7 +364,7 @@ it('zooms around pointer, remembers views across reconnect, and resets without m
   expect(canvas.stage.x).toBeCloseTo(40);
   await render({ ...snapshot });
   expect(canvas.stage.x).toBeCloseTo(40);
-  await click('Fit map / Reset view');
+  await click('Fit map');
   expect(canvas.stage.scaleX).toBe(1.2);
   expect(canvas.stage.x).toBe(40);
   expect(canvas.stage.y).toBe(60);

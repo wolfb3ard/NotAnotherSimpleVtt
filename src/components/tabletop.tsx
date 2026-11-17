@@ -487,6 +487,14 @@ function TabletopScene({
       ref={container}
       tabIndex={0}
       aria-label="Tabletop map"
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || mode === 'move') return;
+        setDrawing(false);
+        setStart(null);
+        setEnd(null);
+        setMode('move');
+        e.stopPropagation();
+      }}
       onDragOver={(e) => {
         if (gm && !preview && e.dataTransfer.types.includes('application/x-vtt-group'))
           e.preventDefault();
@@ -523,11 +531,12 @@ function TabletopScene({
     >
       <div className="tabletop-controls" ref={controls}>
         <div className="canvas-tools" aria-label="Map setup controls" tabIndex={-1}>
-          {scene && (
-            <button onClick={() => fit(scene)} title="Fit the whole map in your viewport">
-              Fit map / Reset view
-            </button>
-          )}
+          <button aria-pressed={mode === 'move'} onClick={() => setMode('move')}>
+            ↖ Move
+          </button>
+          <button aria-pressed={mode === 'measure'} onClick={() => setMode('measure')}>
+            ↔ Ruler
+          </button>
           <details className="map-help">
             <summary>Map help &amp; shortcuts</summary>
             <div className="map-help-content">
@@ -554,32 +563,27 @@ function TabletopScene({
                 Ctrl/Cmd+Z undoes eligible map edits outside text inputs. Your view is remembered
                 only in this browser per user/game/scene; Reset view recovers an awkward view.
               </p>
+              {scene && (
+                <>
+                  <label className="map-snap">
+                    <input
+                      type="checkbox"
+                      checked={snap}
+                      disabled={!grid.enabled}
+                      onChange={(e) => setSnap(e.target.checked)}
+                    />{' '}
+                    Snap to grid
+                  </label>
+                  <span className="small muted">
+                    Distance: Euclidean ·{' '}
+                    {scene.calibrated
+                      ? `${scene.units_per_pixel} ${scene.unit}/px`
+                      : 'uncalibrated estimate'}
+                  </span>
+                </>
+              )}
             </div>
           </details>
-          {scene && (
-            <>
-              <label className="map-snap">
-                <input
-                  type="checkbox"
-                  checked={snap}
-                  disabled={!grid.enabled}
-                  onChange={(e) => setSnap(e.target.checked)}
-                />{' '}
-                Snap to grid
-              </label>
-              {gm && (
-                <button disabled={preview || mapBlocked} onClick={() => setShowGrid(!showGrid)}>
-                  Grid settings
-                </button>
-              )}
-              <span className="small muted">
-                Distance: Euclidean ·{' '}
-                {scene.calibrated
-                  ? `${scene.units_per_pixel} ${scene.unit}/px`
-                  : 'uncalibrated estimate'}
-              </span>
-            </>
-          )}
           {findable.length === 1 ? (
             <button
               disabled={preview}
@@ -604,122 +608,146 @@ function TabletopScene({
               ))}
             </select>
           )}
-          {!findable.length && (
-            <span className="small muted">
-              No visible controlled character here. Ask the GM about absent, other-scene, or
-              concealed tokens.
-            </span>
-          )}
-          {scene && (
-            <>
-              <select
-                aria-label="Place character"
-                value={placingActor}
-                disabled={preview || placement.blocked}
-                onChange={(e) => setPlacingActor(e.target.value)}
-              >
-                <option value="">Place character…</option>
-                {snapshot.actors
-                  .filter((a) => gm || (a.owner_id === snapshot.userId && a.kind === 'character'))
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-              </select>
-              <button
-                disabled={preview || !placingActor || mapBlocked}
-                onClick={() => setMode('place')}
-              >
-                Click to place
-              </button>
-              <button
-                disabled={preview || !placingActor || mapBlocked}
-                onClick={() => void placeAt(undefined, false)}
-              >
-                Place at party spawn
-              </button>
-              {gm && (
-                <button disabled={preview || mapBlocked} onClick={() => setMode('spawn')}>
-                  Set party spawn
-                </button>
+          <details className="map-help">
+            <summary>{gm ? 'Scene tools' : 'Token tools'}</summary>
+            <div className="map-help-content stack">
+              {!findable.length && (
+                <span className="small muted">
+                  No visible controlled character here. Ask the GM about absent, other-scene, or
+                  concealed tokens.
+                </span>
               )}
-            </>
-          )}
-          <select
-            aria-label="Token quick actions"
-            disabled={preview || mode !== 'move'}
-            title={
-              preview
-                ? 'Token actions are disabled in player preview.'
-                : 'Select Move mode to use token actions.'
-            }
-            value=""
-            onChange={(e) => {
-              const token = renderedTokens.find((t) => t.id === e.target.value);
-              if (token) choose(token, { x: 24, y: 140 });
-            }}
-          >
-            <option value="">Token quick actions…</option>
-            {renderedTokens.map((token) => (
-              <option key={token.id} value={token.id}>
-                {token.label}
-              </option>
-            ))}
-          </select>
-          <button
-            disabled={mapBlocked || !edits.entry}
-            onClick={() => void edits.undo()}
-            title="Ctrl/Cmd+Z. Last 20 moves/fog edits, within 24 hours, in this scene."
-          >
-            Undo{edits.entry ? `: ${edits.entry.description}` : ''}
-          </button>
-          {edits.uncertain && (
-            <>
-              <button onClick={() => void edits.retry()}>Retry tabletop change</button>
-              <button onClick={edits.dismiss}>Dismiss attempt</button>
-            </>
-          )}
-          <button className={mode === 'move' ? 'active' : ''} onClick={() => setMode('move')}>
-            ↖ Move
-          </button>
-          <button className={mode === 'measure' ? 'active' : ''} onClick={() => setMode('measure')}>
-            ↔ Ruler
-          </button>
-          {gm && (
-            <>
-              <button
-                className={mode === 'calibrate' ? 'active' : ''}
-                onClick={() => setMode('calibrate')}
-              >
-                ⊹ Calibrate
-              </button>
-              <button
-                className={mode === 'reveal' ? 'active' : ''}
-                onClick={() => setMode('reveal')}
-              >
-                ◉ Reveal
-              </button>
-              <button
-                className={mode === 'conceal' ? 'active' : ''}
-                onClick={() => setMode('conceal')}
-              >
-                ◌ Conceal
-              </button>
-              <button
-                className={preview ? 'active' : ''}
-                onClick={() => {
-                  if (onPreviewChange?.(!preview) === false) return;
-                  setMode('move');
-                  setSelected(undefined);
-                  setPreview(!preview);
+              {scene && (
+                <>
+                  <select
+                    aria-label="Place character"
+                    value={placingActor}
+                    disabled={preview || placement.blocked}
+                    onChange={(e) => setPlacingActor(e.target.value)}
+                  >
+                    <option value="">Place character…</option>
+                    {snapshot.actors
+                      .filter(
+                        (a) => gm || (a.owner_id === snapshot.userId && a.kind === 'character'),
+                      )
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    disabled={preview || !placingActor || mapBlocked}
+                    onClick={() => setMode('place')}
+                  >
+                    Click to place
+                  </button>
+                  <button
+                    disabled={preview || !placingActor || mapBlocked}
+                    onClick={() => void placeAt(undefined, false)}
+                  >
+                    Place at party spawn
+                  </button>
+                  {gm && (
+                    <button disabled={preview || mapBlocked} onClick={() => setMode('spawn')}>
+                      Set party spawn
+                    </button>
+                  )}
+                </>
+              )}
+              <select
+                aria-label="Token quick actions"
+                disabled={preview || mode !== 'move'}
+                title={
+                  preview
+                    ? 'Token actions are disabled in player preview.'
+                    : 'Select Move mode to use token actions.'
+                }
+                value=""
+                onChange={(e) => {
+                  const token = renderedTokens.find((t) => t.id === e.target.value);
+                  if (token) choose(token, { x: 24, y: 140 });
                 }}
               >
-                Player view
+                <option value="">Token quick actions…</option>
+                {renderedTokens.map((token) => (
+                  <option key={token.id} value={token.id}>
+                    {token.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                disabled={mapBlocked || !edits.entry}
+                onClick={() => void edits.undo()}
+                title="Ctrl/Cmd+Z. Last 20 moves/fog edits, within 24 hours, in this scene."
+              >
+                Undo{edits.entry ? `: ${edits.entry.description}` : ''}
               </button>
-            </>
-          )}
+              {edits.uncertain && (
+                <>
+                  <button onClick={() => void edits.retry()}>Retry tabletop change</button>
+                  <button onClick={edits.dismiss}>Dismiss attempt</button>
+                </>
+              )}
+              {gm && (
+                <>
+                  {scene && (
+                    <button disabled={preview || mapBlocked} onClick={() => setShowGrid(!showGrid)}>
+                      Grid settings
+                    </button>
+                  )}
+                  <button
+                    className={mode === 'calibrate' ? 'active' : ''}
+                    onClick={() => setMode('calibrate')}
+                  >
+                    ⊹ Calibrate
+                  </button>
+                  <button
+                    className={mode === 'reveal' ? 'active' : ''}
+                    onClick={() => setMode('reveal')}
+                  >
+                    ◉ Reveal
+                  </button>
+                  <button
+                    className={mode === 'conceal' ? 'active' : ''}
+                    onClick={() => setMode('conceal')}
+                  >
+                    ◌ Conceal
+                  </button>
+                  <button
+                    className={preview ? 'active' : ''}
+                    onClick={() => {
+                      if (onPreviewChange?.(!preview) === false) return;
+                      setMode('move');
+                      setSelected(undefined);
+                      setPreview(!preview);
+                    }}
+                  >
+                    Player view
+                  </button>
+                </>
+              )}
+            </div>
+          </details>
         </div>
+        {mode !== 'move' && (
+          <div className="tabletop-undo-status" role="status">
+            {
+              {
+                place: `Placing ${snapshot.actors.find((a) => a.id === placingActor)?.name ?? 'character'} · Click map to place`,
+                spawn: 'Click to set party spawn',
+                reveal: 'Drag to reveal fog',
+                conceal: 'Drag to conceal area',
+                measure: 'Drag to measure distance',
+                calibrate: 'Drag a line of known length',
+                ping: 'Click a point to ping',
+                camera: 'Click a point to direct the camera',
+                template: 'Click to set template origin',
+              }[mode]
+            }{' '}
+            · Esc to cancel
+          </div>
+        )}
         {!snapshot.preparedSceneId && (
           <TacticalTemplateTools tools={tactical} selectOrigin={() => setMode('template')} />
         )}

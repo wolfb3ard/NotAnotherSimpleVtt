@@ -101,7 +101,9 @@ it.each(['owner', 'gm', 'controller'])(
   'lets %s roll a saved attack immediately with the current audience and d20 mode',
   async (role) => {
     const { actor, roll, advanced } = await setup(role);
-    expect(container.textContent).toContain('Private · you and GM');
+    expect(container.textContent).toContain(
+      role === 'gm' ? 'Private · only you' : 'Private · you and GM',
+    );
     await select('Token d20 roll mode', 'advantage');
     await act(async () => button('Roll selected action').click());
     expect(roll).toHaveBeenCalledWith({

@@ -31,6 +31,7 @@ export type Actor = {
   combat_revision?: number;
 };
 export type Game = {
+  rule_system?: string;
   id: string;
   name: string;
   gm_id: string;
