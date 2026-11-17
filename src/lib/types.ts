@@ -45,6 +45,7 @@ export type Scene = {
   width: number;
   height: number;
   units_per_pixel: number;
+  calibrated?: boolean;
   unit: string;
   fog: FogRect[];
   revision: number;
@@ -127,4 +128,9 @@ export type Snapshot = {
   rollCues: RollCue[];
   diceStyles: DiceStyleRecord[];
   encounter?: Encounter | null;
+  onboarding?: {
+    invited: boolean;
+    spawn: { x: number; y: number } | null;
+    hasRolled?: boolean;
+  };
 };

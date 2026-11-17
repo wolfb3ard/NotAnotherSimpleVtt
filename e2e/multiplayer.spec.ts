@@ -110,6 +110,11 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       .setInputFiles({ name: 'forest.png', mimeType: 'image/png', buffer: image });
     await gm.page.getByRole('button', { name: 'Create scene', exact: true }).click();
     await expect(gm.page.getByRole('button', { name: 'Active', exact: true })).toBeVisible();
+    await gm.page.getByRole('button', { name: 'Set party spawn', exact: true }).click();
+    await gm.page.getByLabel('Placement X', { exact: true }).fill('100');
+    await gm.page.getByLabel('Placement Y', { exact: true }).fill('100');
+    await gm.page.getByRole('button', { name: 'Confirm position', exact: true }).click();
+    await expect(gm.page.getByText('Party spawn saved.', { exact: false })).toBeVisible();
     await gm.page.getByRole('button', { name: 'Reveal entire scene' }).click();
     await player.page.getByRole('button', { name: 'Close character sheet', exact: true }).click();
     const card = player.page.getByRole('button', {
@@ -124,9 +129,10 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toBeVisible();
     await player.page.keyboard.press('Escape');
     await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toHaveCount(0);
-    await player.page.getByText('Add character token to scene', { exact: true }).click();
-    await player.page.getByLabel('Actor', { exact: true }).selectOption({ label: 'Aria' });
-    await player.page.getByRole('button', { name: 'Place token', exact: true }).click();
+    await player.page
+      .getByLabel('Place character', { exact: true })
+      .selectOption({ label: 'Aria' });
+    await player.page.getByRole('button', { name: 'Place at party spawn', exact: true }).click();
     await expect
       .poll(async () => {
         const r = await player.page.request.get(`/api/games/${gameId}`);
@@ -137,7 +143,11 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     expect(
       (await player.page.request.get(`/api/images/${state.scenes[0].asset_id}`)).status(),
     ).toBe(404);
-    // Move the token using the canvas; default map offset is 50,50 and token begins at 100,100.
+    expect(state.onboarding.spawn).toBeNull();
+    await expect(
+      player.page.getByRole('button', { name: 'Find my character', exact: true }),
+    ).toBeVisible();
+    // Default map offset is 50,50; the GM-defined party spawn is 100,100.
     const canvas = player.page.locator('canvas').first();
     const box = (await canvas.boundingBox())!;
     // Token selection opens actions, not the full sheet.
