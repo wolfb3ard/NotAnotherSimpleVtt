@@ -24,7 +24,7 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 - Epic 08 merged in [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) on 2026-11-17 (commit `a6447f1`).
 - Epic 09 merged in [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) on 2026-11-17 (commit `ea5a336`).
 - Epic 10 merged in [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) on 2026-11-17 (commit `da02551`).
-- Epic 11 implements private-first calibrated tactical templates, explicit sharing and owner/GM editing/dismissal; review PR pending.
+- Epic 11 implements private-first calibrated tactical templates, explicit sharing and owner/GM editing/dismissal; [PR #41](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/41) ready for review, not merged.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
 - Latest local implementation verification: E11's 605 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
@@ -223,7 +223,7 @@ Local verification: 578 unit/database/component tests, production build/TypeScri
 
 ### Epic 11 — Tactical spell templates
 
-Status: Implemented; review PR pending. Dependencies: E09, E10 (merged).
+Status: Implemented; [PR #41](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/41) ready for review, not merged. Dependencies: E09, E10 (merged).
 
 - [x] E11-T01: Add calibrated circle, cone, line, and cube templates with rotation and readable dimensions.
 - [x] E11-T02: Support private preview and explicit sharing, moving, dismissal, and ownership.
