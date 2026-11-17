@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { sheetSchema } from './sheets';
 import { tokenRings } from './token-appearance';
 import { encounterCommandSchema } from './encounter-commands';
+import { combatCommandSchema } from './combat';
 
 const id = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -18,6 +19,7 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  actor_combat: combatCommandSchema,
   encounter: encounterCommandSchema,
   invite: z.object({}),
   revoke_invites: z.object({}),

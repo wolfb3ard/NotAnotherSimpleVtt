@@ -6,6 +6,7 @@ import type { Snapshot } from '@/lib/types';
 import { boardEncounter, encounterTurn } from '@/lib/encounter-view';
 import { initiativeExpression } from '@/lib/initiative';
 import { useEncounterCommand } from './use-encounter-command';
+import { combatSummary } from '@/lib/combat';
 
 export function EncounterTurnCue({ snapshot }: { snapshot: Snapshot }) {
   const { encounter, token, yours } = encounterTurn(snapshot);
@@ -138,6 +139,7 @@ export function EncounterPanel({
                         {p.label}
                       </strong>
                       <span>Initiative {p.initiative}</span>
+                      {actor && <span className="small">{combatSummary(actor)}</span>}
                       {actor && (
                         <button onClick={() => onSheet(actor.id)}>Sheet for {p.label}</button>
                       )}

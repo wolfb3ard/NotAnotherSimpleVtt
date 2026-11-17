@@ -227,8 +227,9 @@ export function QuickResources({
               <summary>Manual overrides & limits</summary>
               <p>
                 Healing stops at maximum HP; temporary HP never stacks automatically. No resistance,
-                vulnerability, concentration, or death-save rules are applied. Override with direct
-                current-value controls above.
+                vulnerability or death-save rules are applied. Concentration reminders use recorded
+                HP/temporary HP loss; adjudicate actual damage manually in Conditions & survival.
+                Override with direct current-value controls above.
               </p>
             </details>
             <button

@@ -5,6 +5,7 @@ import type { Actor, Sheet, Snapshot, Token } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import { QuickResources } from './quick-resources';
 import { CreatureAdder } from './creature-adder';
+import { CombatControls } from './combat-controls';
 
 export function TokenQuickActions({
   token,
@@ -18,6 +19,7 @@ export function TokenQuickActions({
   onCommitted,
   onClose,
   onSheet,
+  onRoll,
 }: {
   token: Token;
   actor?: Actor;
@@ -30,11 +32,19 @@ export function TokenQuickActions({
   onCommitted: (sheet: Sheet, revision: number, name?: string) => void;
   onClose: () => void;
   onSheet: () => void;
+  onRoll?: (roll: { actorId: string; expression: string; rollType: string }) => Promise<void>;
 }) {
   const title = useId();
   const frame = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [position, setPosition] = useState(anchor);
+  const [resourceBusy, setResourceBusy] = useState(false);
+  const [combatBusy, setCombatBusy] = useState(false);
+  useEffect(
+    () => onBusyChange(resourceBusy || combatBusy),
+    [resourceBusy, combatBusy, onBusyChange],
+  );
+  useEffect(() => () => onBusyChange(false), [onBusyChange]);
   const editable =
     !!actor &&
     (snapshot.role === 'gm' ||
@@ -181,10 +191,20 @@ export function TokenQuickActions({
               key={actor.id}
               actor={actor}
               editable={editable}
-              blocked={blocked}
+              blocked={blocked || combatBusy}
               run={run}
-              onBusyChange={onBusyChange}
+              onBusyChange={setResourceBusy}
               onCommitted={onCommitted}
+            />
+            <CombatControls
+              key={`combat:${actor.id}`}
+              actor={actor}
+              snapshot={snapshot}
+              editable={editable}
+              blocked={blocked || resourceBusy}
+              run={run}
+              onBusyChange={setCombatBusy}
+              onRoll={onRoll}
             />
             {!actor.sheet.sections.some((s) => s.fields.some((f) => f.kind === 'resource')) &&
               !actor.sheet.character?.features.some((f) => f.maxUses > 0) && (

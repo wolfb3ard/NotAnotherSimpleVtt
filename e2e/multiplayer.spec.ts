@@ -156,6 +156,30 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       .getByLabel('Token quick actions', { exact: true })
       .selectOption({ label: 'Aria' });
     await expect(player.page.getByLabel('Quick HP', { exact: true })).toHaveValue('6');
+    // Combat markers use the same sheet access, persist on reload, and stay off spectator payloads.
+    await player.page.getByText('Add condition / custom marker', { exact: true }).click();
+    await player.page.getByLabel('Condition name', { exact: true }).fill('Poisoned');
+    await player.page.getByLabel('Condition source', { exact: true }).fill('Private trap');
+    await player.page.getByRole('button', { name: 'Add condition', exact: true }).click();
+    await expect(
+      player.page.getByRole('button', { name: 'Remove Poisoned', exact: true }),
+    ).toBeEnabled();
+    await player.page.reload();
+    await player.page
+      .getByLabel('Token quick actions', { exact: true })
+      .selectOption({ label: 'Aria' });
+    await expect(
+      player.page.getByRole('button', { name: 'Remove Poisoned', exact: true }),
+    ).toBeVisible();
+    const spectatorState = await (
+      await spectators[0].page.request.get(`/api/games/${gameId}`)
+    ).json();
+    expect(JSON.stringify(spectatorState)).not.toContain('Private trap');
+    expect(JSON.stringify(spectatorState)).not.toContain('Poisoned');
+    await player.page.getByRole('button', { name: 'Remove Poisoned', exact: true }).click();
+    await expect(
+      player.page.getByRole('button', { name: 'Remove Poisoned', exact: true }),
+    ).toHaveCount(0);
     await player.page.getByRole('button', { name: 'Close quick actions', exact: true }).click();
     await player.page.mouse.move(box.x + 150, box.y + 150);
     await player.page.mouse.down();

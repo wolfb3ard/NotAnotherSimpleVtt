@@ -202,6 +202,18 @@ export async function mutate(
       if (error) throw new Error(error.message);
       return { data };
     }
+    if (command === 'actor_combat') {
+      const request = commandSchemas.actor_combat.parse(validated);
+      const { data, error } = await db.rpc('save_actor_combat', {
+        p_game: gameId,
+        p_actor: request.id,
+        p_revision: request.revision,
+        p_operation: request.operation_id,
+        p_state: request.state,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     const appearance =
       command === 'actor_appearance' ? commandSchemas.actor_appearance.parse(validated) : null;
     const placement =
