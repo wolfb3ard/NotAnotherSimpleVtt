@@ -649,6 +649,7 @@ function LevelChoices({
   );
 }
 function DraftBuilder({
+  commit,
   sheet,
   update,
   close,
@@ -656,6 +657,7 @@ function DraftBuilder({
   sheet: Sheet;
   update: (edit: (s: Sheet) => void) => void;
   close: () => void;
+  commit?: (sheet: Sheet) => Promise<boolean>;
 }) {
   const [initial] = useState(() => JSON.stringify(sheet));
   const [draft, setDraft] = useState<SrdBuilderState>(() => {
@@ -1223,9 +1225,14 @@ function DraftBuilder({
           <button
             type="button"
             disabled={stale || errors.length > 0}
-            onClick={() => {
+            onClick={async () => {
               try {
                 const next = applySrdBuilder(sheet, draft);
+                if (commit) {
+                  if (await commit(next)) close();
+                  else setFailure('Could not confirm this progression. Check the sheet revision.');
+                  return;
+                }
                 update((target) => {
                   target.character = next.character;
                   target.sections = next.sections;
@@ -1236,7 +1243,7 @@ function DraftBuilder({
               }
             }}
           >
-            Apply builder to unsaved sheet
+            {commit ? 'Apply and save to table' : 'Apply builder to unsaved sheet'}
           </button>
           <button type="button" onClick={close}>
             Cancel draft
@@ -1248,6 +1255,7 @@ function DraftBuilder({
 }
 
 export function SrdBuilder({
+  commit,
   sheet,
   editable,
   update,
@@ -1257,6 +1265,7 @@ export function SrdBuilder({
   editable: boolean;
   update: (edit: (s: Sheet) => void) => void;
   initialOpen?: boolean;
+  commit?: (sheet: Sheet) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(initialOpen);
   const [catalogNotice, setCatalogNotice] = useState('');
@@ -1331,7 +1340,7 @@ export function SrdBuilder({
       />
       {catalogNotice && <p role="status">{catalogNotice}</p>}
       {open && editable && (
-        <DraftBuilder sheet={sheet} update={update} close={() => setOpen(false)} />
+        <DraftBuilder sheet={sheet} update={update} commit={commit} close={() => setOpen(false)} />
       )}
     </section>
   );

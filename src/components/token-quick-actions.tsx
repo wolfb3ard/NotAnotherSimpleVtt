@@ -6,7 +6,7 @@ import type { Command } from '@/lib/commands';
 import { QuickResources } from './quick-resources';
 import { CreatureAdder } from './creature-adder';
 import { CombatControls } from './combat-controls';
-import { tokenRolls } from '@/lib/token-rolls';
+import { tableSystem } from '@/lib/table-system';
 import { TokenInitiative } from './token-initiative';
 import { PlayAssistance } from './play-assistance';
 
@@ -28,6 +28,7 @@ export function TokenQuickActions({
   onAdvancedRoll,
   refresh = noRefresh,
   visibility = 'public',
+  onVisibilityChange,
   rollPending = false,
 }: {
   token: Token;
@@ -45,6 +46,7 @@ export function TokenQuickActions({
   onAdvancedRoll?: (roll: { actorId: string; expression: string; rollType: string }) => void;
   refresh?: () => Promise<void>;
   visibility?: 'public' | 'private';
+  onVisibilityChange?: (value: 'public' | 'private') => void;
   rollPending?: boolean;
 }) {
   const title = useId();
@@ -61,7 +63,9 @@ export function TokenQuickActions({
   const [actionMessage, setActionMessage] = useState('');
   const [mode, setMode] = useState('normal');
   const [chosenRoll, setChosenRoll] = useState('');
-  const rolls = actor ? tokenRolls(actor.sheet) : [];
+  const system = tableSystem(snapshot.game);
+  const rolls = actor ? system.rolls(actor.sheet) : [];
+  const ac = actor && system.armorClass(actor.sheet);
   const selectedRoll =
     rolls.find((r) => r.id === chosenRoll) ??
     rolls.find((r) => /\battack\b/i.test(r.name)) ??
@@ -319,12 +323,31 @@ export function TokenQuickActions({
         {actor ? (
           <>
             <button onClick={onSheet}>Open character sheet</button>
+            {ac !== undefined && <span>Armor Class: {ac}</span>}
             <details>
               <summary>Attack / sheet rolls</summary>
+              {onVisibilityChange && (
+                <label>
+                  Roll visibility
+                  <select
+                    value={visibility}
+                    onChange={(e) => onVisibilityChange(e.target.value as 'public' | 'private')}
+                  >
+                    <option value="public">Everyone</option>
+                    <option value="private">
+                      {snapshot.role === 'gm' ? 'Only me' : 'Me and GM'}
+                    </option>
+                  </select>
+                </label>
+              )}
               <p className="small">
                 Roll audience:{' '}
-                {visibility === 'private' ? 'Private · you and GM' : 'Public · everyone'}.
-                Targeting, hits and resource use remain manual.
+                {visibility === 'private'
+                  ? snapshot.role === 'gm'
+                    ? 'Private · only you'
+                    : 'Private · you and GM'
+                  : 'Public · everyone'}
+                . Targeting, hits and resource use remain manual.
               </p>
               {!rollable && (
                 <p>

@@ -5,6 +5,7 @@ import type { Actor } from '@/lib/types';
 
 export function RoomShortcuts({
   actors,
+  showAudience = true,
   userId,
   gm,
   visibility,
@@ -13,6 +14,7 @@ export function RoomShortcuts({
   onVisibilityChange,
 }: {
   actors: Actor[];
+  showAudience?: boolean;
   userId: string;
   gm: boolean;
   visibility: 'public' | 'private';
@@ -61,25 +63,27 @@ export function RoomShortcuts({
           </>
         )}
       </div>
-      <label className="quick-roll-visibility">
-        Roll visibility
-        <select
-          aria-label="Quick roll visibility"
-          aria-describedby={audienceId}
-          value={visibility}
-          onChange={(event) => onVisibilityChange(event.target.value as 'public' | 'private')}
-        >
-          <option value="public">Everyone</option>
-          <option value="private">{gm ? 'Only me' : 'Me and GM'}</option>
-        </select>
-        <span id={audienceId} className="small muted" role="status">
-          {visibility === 'public'
-            ? 'Everyone at the table can see your rolls.'
-            : gm
-              ? 'Only you can see your rolls.'
-              : 'Only you and the GM can see your rolls.'}
-        </span>
-      </label>
+      {showAudience && (
+        <label className="quick-roll-visibility">
+          Roll visibility
+          <select
+            aria-label="Quick roll visibility"
+            aria-describedby={audienceId}
+            value={visibility}
+            onChange={(event) => onVisibilityChange(event.target.value as 'public' | 'private')}
+          >
+            <option value="public">Everyone</option>
+            <option value="private">{gm ? 'Only me' : 'Me and GM'}</option>
+          </select>
+          <span id={audienceId} className="small muted" role="status">
+            {visibility === 'public'
+              ? 'Everyone at the table can see your rolls.'
+              : gm
+                ? 'Only you can see your rolls.'
+                : 'Only you and the GM can see your rolls.'}
+          </span>
+        </label>
+      )}
     </nav>
   );
 }

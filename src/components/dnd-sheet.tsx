@@ -15,6 +15,8 @@ import { srdCastingSources } from '@/lib/srd-casting';
 import type { QuickUpdate } from '@/lib/resources';
 
 type Props = {
+  onEquip?: (id: string) => void;
+  onUseItem?: (id: string) => void;
   portrait?: ReactNode;
   name: string;
   onNameChange: (name: string) => void;
@@ -32,6 +34,8 @@ const ref = (key: string) => `@{${dndId(key)}}`;
 
 /** Compact combat dashboard; the version-1 document remains the source of truth. */
 export function DndSheet({
+  onEquip,
+  onUseItem,
   portrait,
   name,
   onNameChange,
@@ -410,6 +414,9 @@ export function DndSheet({
         </details>
       )}
       <DndTabs
+        playing={!editing}
+        onEquip={onEquip}
+        onUseItem={onUseItem}
         sheet={sheet}
         editable={editable}
         rollable={rollable}
@@ -519,6 +526,16 @@ export function DndSheet({
                     {field(`weapon-type:${i}`)?.value}
                   </span>
                 </div>
+                <details>
+                  <summary>Why this attack bonus?</summary>
+                  {abilities[Number(field(`weapon-ability:${i}`)?.value ?? 0)]} modifier{' '}
+                  {signed(computed[dndId(`mod:${field(`weapon-ability:${i}`)?.value ?? 0}`)])}
+                  {' · '}Proficiency{' '}
+                  {signed(computed[dndId('pb')] * Number(field(`weapon-prof:${i}`)?.value ?? 0))}
+                  {' · '}Weapon adjustment {signed(Number(field(`weapon-hit:${i}`)?.value ?? 0))}
+                  {' · '}Other attack bonus {signed(Number(field('attack-bonus')?.value ?? 0))}
+                  {' · '}Exhaustion {signed(-2 * Number(field('exhaustion')?.value ?? 0))}
+                </details>
                 <div className="dnd-attack-rolls">
                   {rollButton(
                     'Attack roll',
@@ -544,7 +561,7 @@ export function DndSheet({
                 </div>
                 {!damage && <p role="alert">Use damage dice such as 1d8 or 2d6.</p>}
                 {editing && (
-                  <details open>
+                  <details open className="attack-configuration">
                     <summary>Attack {i + 1} configuration</summary>
                     <div className="dnd-config">
                       {input(`weapon-name:${i}`, `Attack ${i + 1} name`)}

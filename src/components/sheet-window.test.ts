@@ -160,7 +160,7 @@ describe('character sheet window', () => {
     expect(container.querySelector('.dnd-identity .token-portrait')).not.toBeNull();
     expect(container.querySelector('input[aria-label="Name"]')).toBeNull();
     expect(container.querySelectorAll('[aria-label="Roll Strength check"]')).toHaveLength(1);
-    expect(container.querySelector('.dnd-attack details')).toBeNull();
+    expect(container.querySelector('.attack-configuration')).toBeNull();
     expect(container.querySelector('.sheet-save-status')!.textContent).toBe('All changes saved');
   });
   it('shows resource summaries during play and exposes configuration only when editing', async () => {
@@ -182,7 +182,7 @@ describe('character sheet window', () => {
     )!;
     expect(proficiency.disabled).toBe(true);
     expect(proficiency.value).toBe('3');
-    expect(container.querySelector<HTMLDetailsElement>('.dnd-attack details')!.open).toBe(true);
+    expect(container.querySelector<HTMLDetailsElement>('.attack-configuration')!.open).toBe(true);
     await typeName('Renamed');
     await click(
       [...container.querySelectorAll('button')].find((b) => b.textContent === 'Done editing')!,

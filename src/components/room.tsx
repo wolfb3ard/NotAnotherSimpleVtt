@@ -22,7 +22,8 @@ import { TokenQuickActions } from './token-quick-actions';
 import { useTabletopEdits } from './use-tabletop-edits';
 import { monsterId } from '@/lib/monster-sheet';
 import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
-import { FirstSessionGuide } from './first-session-guide';
+import { PracticeTable } from './practice-table';
+import { tableSystem } from '@/lib/table-system';
 import { useRoomAttention } from './use-room-attention';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
@@ -424,6 +425,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
         </Link>
       </header>
       <RoomShortcuts
+        showAudience={false}
         actors={snapshot.actors}
         userId={snapshot.userId}
         gm={gm}
@@ -517,6 +519,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
             onRoll={sendRoll}
             refresh={refresh}
             visibility={visibility}
+            onVisibilityChange={setVisibility}
             rollPending={pending}
             onAdvancedRoll={({ actorId, expression, rollType }) => {
               setRollActor(actorId);
@@ -578,7 +581,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                 onClick={() => setTab(t)}
               >
                 {t === 'settings'
-                  ? 'Room'
+                  ? 'Settings'
                   : t === 'appearance'
                     ? 'Style'
                     : t[0].toUpperCase() + t.slice(1)}
@@ -594,31 +597,12 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
             </div>
           )}
           <div className="panel">
-            <FirstSessionGuide
-              snapshot={snapshot}
-              onGo={(action) => {
-                if (action === 'map') {
-                  document.querySelector<HTMLElement>('[aria-label="Map setup controls"]')?.focus();
-                } else if (action === 'sheet') {
-                  const mine = snapshot.actors.find(
-                    (a) => a.kind === 'character' && a.owner_id === snapshot.userId,
-                  );
-                  if (mine) openSheet(mine.id);
-                  else {
-                    setTab('party');
-                    setCreateActor(true);
-                  }
-                } else {
-                  setTab(action);
-                  if (action === 'party')
-                    setCreateActor(
-                      !snapshot.actors.some(
-                        (a) => a.kind === 'character' && a.owner_id === snapshot.userId,
-                      ),
-                    );
-                }
-              }}
-            />
+            {tab === 'settings' && (
+              <>
+                <p>Table rules: {tableSystem(snapshot.game).label}</p>
+                <PracticeTable role={snapshot.role} />
+              </>
+            )}
             {tab === 'encounter' && snapshot.preparedSceneId && (
               <p>
                 Return to the live scene to run initiative. Add creatures and save encounter groups
@@ -1303,6 +1287,19 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
       </div>
       {actor && (
         <SheetWindow
+          audience={
+            <label>
+              Sheet roll visibility
+              <select
+                aria-label="Quick roll visibility"
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as 'private' | 'public')}
+              >
+                <option value="public">Everyone</option>
+                <option value="private">{gm ? 'Only me' : 'Me and GM'}</option>
+              </select>
+            </label>
+          }
           saved={layout.sheet}
           onSave={(sheet) => changeLayout({ sheet })}
           externalBusy={!!quickActor && selectedActor === quickActor.id && quickBusy}

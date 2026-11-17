@@ -113,6 +113,7 @@ describe('character tabs', () => {
       attuned: i < 3,
     }));
     const { current } = await fixture(sheet);
+    await click('Edit sheet');
     await click('Inventory');
     const fourth = container.querySelector<HTMLInputElement>('[aria-label="Attune Relic 4"]')!;
     expect(fourth.disabled).toBe(false);
@@ -173,6 +174,7 @@ describe('character tabs', () => {
   it('switches panels with mouse and keyboard without losing edits', async () => {
     await fixture();
     expect(panel().textContent).toContain('Weapon & spell attacks');
+    await click('Edit sheet');
     await click('Inventory');
     await click('Add item');
     await value('Item name', 'Rope');
@@ -189,6 +191,7 @@ describe('character tabs', () => {
 
   it('adds, sorts, prepares and removes spells; Actions reflects prepared spells and cantrips', async () => {
     const { current } = await fixture();
+    await click('Edit sheet');
     await click('Spell');
     await click('Add spell');
     await value('Spell name', 'Fireball');
@@ -239,6 +242,7 @@ describe('character tabs', () => {
 
   it('manages item rarity, quantity, attunement and removal', async () => {
     const { current } = await fixture();
+    await click('Edit sheet');
     await click('Inventory');
     await click('Add item');
     await value('Item name', 'Ring');
@@ -300,6 +304,7 @@ describe('character tabs', () => {
     const { current } = await fixture(initial);
     await click('Inventory');
     const fourth = () => container.querySelector<HTMLInputElement>('[aria-label="Attune Ring 3"]')!;
+    await click('Edit sheet');
     expect(fourth().disabled).toBe(true);
     await act(async () =>
       container.querySelector<HTMLInputElement>('[aria-label="Attune Ring 0"]')!.click(),

@@ -19,6 +19,8 @@ import { numericFields } from '@/lib/sheets';
 import { QuickResources } from './quick-resources';
 import type { ResourceWriter } from '@/lib/resource-writer';
 import { monsterId } from '@/lib/monster-sheet';
+import { additionalShield, tableSystem } from '@/lib/table-system';
+import { isShield, resolveLoadout } from '@/lib/srd-equipment';
 
 const MonsterSheet = dynamic(() => import('./monster-sheet'));
 
@@ -46,6 +48,25 @@ export function SheetEditor({
   const conflict = actor.revision > savedRevision;
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [playNotice, setPlayNotice] = useState('');
+  async function commitPlay(next: Sheet, message: string) {
+    if (!editable || saving || resourceBusy || externalBusy || conflict || dirty) return false;
+    setSaving(true);
+    try {
+      if (
+        !(await run('actor_save', { id: actor.id, name, sheet: next, revision: savedRevision }))
+      ) {
+        setPlayNotice('Change not confirmed. Check the latest sheet before retrying.');
+        return false;
+      }
+      setSheet(next);
+      setSavedRevision(savedRevision + 1);
+      setPlayNotice(message);
+      return true;
+    } finally {
+      setSaving(false);
+    }
+  }
   const [resourceBusy, setResourceBusy] = useState(false);
   const resourceWriter = useRef<ResourceWriter | null>(null);
   const [customize, setCustomize] = useState(false);
@@ -110,6 +131,7 @@ export function SheetEditor({
           Token quick actions saving or unconfirmed. Resolve them before editing this sheet.
         </p>
       )}
+      {playNotice && <p role="status">{playNotice}</p>}
       <fieldset
         className="sheet-configuration stack"
         disabled={resourceBusy || saving || externalBusy}
@@ -188,6 +210,11 @@ export function SheetEditor({
                   </button>
                 </div>
                 <SrdBuilder
+                  commit={
+                    dirty
+                      ? undefined
+                      : (next) => commitPlay(next, 'Character progression saved to the table.')
+                  }
                   sheet={sheet}
                   editable={editable && !conflict}
                   update={update}
@@ -256,24 +283,76 @@ export function SheetEditor({
           </label>
         )}
         {monster && !customize ? (
-          <MonsterSheet
-            name={name}
-            onCustomize={() => setCustomize(true)}
-            portrait={
-              <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
-            }
-            sheet={sheet}
-            editable={editable}
-            rollable={rollable}
-            blocked={dirty || conflict || saving || resourceBusy || externalBusy}
-            quickEditable={
-              editable && !dirty && !conflict && !saving && !resourceBusy && !externalBusy
-            }
-            quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
-            onRoll={(expression, label) => onRoll(actor.id, expression, label)}
-          />
+          <>
+            {editable && tableSystem(snapshot.game).armorClass(sheet) !== undefined && (
+              <details>
+                <summary>Monster equipment</summary>
+                <p>
+                  Printed AC already includes the creature’s normal gear. Use this only for an extra
+                  shield the creature can wield; shield bonuses do not stack.
+                </p>
+                <button
+                  disabled={dirty || conflict}
+                  onClick={() => {
+                    const system = tableSystem(snapshot.game);
+                    const next = system.changeMonsterShield(sheet);
+                    void commitPlay(
+                      next,
+                      `Shield changed · AC ${system.armorClass(sheet)} → ${system.armorClass(next)}`,
+                    );
+                  }}
+                >
+                  {sheet.sections.some((s) => s.fields.some((f) => f.id === additionalShield))
+                    ? 'Remove additional shield'
+                    : 'Equip additional shield'}
+                </button>
+              </details>
+            )}
+            <MonsterSheet
+              name={name}
+              onCustomize={() => setCustomize(true)}
+              portrait={
+                <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
+              }
+              sheet={sheet}
+              editable={editable}
+              rollable={rollable}
+              blocked={dirty || conflict || saving || resourceBusy || externalBusy}
+              quickEditable={
+                editable && !dirty && !conflict && !saving && !resourceBusy && !externalBusy
+              }
+              quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
+              onRoll={(expression, label) => onRoll(actor.id, expression, label)}
+            />
+          </>
         ) : dnd && !customize ? (
           <DndSheet
+            onUseItem={(id) => {
+              const next = structuredClone(sheet);
+              const item = next.character?.items.find((i) => i.id === id);
+              if (!item || item.quantity < 1) return;
+              item.quantity--;
+              void commitPlay(next, `${item.name} used · ${item.quantity} remaining.`);
+            }}
+            onEquip={(id) => {
+              try {
+                const state = structuredClone(sheet.character!.builder!);
+                const items = sheet.character!.items;
+                const item = items.find((i) => i.id === id)!;
+                const loadout = resolveLoadout(state, items);
+                const shield = isShield(item.name);
+                const worn = (shield ? loadout.shield : loadout.armor)?.id === id;
+                state.equipment[shield ? 'shieldId' : 'armorId'] = worn ? '' : id;
+                const system = tableSystem(snapshot.game);
+                const next = system.applyProgression(sheet, state);
+                void commitPlay(
+                  next,
+                  `${item.name} ${worn ? 'unequipped' : 'equipped'} · AC ${system.armorClass(sheet)} → ${system.armorClass(next)}`,
+                );
+              } catch (e) {
+                setPlayNotice((e as Error).message);
+              }
+            }}
             portrait={
               <TokenPortrait name={name} assetId={actor.token_asset_id} ring={actor.token_ring} />
             }
@@ -664,16 +743,25 @@ export function SheetEditor({
               onClick={async () => {
                 setSaving(true);
                 try {
+                  const next =
+                    sheet.character?.builder &&
+                    JSON.stringify(sheet.character.items) !==
+                      JSON.stringify(actor.sheet.character?.items)
+                      ? tableSystem(snapshot.game).applyProgression(sheet, sheet.character.builder)
+                      : sheet;
                   const data = await run('actor_save', {
                     id: actor.id,
                     name,
-                    sheet,
+                    sheet: next,
                     revision: savedRevision,
                   });
                   if (data) {
+                    setSheet(next);
                     setSavedRevision(savedRevision + 1);
                     setDirty(false);
                   }
+                } catch (e) {
+                  setPlayNotice((e as Error).message);
                 } finally {
                   setSaving(false);
                 }
