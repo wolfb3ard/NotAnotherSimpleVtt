@@ -2,7 +2,9 @@ import { expect, test, type Browser, type BrowserContext } from '@playwright/tes
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import sharp from 'sharp';
-import { createDndSheet } from '../src/lib/dnd';
+import { createDndSheet, dndId, dndNumbers } from '../src/lib/dnd';
+import { createMonsterSheet } from '../src/lib/srd-monsters';
+import { tableSystem } from '../src/lib/table-system';
 import { applySrdBuilder } from '../src/lib/srd-engine';
 import { fighterBuilder } from '../src/lib/srd-test-fixtures';
 
@@ -15,14 +17,10 @@ test.skip(
   'Requires an isolated Supabase test project and E2E_SUPABASE=1.',
 );
 
-test('GM and eight players share a persistent scene, sheets, fog, and permission-filtered rolls', async ({
-  browser,
-}) => {
-  test.setTimeout(300000);
+function sessions() {
   const admin = createClient(url!, service!, { auth: { persistSession: false } });
   const users: string[] = [];
   const contexts: BrowserContext[] = [];
-  let gameId: string | undefined;
   async function session(browser: Browser, label: string) {
     const email = `vtt-${label}-${crypto.randomUUID()}@example.com`,
       password = crypto.randomUUID();
@@ -53,6 +51,189 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await context.addCookies(cookies);
     return { page: await context.newPage(), id: data.user.id, client };
   }
+  return { admin, users, contexts, session };
+}
+
+test('live actor updates reach an open GM token and the next attack', async ({ browser }) => {
+  test.setTimeout(180000);
+  const { admin, users, contexts, session } = sessions();
+  const gameId = crypto.randomUUID(),
+    sceneId = crypto.randomUUID(),
+    assetId = crypto.randomUUID();
+  try {
+    const gm = await session(browser, 'gm'),
+      player = await session(browser, 'player');
+    const state = fighterBuilder(4);
+    state.equipment.shieldId = '';
+    const hero = applySrdBuilder(createDndSheet(), state);
+    if (!hero.character!.items.some((i) => i.name === 'Shield'))
+      hero.character!.items.push({
+        id: crypto.randomUUID(),
+        name: 'Shield',
+        description: '',
+        quantity: 1,
+        rarity: 'Common',
+        attuned: false,
+        requiresAttunement: false,
+      });
+    const monster = createMonsterSheet('monster-aboleth');
+    const rules = tableSystem({});
+    const armor = Number(rules.armorClass(hero)),
+      monsterAC = Number(rules.armorClass(monster));
+    await admin
+      .from('games')
+      .insert({ id: gameId, gm_id: gm.id, name: 'Live rules' })
+      .throwOnError();
+    await admin
+      .from('memberships')
+      .insert(
+        [gm, player].map((p) => ({
+          game_id: gameId,
+          user_id: p.id,
+          role: p === gm ? 'gm' : 'player',
+          display_name: p === gm ? 'GM' : 'Player',
+        })),
+      )
+      .throwOnError();
+    const path = `${gameId}/${assetId}.png`;
+    const image = await sharp({
+      create: { width: 300, height: 300, channels: 3, background: '#555' },
+    })
+      .png()
+      .toBuffer();
+    const upload = await admin.storage
+      .from('tabletop')
+      .upload(path, image, { contentType: 'image/png' });
+    if (upload.error) throw upload.error;
+    await admin
+      .from('assets')
+      .insert({
+        id: assetId,
+        game_id: gameId,
+        owner_id: gm.id,
+        kind: 'background',
+        path,
+        width: 300,
+        height: 300,
+      })
+      .throwOnError();
+    await admin
+      .from('scenes')
+      .insert({
+        id: sceneId,
+        game_id: gameId,
+        asset_id: assetId,
+        name: 'Clearing',
+        width: 300,
+        height: 300,
+        fog: [{ x: 0, y: 0, width: 300, height: 300, reveal: true }],
+      })
+      .throwOnError();
+    await admin.from('games').update({ active_scene_id: sceneId }).eq('id', gameId).throwOnError();
+    for (const [i, name] of ['Rowan', 'Aboleth A', 'Aboleth B'].entries()) {
+      const id = crypto.randomUUID(),
+        owner = i ? gm.id : player.id;
+      await admin
+        .from('actors')
+        .insert({
+          id,
+          game_id: gameId,
+          name,
+          kind: i ? 'enemy' : 'character',
+          owner_id: owner,
+          sheet: i ? monster : hero,
+          encounter_instance: !!i,
+        })
+        .throwOnError();
+      await admin
+        .from('tokens')
+        .insert({
+          scene_id: sceneId,
+          game_id: gameId,
+          actor_id: id,
+          controller_id: owner,
+          label: name,
+          x: 50 + i * 70,
+          y: 80,
+        })
+        .throwOnError();
+    }
+    await Promise.all(
+      [gm, player].map(async (p) => {
+        await p.page.goto(`/games/${gameId}`);
+        await expect(p.page.locator('.connection')).toContainText('Live channel connected', {
+          timeout: 30000,
+        });
+      }),
+    );
+    await gm.page.getByText('Scene tools', { exact: true }).click();
+    const select = gm.page.getByLabel('Token quick actions', { exact: true });
+    await select.selectOption({ label: 'Rowan' });
+    const quick = gm.page.getByRole('dialog', { name: 'Rowan quick actions' });
+    await expect(quick.getByText(`Armor Class: ${armor}`, { exact: true })).toBeVisible();
+    await player.page.getByRole('button', { name: 'My character', exact: true }).click();
+    const sheet = player.page.getByRole('dialog', { name: 'Rowan', exact: true });
+    await sheet.getByRole('tab', { name: 'Inventory' }).click();
+    await sheet.getByRole('button', { name: 'Equip Shield', exact: true }).first().click();
+    await expect(
+      sheet.getByRole('status').filter({ hasText: `AC ${armor} → ${armor + 2}` }),
+    ).toBeVisible();
+    await expect(quick.getByText(`Armor Class: ${armor + 2}`, { exact: true })).toBeVisible({
+      timeout: 5000,
+    });
+    await sheet.getByText('Character settings & tools', { exact: true }).click();
+    await sheet.getByRole('button', { name: 'Progress / level up character' }).click();
+    const builder = player.page.getByRole('dialog', { name: 'SRD 5.2.1 character builder' });
+    await builder.getByRole('button', { name: 'Add level 5' }).click();
+    await builder.getByRole('button', { name: 'Apply and save to table' }).click();
+    await expect(builder).toHaveCount(0);
+    await quick.getByText('Attack / sheet rolls', { exact: true }).click();
+    await quick.getByLabel('Token attack or ability').selectOption('attack:0');
+    await quick.getByRole('button', { name: 'Roll selected action' }).click();
+    const totalKey = dndId('weapon-total:0');
+    expect(dndNumbers(hero)[dndId('pb')]).toBe(2);
+    await expect
+      .poll(async () => {
+        const snapshot = await (await gm.page.request.get(`/api/games/${gameId}`)).json();
+        return snapshot.rolls[0]?.result.modifiers[totalKey];
+      })
+      .toBe(dndNumbers(hero)[totalKey] + 1);
+    await quick.getByLabel('Close quick actions').click();
+    await select.selectOption({ label: 'Aboleth A' });
+    const first = gm.page.getByRole('dialog', { name: 'Aboleth A quick actions' });
+    await first.getByRole('button', { name: 'Open character sheet' }).click();
+    const creature = gm.page.getByRole('dialog', { name: 'Aboleth A', exact: true });
+    await creature.getByText('Monster equipment', { exact: true }).click();
+    await creature.getByRole('button', { name: 'Equip additional shield' }).click();
+    await expect(
+      creature.getByRole('status').filter({ hasText: `AC ${monsterAC} → ${monsterAC + 2}` }),
+    ).toBeVisible();
+    await creature.getByLabel('Close character sheet').click();
+    await expect(first.getByText(`Armor Class: ${monsterAC + 2}`, { exact: true })).toBeVisible();
+    await first.getByLabel('Close quick actions').click();
+    await select.selectOption({ label: 'Aboleth B' });
+    await expect(
+      gm.page
+        .getByRole('dialog', { name: 'Aboleth B quick actions' })
+        .getByText(`Armor Class: ${monsterAC}`, { exact: true }),
+    ).toBeVisible();
+  } finally {
+    await Promise.all(contexts.map((c) => c.close()));
+    await admin.storage
+      .from('tabletop')
+      .remove([`${gameId}/${assetId}.png`, `masked/${gameId}/${sceneId}/0.png`]);
+    await admin.from('games').update({ active_scene_id: null }).eq('id', gameId);
+    await admin.from('games').delete().eq('id', gameId);
+    for (const user of users) await admin.auth.admin.deleteUser(user);
+  }
+});
+
+test('GM and eight players share a persistent scene, sheets, fog, and permission-filtered rolls', async ({
+  browser,
+}) => {
+  test.setTimeout(300000);
+  const { admin, users, contexts, session } = sessions();
+  let gameId: string | undefined;
   try {
     const gm = await session(browser, 'gm'),
       player = await session(browser, 'player');
@@ -62,7 +243,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await gm.page.getByRole('button', { name: 'Create game' }).click();
     await gm.page.waitForURL('**/games/**');
     gameId = gm.page.url().split('/').pop()!;
-    await gm.page.getByRole('button', { name: 'Room', exact: true }).click();
+    await gm.page.getByRole('button', { name: 'Settings', exact: true }).click();
     await gm.page.getByRole('button', { name: 'Create invitation link' }).click();
     const invitation = await gm.page.getByLabel('Valid for 7 days').inputValue();
     await player.page.goto(invitation);

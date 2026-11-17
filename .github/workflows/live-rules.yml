@@ -1,0 +1,28 @@
+name: Live table rules
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  multiplayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359
+        with:
+          version: 2.118.0
+      - run: supabase start -x studio,imgproxy,logflare,vector,edge-runtime,supavisor
+      - name: Exercise live GM and player sessions
+        shell: bash
+        run: |
+          eval "$(supabase status -o env)"
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          E2E_SUPABASE=1 npx playwright test multiplayer.spec.ts -g 'live actor updates'
