@@ -241,14 +241,14 @@ Local verification: 605 unit/database/component tests, production build/TypeScri
 
 ### Epic 12 — Scene staging and encounter preparation
 
-Status: Planned. Dependencies: E04, E05, E08.
+Status: Implemented. Dependencies: E04, E05, E08. Migration: `20261117202221_scene_staging.sql`.
 
-- [ ] E12-T01: Add scene thumbnails and separate Prepare from Show to players.
-- [ ] E12-T02: Allow GM editing/inspection of an inactive scene without changing players' active scene.
-- [ ] E12-T03: Extend E04's SRD monster browsing with available licensed/custom NPC and monster data and scene-preparation workflows; do not defer the SRD library or basic board placement to this epic.
-- [ ] E12-T04: Save encounter groups; drag/drop independent creatures into a prepared scene.
-- [ ] E12-T05: Add explicit scene publication and party-transfer behavior with preserved PC resources.
-- [ ] E12-T06: Test prepared-scene secrecy, encounter reuse, concurrent GMs if supported, and safe scene transitions.
+- [x] E12-T01: Add scene thumbnails and separate Prepare from Show to players.
+- [x] E12-T02: Allow GM editing/inspection of an inactive scene without changing players' active scene.
+- [x] E12-T03: Extend E04's SRD monster browsing with available licensed/custom NPC and monster data and scene-preparation workflows; do not defer the SRD library or basic board placement to this epic.
+- [x] E12-T04: Save encounter groups; drag/drop independent creatures into a prepared scene.
+- [x] E12-T05: Add explicit scene publication and party-transfer behavior with preserved PC resources.
+- [x] E12-T06: Test prepared-scene secrecy, encounter reuse, concurrent GMs if supported, and safe scene transitions.
 
 Acceptance: a GM can prepare the next encounter while players remain on the current scene.
 

@@ -31,7 +31,9 @@ export default function MonsterLibrary({
     [query, cr],
   );
   if (snapshot.role !== 'gm') return null;
-  const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
+  const scene = snapshot.scenes.find(
+    (s) => s.id === (snapshot.preparedSceneId ?? snapshot.game.active_scene_id),
+  );
   const monster = custom ? undefined : monsterById.get(selection);
   const actor = custom
     ? snapshot.actors.find((a) => a.id === selection && a.kind !== 'character')
@@ -50,12 +52,26 @@ export default function MonsterLibrary({
           onChange={(e) => {
             setCustom(e.target.value === 'actor');
             setSelection('');
+            setQuery('');
           }}
         >
           <option value="srd">SRD 5.2.1 library</option>
           <option value="actor">Existing NPC / enemy sheet</option>
         </select>
       </label>
+      {custom && (
+        <label>
+          Search custom NPCs and enemies
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelection('');
+            }}
+            placeholder="Name or kind"
+          />
+        </label>
+      )}
       {!custom && (
         <>
           <label>
@@ -93,7 +109,11 @@ export default function MonsterLibrary({
           <option value="">Choose a creature…</option>
           {custom
             ? snapshot.actors
-                .filter((a) => a.kind !== 'character')
+                .filter(
+                  (a) =>
+                    a.kind !== 'character' &&
+                    `${a.name} ${a.kind}`.toLowerCase().includes(query.trim().toLowerCase()),
+                )
                 .map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}

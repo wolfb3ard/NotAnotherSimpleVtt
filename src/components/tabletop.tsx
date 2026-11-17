@@ -73,6 +73,7 @@ function ActorToken({
   movable,
   move,
   select,
+  sheet,
   quickActions,
   active,
   selected,
@@ -85,6 +86,7 @@ function ActorToken({
   movable: boolean;
   move: (x: number, y: number, revision: number) => Promise<boolean>;
   select: () => void;
+  sheet: () => void;
   quickActions: (x: number, y: number) => void;
   active: boolean;
   selected: boolean;
@@ -110,6 +112,13 @@ function ActorToken({
         }
       }}
       onTap={select}
+      onDblClick={(e) => {
+        if (e.evt.button === 0) {
+          e.cancelBubble = true;
+          sheet();
+        }
+      }}
+      onDblTap={sheet}
       onContextMenu={(e) => {
         e.evt.preventDefault();
         e.cancelBubble = true;
@@ -228,6 +237,7 @@ function TabletopScene({
   edits,
   run,
   openQuickActions,
+  openTokenSheet,
   onPreviewChange,
   children,
   attention,
@@ -236,6 +246,7 @@ function TabletopScene({
   edits: ReturnType<typeof useTabletopEdits>;
   run: Run;
   openQuickActions: (tokenId: string, anchor: Point) => boolean | void;
+  openTokenSheet?: (actorId: string) => void;
   onPreviewChange?: (preview: boolean) => boolean;
   children?: React.ReactNode;
   attention?: RoomAttention;
@@ -256,7 +267,9 @@ function TabletopScene({
   const [placementX, setPlacementX] = useState('0');
   const [placementY, setPlacementY] = useState('0');
   const [setupMessage, setSetupMessage] = useState('');
-  const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
+  const scene = snapshot.scenes.find(
+    (s) => s.id === (snapshot.preparedSceneId ?? snapshot.game.active_scene_id),
+  );
   const scope = `${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`;
   const tactical = useTacticalTemplates(snapshot, run, preview);
   const { view, update: updateView } = useMapView(scope, scene, dimensions);
@@ -306,6 +319,7 @@ function TabletopScene({
       spaceHeld.current = false;
       setSpacePan(false);
       pointerGesture.current = false;
+      setDrawing(false);
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -422,6 +436,11 @@ function TabletopScene({
     pointerGesture.current = false;
     setSpacePan(spaceHeld.current);
     setDrawing(false);
+    if (mode === 'measure') {
+      setStart(null);
+      setEnd(null);
+      return;
+    }
     if (!drawing || spacePan) return;
     if (!scene || !start || !end || !['reveal', 'conceal'].includes(mode)) return;
     const width = Math.abs(start.x - end.x),
@@ -463,7 +482,45 @@ function TabletopScene({
     if (accepted !== false) setSelected(token.id);
   }
   return (
-    <div className="tabletop" ref={container} tabIndex={0} aria-label="Tabletop map">
+    <div
+      className="tabletop"
+      ref={container}
+      tabIndex={0}
+      aria-label="Tabletop map"
+      onDragOver={(e) => {
+        if (gm && !preview && e.dataTransfer.types.includes('application/x-vtt-group'))
+          e.preventDefault();
+      }}
+      onDrop={(e) => {
+        if (
+          !gm ||
+          preview ||
+          !scene ||
+          !stage.current ||
+          !stage.current.container().contains(e.target as Node)
+        )
+          return;
+        const raw = e.dataTransfer.getData('application/x-vtt-group');
+        if (!raw) return;
+        e.preventDefault();
+        try {
+          const payload = JSON.parse(raw);
+          if (
+            payload.scene_id !== scene.id ||
+            !snapshot.groups?.some((g) => g.id === payload.group_id)
+          )
+            return;
+          const rect = stage.current.container().getBoundingClientRect();
+          void run('group_place', {
+            ...payload,
+            x: (e.clientX - rect.left - position.x) / scale,
+            y: (e.clientY - rect.top - position.y) / scale,
+          });
+        } catch {
+          setSetupMessage('Choose a creature from the encounter groups.');
+        }
+      }}
+    >
       <div className="tabletop-controls" ref={controls}>
         <div className="canvas-tools" aria-label="Map setup controls" tabIndex={-1}>
           {scene && (
@@ -490,7 +547,8 @@ function TabletopScene({
               </p>
               <p>
                 Enable Snap to grid for cell-center movement; turn it off for free movement. GM grid
-                size/origin are shared; scale uses Calibrate. Uncalibrated distances are estimates.
+                size/origin are shared. Set feet per square in Grid settings, or use Calibrate for a
+                measured line. Uncalibrated distances are estimates.
               </p>
               <p>
                 Ctrl/Cmd+Z undoes eligible map edits outside text inputs. Your view is remembered
@@ -662,7 +720,9 @@ function TabletopScene({
             </>
           )}
         </div>
-        <TacticalTemplateTools tools={tactical} selectOrigin={() => setMode('template')} />
+        {!snapshot.preparedSceneId && (
+          <TacticalTemplateTools tools={tactical} selectOrigin={() => setMode('template')} />
+        )}
         {attention && scene && (
           <SharedAttention
             attention={attention}
@@ -823,7 +883,10 @@ function TabletopScene({
                     tokenGesture.current = active;
                   }}
                   select={() => {
-                    choose(token);
+                    if (!preview && !spacePan && mode === 'move') setSelected(token.id);
+                  }}
+                  sheet={() => {
+                    if (!preview && !spacePan && mode === 'move') openTokenSheet?.(token.actor_id);
                   }}
                   move={async (x, y, revision) => {
                     return edits.commit('tabletop_move', {
@@ -837,7 +900,7 @@ function TabletopScene({
               ))}
               {start &&
                 end &&
-                mode !== 'move' &&
+                (mode === 'calibrate' || drawing) &&
                 (['reveal', 'conceal'].includes(mode) ? (
                   <Rect
                     x={Math.min(start.x, end.x)}
@@ -869,7 +932,7 @@ function TabletopScene({
                 ))}
             </Layer>
           </Stage>
-          <TacticalTemplateOverlay tools={tactical} view={view} />
+          {!snapshot.preparedSceneId && <TacticalTemplateOverlay tools={tactical} view={view} />}
           {attention && !preview && (
             <AttentionMarkers signals={attention.signals} snapshot={snapshot} view={view} />
           )}
@@ -879,7 +942,10 @@ function TabletopScene({
             </div>
           )}
           <div className="canvas-bottom">
-            <span className="scene-label">◈ {scene.name}</span>
+            <span className="scene-label">
+              {snapshot.preparedSceneId ? 'Private preparation: ' : '◈ '}
+              {scene.name}
+            </span>
             <div className="row">
               <button onClick={() => fit(scene)}>Fit map</button>
               <button
@@ -919,8 +985,8 @@ function TabletopScene({
               scene={scene}
               blocked={mapBlocked}
               close={() => setShowGrid(false)}
-              save={(grid: Grid, revision: number) =>
-                gridEdits.commit({ scene_id: scene.id, revision, grid })
+              save={(grid: Grid, revision: number, feet?: number) =>
+                gridEdits.commit({ scene_id: scene.id, revision, grid, feet_per_cell: feet })
               }
             />
           )}
@@ -979,7 +1045,18 @@ function TabletopScene({
           {mode === 'calibrate' && gm && (
             <div className="canvas-popover">
               <strong>Calibrate distance</strong>
-              <p>Draw a line over a known distance, then enter its length.</p>
+              <p>
+                Use grid calibration for a map with known squares, or draw a line and enter its
+                length.
+              </p>
+              <button
+                onClick={() => {
+                  setMode('move');
+                  setShowGrid(true);
+                }}
+              >
+                Calibrate by squares
+              </button>
               <div className="row">
                 <input
                   aria-label="Known distance"
@@ -1029,7 +1106,7 @@ function TabletopScene({
         {mode === 'move'
           ? preview
             ? 'Player preview · token actions disabled'
-            : 'Click token for actions · Drag to pan · Scroll to zoom · Drag your token to move'
+            : 'Drag token to move · Double-click for sheet · Right-click for quick actions'
           : mode === 'ping' || mode === 'camera'
             ? 'Click revealed map space to share attention · numeric controls available · Move cancels'
             : mode === 'place' || mode === 'spawn'

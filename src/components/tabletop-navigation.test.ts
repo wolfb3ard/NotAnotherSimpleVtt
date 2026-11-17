@@ -373,7 +373,9 @@ it('zooms around pointer, remembers views across reconnect, and resets without m
 });
 it('GM applies shared grid through a revision-checked idempotent command, players cannot configure it', async () => {
   await render();
-  expect(container.textContent).not.toContain('Grid settings');
+  expect(
+    [...container.querySelectorAll('button')].some((b) => b.textContent === 'Grid settings'),
+  ).toBe(false);
   await render({ ...snapshot, role: 'gm', userId: 'gm' });
   await click('Grid settings');
   await click('Apply grid');
@@ -412,7 +414,9 @@ it('finishes Space-pan before restoring a drawing tool and never reuses a ruler 
   await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
   canvas.point = { x: 200, y: 200 };
   await act(async () => canvas.stage.onMouseMove());
+  expect(container.querySelector('[data-text$="ft · Euclidean"]')).not.toBeNull();
   await act(async () => canvas.stage.onMouseUp());
+  expect(container.querySelector('[data-text$="ft · Euclidean"]')).toBeNull();
   await click('◉ Reveal');
   await key('keydown');
   await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
