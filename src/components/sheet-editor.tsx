@@ -305,7 +305,8 @@ export function SheetEditor({
               <div className="stack">
                 <p>
                   Printed AC already includes normal gear. Add a Shield here only if the creature
-                  can gain the extra +2 AC; shields do not stack. Other items are tracked manually.
+                  can gain the extra +2 AC; shields do not stack. Equipped weapons and armor are
+                  recorded here without changing the monster’s printed attacks or defenses.
                 </p>
                 <PlayInventory
                   sheet={sheet}
