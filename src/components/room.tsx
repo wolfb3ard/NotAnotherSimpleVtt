@@ -14,6 +14,7 @@ import { presentCue, type Presentation } from '@/lib/dice-presentation';
 import { DiceStyleEditor } from './dice-style-editor';
 import { SheetWindow } from './sheet-window';
 import { RollWindow } from './roll-window';
+import { loadLayout, type WindowLayout } from '@/lib/window-layout';
 import { ActorCard } from './actor-card';
 import { RoomShortcuts } from './room-shortcuts';
 import { useDiceZoom } from './use-dice-zoom';
@@ -33,12 +34,44 @@ const MonsterLibrary = dynamic(() => import('./monster-library'));
 type Tab = 'party' | 'encounter' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
 export function Room({ initial }: { initial: Snapshot }) {
+  const storageKey = `vtt:layout:v1:${initial.userId}:${initial.game.id}`;
+  return <RoomWorkspace key={storageKey} initial={initial} storageKey={storageKey} />;
+}
+
+function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey: string }) {
   const [diceZoom, setDiceZoom] = useDiceZoom();
   const [snapshot, setSnapshot] = useState(initial);
   const prepare = useRef<string | undefined>(undefined);
   const [bringParty, setBringParty] = useState(false);
   const [tab, setTab] = useState<Tab>('party');
-  const [selectedActor, setSelectedActor] = useState<string>();
+  const [layout, setLayout] = useState<WindowLayout>({ detached: false });
+  const [loaded, setLoaded] = useState(false);
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [firstSnapshot] = useState(initial);
+  const selectedActor = layout.actor;
+  const diceDetached = layout.detached;
+  const changeLayout = useCallback(
+    (patch: Partial<WindowLayout>) => setLayout((current) => ({ ...current, ...patch })),
+    [],
+  );
+  const setDiceDetached = (detached: boolean) => changeLayout({ detached });
+  useEffect(() => {
+    const restored = loadLayout(storageKey);
+    const actor = firstSnapshot.actors.find((a) => a.id === restored.actor);
+    // Reading browser storage after hydration keeps the initial server and client markup identical.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLayout({ ...restored, actor: actor?.id });
+    if (firstSnapshot.role === 'gm' && actor && monsterId(actor.sheet)) setVisibility('private');
+    setLoaded(true);
+  }, [storageKey, firstSnapshot]);
+  useEffect(() => {
+    if (loaded)
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(layout));
+      } catch {
+        /* Storage is optional. */
+      }
+  }, [layout, loaded, storageKey]);
   const [initialBuilderActor, setInitialBuilderActor] = useState<string>();
   const sheetDirtyRef = useRef(false);
   const [sheetDirty, setSheetDirty] = useState(false);
@@ -61,9 +94,7 @@ export function Room({ initial }: { initial: Snapshot }) {
   const [invite, setInvite] = useState('');
   const [expression, setExpression] = useState('1d20');
   const [rollType, setRollType] = useState('Manual roll');
-  const [diceDetached, setDiceDetached] = useState(false);
   const [rollActor, setRollActor] = useState('');
-  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [diceSetting, setDiceSetting] = useState(initial.game.dice.join(', '));
   const [createActor, setCreateActor] = useState(false);
   const [modifier, setModifier] = useState('0');
@@ -112,7 +143,7 @@ export function Room({ initial }: { initial: Snapshot }) {
       monsterId(snapshot.actors.find((a) => a.id === id)?.sheet ?? emptySheet())
     )
       setVisibility('private');
-    setSelectedActor(id);
+    changeLayout({ actor: id });
     setInitialBuilderActor(startBuilder ? id : undefined);
     return true;
   }
@@ -169,8 +200,10 @@ export function Room({ initial }: { initial: Snapshot }) {
             ? current
             : undefined,
         );
-        setSelectedActor((current) =>
-          updated.actors.some((a) => a.id === current) ? current : undefined,
+        setLayout((current) =>
+          !current.actor || updated.actors.some((a) => a.id === current.actor)
+            ? current
+            : { ...current, actor: undefined },
         );
         setRollActor((current) =>
           updated.actors.some(
@@ -538,7 +571,12 @@ export function Room({ initial }: { initial: Snapshot }) {
                 'settings',
               ] as Tab[]
             ).map((t) => (
-              <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+              <button
+                key={t}
+                aria-current={tab === t ? 'page' : undefined}
+                className={tab === t ? 'active' : ''}
+                onClick={() => setTab(t)}
+              >
                 {t === 'settings'
                   ? 'Room'
                   : t === 'appearance'
@@ -737,6 +775,8 @@ export function Room({ initial }: { initial: Snapshot }) {
             )}
             {(tab === 'dice' || diceDetached) && (
               <RollWindow
+                saved={layout.roll}
+                onSave={(roll) => changeLayout({ roll })}
                 detached={diceDetached}
                 onDock={() => {
                   setDiceDetached(false);
@@ -1245,6 +1285,13 @@ export function Room({ initial }: { initial: Snapshot }) {
                 {snapshot.templates.length === 0 && (
                   <p className="small muted">Save a sheet as a template from its editor.</p>
                 )}
+                <button
+                  onClick={() =>
+                    setLayout((current) => ({ actor: current.actor, detached: false }))
+                  }
+                >
+                  Reset layout
+                </button>
                 <p className="small muted">
                   Game ID: <code>{snapshot.game.id}</code>
                 </p>
@@ -1256,13 +1303,15 @@ export function Room({ initial }: { initial: Snapshot }) {
       </div>
       {actor && (
         <SheetWindow
+          saved={layout.sheet}
+          onSave={(sheet) => changeLayout({ sheet })}
           externalBusy={!!quickActor && selectedActor === quickActor.id && quickBusy}
           key={actor.id}
           actor={actor}
           snapshot={snapshot}
           run={run}
           onRoll={rollFromSheet}
-          onClose={() => setSelectedActor(undefined)}
+          onClose={() => changeLayout({ actor: undefined })}
           error={error}
           onDirtyChange={trackSheetDirty}
           initialBuilderOpen={initialBuilderActor === actor.id}

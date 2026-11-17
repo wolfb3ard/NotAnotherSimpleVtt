@@ -426,6 +426,66 @@ it('pops out, moves, maximizes and docks one shared dice panel without losing ro
   expect(container.querySelectorAll('.roll-button')).toHaveLength(1);
 });
 
+it('restores a resized roll window after remount, isolates rooms and users, and resets the layout', async () => {
+  const store = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => store.set(key, value),
+  });
+  const snapshot: Snapshot = {
+    rollCues: [],
+    diceStyles: [],
+    userId: 'owner',
+    role: 'player',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [20] },
+    actors: [],
+    grants: [],
+    tokens: [],
+    scenes: [],
+    templates: [],
+    rolls: [],
+    members: [],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => snapshot })),
+  );
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const render = (initial: Snapshot) =>
+    act(async () => root.render(createElement(Room, { initial })));
+  const click = async (label: string) =>
+    act(async () =>
+      [...container.querySelectorAll('button')]
+        .find((b) => b.textContent === label || b.getAttribute('aria-label') === label)!
+        .click(),
+    );
+  const dialog = () => container.querySelector<HTMLElement>('.roll-window');
+  await render(snapshot);
+  await click('Dice');
+  await click('Pop out roll window');
+  await act(async () =>
+    dialog()!
+      .querySelector('[aria-label="Resize roll window"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })),
+  );
+  const width = dialog()!.style.width;
+  expect(width).toBe('460px');
+  await render({ ...snapshot, userId: 'other' });
+  expect(dialog()).toBeNull();
+  await render({ ...snapshot, game: { ...snapshot.game, id: 'another' } });
+  expect(dialog()).toBeNull();
+  await render(snapshot);
+  expect(dialog()?.style.width).toBe(width);
+  await click('Room');
+  await click('Reset layout');
+  expect(dialog()).toBeNull();
+  await click('Dice');
+  await click('Pop out roll window');
+  expect(dialog()?.style.width).toBe('440px');
+});
+
 it('clears a deleted roll target and permits another manual roll without reloading', async () => {
   let snapshot: Snapshot = {
     userId: 'owner',
