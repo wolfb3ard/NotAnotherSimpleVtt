@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Snapshot } from '@/lib/types';
 import Tabletop from './tabletop';
+import type { RoomAttention } from './use-room-attention';
 
 const canvas = vi.hoisted(() => ({
   stage: {} as Record<string, any>, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -87,7 +88,7 @@ const snapshot: Snapshot = {
 };
 const commit = vi.fn(async () => true);
 const run = vi.fn(async () => ({ confirmed: 'true' }));
-async function render(s = snapshot) {
+async function render(s = snapshot, attention?: RoomAttention) {
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -104,6 +105,7 @@ async function render(s = snapshot) {
     root.render(
       createElement(Tabletop, {
         snapshot: s,
+        attention,
         run,
         openQuickActions: vi.fn(),
         edits: {
@@ -158,6 +160,32 @@ afterEach(async () => {
   commit.mockClear();
   run.mockClear();
   vi.unstubAllGlobals();
+});
+it('shares a transformed explicit point without moving a token or the camera; Space-pan never sends a ping', async () => {
+  const send = vi.fn();
+  const attention = {
+    signals: [],
+    online: true,
+    sending: false,
+    message: '',
+    send,
+  } as unknown as RoomAttention;
+  await render(snapshot, attention);
+  await click('Ping map');
+  expect(canvas.stage.draggable).toBe(false);
+  expect(canvas.token.draggable).toBe(false);
+  canvas.point = { x: 125, y: 100 };
+  await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
+  expect(send).toHaveBeenCalledWith('ping', { x: 75, y: 50 }, snapshot.scenes[0]);
+  expect(commit).not.toHaveBeenCalled();
+  expect(canvas.stage.x).toBe(50);
+  expect(canvas.stage.y).toBe(50);
+  send.mockClear();
+  await act(async () => canvas.stage.onMouseUp());
+  await click('Ping map');
+  await key('keydown');
+  await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
+  expect(send).not.toHaveBeenCalled();
 });
 it('shows scaled Euclidean drag distance, snaps the submitted endpoint, preserves revision and never commits during drag', async () => {
   await render();

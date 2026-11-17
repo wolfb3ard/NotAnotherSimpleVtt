@@ -18,13 +18,14 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 
 ## Progress snapshot — 2026-11-17
 
-- Epics 01–08 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 09 continues Phase 3.
+- Epics 01–09 are complete and merged into `main`. Phases 1 and 2 are complete; Epic 10 continues Phase 3.
 - Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
 - Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
 - Epic 08 merged in [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) on 2026-11-17 (commit `a6447f1`).
-- Epic 09 adds shared grid calibration, optional snapping, Euclidean drag feedback, Space-pan, room help and browser-local scene viewports; [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) ready for review, not merged.
+- Epic 09 merged in [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) on 2026-11-17 (commit `ea5a336`).
+- Epic 10 adds ephemeral fog-safe pings, explicit GM camera Follow/Decline, tab-aware presence, and separate live-channel/snapshot health. Implemented; PR pending.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
-- Latest local implementation verification: E09's 549 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
+- Latest local implementation verification: E10's 578 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
 
 ## Current foundation
@@ -187,7 +188,7 @@ Local verification: 517 unit/database/component tests, production build/TypeScri
 
 ### Epic 09 — Navigation, grid, and movement feedback
 
-Status: Implemented; [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) ready for review, not merged. Dependencies: E03, E08 (merged).
+Status: Complete; [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) merged into `main` on 2026-11-17 (commit `ea5a336`). Dependencies: E03, E08 (merged).
 
 - [x] E09-T01: Add configurable grid overlay, size/origin calibration, and optional snapping; keep free movement.
 - [x] E09-T02: Show measured movement distance while dragging using scene scale and an explicit distance convention.
@@ -204,16 +205,20 @@ Local verification: 549 unit/database/component tests, production build/TypeScri
 
 ### Epic 10 — Shared attention and connection confidence
 
-Status: Planned. Dependencies: E09.
+Status: Implemented; PR pending. Dependencies: E09 (merged).
 
-- [ ] E10-T01: Add ephemeral, rate-limited player pings with accessible labels and reduced-motion behavior.
-- [ ] E10-T02: Add an explicit GM Bring everyone here action with a player follow/decline policy.
-- [ ] E10-T03: Show actual online/reconnecting presence, distinct from the existing membership list.
-- [ ] E10-T04: Distinguish snapshot sync from live-channel health; report offline/unconfirmed writes honestly.
-- [ ] E10-T05: Filter pings/camera targets against scene visibility; never reveal hidden token positions.
-- [ ] E10-T06: Test multiple tabs, disconnect/rejoin, scene changes, throttling, and secret locations.
+- [x] E10-T01: Add ephemeral, rate-limited player pings with accessible labels and reduced-motion behavior.
+- [x] E10-T02: Add an explicit GM Bring everyone here action with a player follow/decline policy.
+- [x] E10-T03: Show actual online/reconnecting presence, distinct from the existing membership list.
+- [x] E10-T04: Distinguish snapshot sync from live-channel health; report offline/unconfirmed writes honestly.
+- [x] E10-T05: Filter pings/camera targets against scene visibility; never reveal hidden token positions.
+- [x] E10-T06: Test multiple tabs, disconnect/rejoin, scene changes, throttling, and secret locations.
 
 Acceptance: the group can point to the same place and distinguish a disconnected player from an idle member.
+
+Implementation policy: ephemeral attention uses authenticated, RPC-only bounded slots, not untrusted client broadcasts or durable room history. Pings last 8 seconds; GM camera requests last 20; server-side per-user/type throttling applies across tabs. Click and keyboard/numeric entry target explicit revealed points, never token-derived locations. Server reads/writes require current membership, active scene, exact scene revision and current fog visibility, including for GMs; scene switches discard outstanding requests. Static, labelled, zoom-independent markers never animate/flash. Each camera request requires explicit Follow or Decline, never automatically switches scene or zooms, and revalidates server visibility/expiry at Follow time. Decline cancels in-flight Follow; delayed responses cannot move a different scene or GM preview. Presence polls about every three seconds using distinct memory-only tab IDs and server-stamped twelve-second leases (maximum eight tabs per user/game). Idle counts as online; at least one live-channel tab yields Online/live, otherwise fresh heartbeat yields Online/reconnecting. Closed/disconnected/suspended tabs expire with polling delay. Unavailable/stale local presence shows Unknown, not everyone Offline. Snapshot success/age and actual live-channel subscription health are independent. Offline and unconfirmed writes retain honest warnings and existing exact-retry/reconciliation behavior. Attention requests have bounded timeouts, no automatic resend, no durable retry, no delivery acknowledgement and no Undo. Expired slots are lazily pruned during room use; retained inactive-game rows are unreadable.
+
+Local verification: 578 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. New PGlite coverage applies every migration and verifies anonymous/outsider/direct-table denial, authenticated tab leases/aggregation/expiry/caps, per-user throttling, GM-only camera requests, bounds/NaN, hidden/stale/other-scene targets, scene-switch discard, fog revalidation, TTL cleanup and revoked membership. Hook/component tests cover offline/rejoin, hung-request recovery, late replies, distinct remounted-tab IDs, stale/unknown presence, authoritative Follow, Decline during Follow, preview/scene transitions, zoom-preserving Follow, transformed click points/Space-pan guards, static accessible markers and independent live/snapshot health. The opt-in multiplayer scenario now includes ping expiry, camera consent, multiple tabs and disconnect/rejoin, but was skipped. Migration: `20261117151604_shared_attention.sql`. No hosted migration applied. Local advisors could not connect to the unavailable local Supabase stack.
 
 ### Epic 11 — Tactical spell templates
 

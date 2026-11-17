@@ -80,7 +80,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
         });
         if (error) throw error;
         await spectator.page.goto(`/games/${gameId}`);
-        await expect(spectator.page.getByRole('status')).toContainText('Connected');
+        await expect(spectator.page.locator('.connection')).toContainText('Live channel connected');
       }),
     );
     await player.page.getByRole('button', { name: 'Create character' }).click();
@@ -589,6 +589,56 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     expect(await player.page.evaluate((key) => localStorage.getItem(key), cameraKey)).toBe(camera);
     await expect(player.page.locator('.canvas-bottom')).toContainText('120%');
     await player.page.getByRole('button', { name: 'Fit map / Reset view', exact: true }).click();
+    // Epic 10: ephemeral pointing, explicit camera consent, tabs and offline/rejoin.
+    await gm.page.getByRole('button', { name: 'Scenes', exact: true }).click();
+    await gm.page.getByRole('button', { name: 'Reveal entire scene', exact: true }).click();
+    await gm.page.getByText('Attention coordinates & policy', { exact: true }).click();
+    await gm.page.getByLabel('Attention X', { exact: true }).fill('100');
+    await gm.page.getByLabel('Attention Y', { exact: true }).fill('100');
+    await gm.page.getByRole('button', { name: 'Ping coordinates', exact: true }).click();
+    await expect(
+      player.page.getByRole('img', { name: 'Test GM ping at map 100, 100', exact: true }),
+    ).toBeVisible({ timeout: 10000 });
+    const beforeFollow = await player.page.evaluate((key) => localStorage.getItem(key), cameraKey);
+    await gm.page
+      .getByRole('button', { name: 'Request camera at coordinates', exact: true })
+      .click();
+    await expect(
+      player.page.getByRole('button', { name: 'Follow camera request', exact: true }),
+    ).toBeVisible({ timeout: 10000 });
+    expect(await player.page.evaluate((key) => localStorage.getItem(key), cameraKey)).toBe(
+      beforeFollow,
+    );
+    await player.page.getByRole('button', { name: 'Decline camera request', exact: true }).click();
+    expect(await player.page.evaluate((key) => localStorage.getItem(key), cameraKey)).toBe(
+      beforeFollow,
+    );
+    await expect(
+      player.page.getByRole('img', { name: 'Test GM ping at map 100, 100', exact: true }),
+    ).toHaveCount(0, { timeout: 10000 });
+    await gm.page
+      .getByRole('button', { name: 'Request camera at coordinates', exact: true })
+      .click();
+    await player.page
+      .getByRole('button', { name: 'Follow camera request', exact: true })
+      .click({ timeout: 10000 });
+    await expect
+      .poll(() => player.page.evaluate((key) => localStorage.getItem(key), cameraKey))
+      .not.toBe(beforeFollow);
+    const extraTab = await player.page.context().newPage();
+    await extraTab.goto(`/games/${gameId}`);
+    await gm.page.getByText(/^Who is online/).click();
+    await expect(gm.page.locator('.room-presence')).toContainText('2 tab(s)', { timeout: 10000 });
+    await extraTab.close();
+    await player.page.context().setOffline(true);
+    await expect(player.page.locator('.connection')).toContainText('Offline');
+    await expect(gm.page.locator('.room-presence')).toContainText('Test Player · Offline', {
+      timeout: 20000,
+    });
+    await player.page.context().setOffline(false);
+    await expect(gm.page.locator('.room-presence')).toContainText('Test Player · Online', {
+      timeout: 10000,
+    });
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {
