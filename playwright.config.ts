@@ -13,7 +13,7 @@ export default defineConfig({
     channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
   },
   webServer: {
-    command: 'npm run dev -- --webpack',
+    command: process.env.E2E_PRODUCTION === '1' ? 'npm start' : 'npm run dev -- --webpack',
     env: {
       // OAuth initiation only constructs a URL; smoke tests intercept the handoff.
       NEXT_PUBLIC_SUPABASE_URL:
