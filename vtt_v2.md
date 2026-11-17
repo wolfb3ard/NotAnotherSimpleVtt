@@ -23,7 +23,7 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 - Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
 - Epic 08 merged in [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) on 2026-11-17 (commit `a6447f1`).
 - Epic 09 merged in [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) on 2026-11-17 (commit `ea5a336`).
-- Epic 10 adds ephemeral fog-safe pings, explicit GM camera Follow/Decline, tab-aware presence, and separate live-channel/snapshot health. Implemented; PR pending.
+- Epic 10 adds ephemeral fog-safe pings, explicit GM camera Follow/Decline, tab-aware presence, and separate live-channel/snapshot health; [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) ready for review, not merged.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
 - Latest local implementation verification: E10's 578 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
@@ -205,7 +205,7 @@ Local verification: 549 unit/database/component tests, production build/TypeScri
 
 ### Epic 10 — Shared attention and connection confidence
 
-Status: Implemented; PR pending. Dependencies: E09 (merged).
+Status: Implemented; [PR #40](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/40) ready for review, not merged. Dependencies: E09 (merged).
 
 - [x] E10-T01: Add ephemeral, rate-limited player pings with accessible labels and reduced-motion behavior.
 - [x] E10-T02: Add an explicit GM Bring everyone here action with a player follow/decline policy.
