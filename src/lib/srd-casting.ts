@@ -9,6 +9,7 @@ export type SrdCastingSource = {
   spells: string[];
   attackKey: string;
   dcKey: string;
+  freeCastPool?: string;
 };
 export const invocationSpellNames: Record<string, string> = {
   'Armor of Shadows': 'Mage Armor',
@@ -54,6 +55,7 @@ export function srdCastingSources(state: SrdBuilderState): SrdCastingSource[] {
     ability: number,
     spells: string[],
     className?: SrdClass,
+    freeCastPool?: string,
   ) =>
     result.push({
       id,
@@ -64,6 +66,7 @@ export function srdCastingSources(state: SrdBuilderState): SrdCastingSource[] {
         ? `srd-resource:spell-attack:${className}`
         : `srd-resource:casting:${id}:attack`,
       dcKey: className ? `srd-resource:spell-dc:${className}` : `srd-resource:casting:${id}:dc`,
+      ...(freeCastPool ? { freeCastPool } : {}),
     });
   const latest = new Map<SrdClass, SrdLevelChoice>();
   state.levels.forEach((step) => latest.set(step.className, step));
@@ -117,7 +120,7 @@ export function srdCastingSources(state: SrdBuilderState): SrdCastingSource[] {
     ),
   ] as const)
     if (feat && srdById.get(feat.id)?.name === 'Magic Initiate' && feat.spellAbility !== undefined)
-      add(id, label, feat.spellAbility, feat.spells);
+      add(id, label, feat.spellAbility, feat.spells, undefined, `magic-initiate:${feat.spellList}`);
   if (['Elf', 'Gnome', 'Tiefling'].includes(state.species))
     add(
       `species:${state.species}`,

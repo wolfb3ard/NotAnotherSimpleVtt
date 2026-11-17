@@ -51,6 +51,8 @@ export function castChoices(sheet: Sheet, spell: CharacterDetails['spells'][numb
     });
   };
   for (const source of sources) {
+    if (source.freeCastPool && spell.level === 1)
+      add(source.id, `${source.label} · Free cast (Long Rest)`, managed(source.freeCastPool));
     const latest = state.levels.findLast((step) => `class:${step.className}` === source.id);
     // A Wizard spellbook entry is not necessarily prepared via Wizard even if another source grants it.
     const eligible = latest

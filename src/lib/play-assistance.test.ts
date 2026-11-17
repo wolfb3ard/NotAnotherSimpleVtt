@@ -4,6 +4,8 @@ import { createDndSheet, dndId } from './dnd';
 import { castChoices, hitDieId, restChanges, slotId } from './play-assistance';
 import { applySrdBuilder } from './srd-engine';
 import { classBuilder, multiclassBuilder } from './srd-test-fixtures';
+import { blankFeat } from './srd-state';
+import { srdEntry } from './srd-catalog';
 import type { Sheet } from './types';
 
 const field = (sheet: Sheet, id: string) =>
@@ -11,6 +13,27 @@ const field = (sheet: Sheet, id: string) =>
 const pool = (name: string) => dndId(`srd-resource:${name}`);
 const values = (changes: ReturnType<typeof restChanges>) =>
   Object.fromEntries(changes.map((c) => [c.id, c.value]));
+
+it('offers Magic Initiate once per Long Rest without requiring or spending a spell slot', () => {
+  const state = classBuilder('Fighter');
+  state.humanFeat = {
+    ...blankFeat(srdEntry('feat', 'Magic Initiate')!.id),
+    spellList: 'Wizard',
+    spellAbility: 3,
+    spells: ['Fire Bolt', 'Mage Hand', 'Shield'].map((name) => srdEntry('spell', name)!.id),
+  };
+  const sheet = applySrdBuilder(createDndSheet(), state);
+  const shield = sheet.character!.spells.find((s) => s.name === 'Shield')!;
+  const free = () => castChoices(sheet, shield).find((c) => c.label.includes('Free cast'));
+  const id = pool('magic-initiate:Wizard');
+  expect(free()).toMatchObject({ available: true, changes: [{ id, value: 0 }] });
+  field(sheet, id).value = 0;
+  expect(free()?.available).toBe(false);
+  expect(values(restChanges(sheet, 'short'))[id]).toBeUndefined();
+  expect(values(restChanges(sheet, 'long'))[id]).toBe(1);
+  const cantrip = sheet.character!.spells.find((s) => s.name === 'Fire Bolt')!;
+  expect(castChoices(sheet, cantrip).every((c) => !c.changes.length)).toBe(true);
+});
 
 it('offers multiclass casting sources, higher shared slots and separate Pact slots', () => {
   const sheet = applySrdBuilder(createDndSheet(), multiclassBuilder());
