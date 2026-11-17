@@ -1052,14 +1052,13 @@ summary {
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);
   min-width: min(460px, calc(100vw - 48px));
-  min-height: 300px;
+  min-height: min(220px, calc(100vh - 16px));
   display: flex;
   flex-direction: column;
   background: var(--panel);
   border: 1px solid #74684f;
   border-radius: 12px;
   box-shadow: 0 16px 64px #000b;
-  resize: both;
   overflow: hidden;
   container-type: inline-size;
   container-name: sheet-window;
@@ -1092,6 +1091,22 @@ summary {
 .sheet-window-handle:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+.window-resize {
+  align-self: flex-end;
+  cursor: nwse-resize;
+  touch-action: none;
+  user-select: none;
+  padding: 4px 12px;
+  color: var(--text);
+}
+.window-resize:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.tabs button[aria-current] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .sheet-window-body {
   overflow: auto;
@@ -1748,6 +1763,10 @@ summary {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .sheet-window button,
+  .tabs button {
+    transition: none;
+  }
   .dice-overlay-fallback span {
     animation: none;
   }

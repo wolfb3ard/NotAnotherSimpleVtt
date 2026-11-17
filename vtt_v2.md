@@ -285,16 +285,20 @@ Local verification: 620 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 15 — Remembered windows and usability hardening
 
-Status: Planned. Dependencies: E01–E14.
+Status: Implemented locally; remote playtest and hosted benchmark pending. Dependencies: E01–E14.
 
-- [ ] E15-T01: Persist sheet/roll window positions, sizes, and dock state per user/workspace.
-- [ ] E15-T02: Restore safely after viewport changes; offer Reset layout and prevent offscreen windows.
-- [ ] E15-T03: Audit focus restoration, tab order, labels, contrast, reduced motion, and non-color cues.
+- [x] E15-T01: Persist sheet/roll window positions, sizes, and dock state per user/workspace.
+- [x] E15-T02: Restore safely after viewport changes; offer Reset layout and prevent offscreen windows.
+- [x] E15-T03: Audit focus restoration, tab order, labels, contrast, reduced motion, and non-color cues for window controls.
 - [ ] E15-T04: Playtest first join, first encounter, reconnect, and next-session resumption with a GM and players.
 - [ ] E15-T05: Benchmark representative maps, fog edits, and eight-player sessions on hosted infrastructure.
-- [ ] E15-T06: Update help/operations docs and publish remaining limitations and measured release checks.
+- [x] E15-T06: Update help/operations docs and publish remaining limitations and measured release checks.
+
+Window audit: named non-modal dialogs; keyboard move/resize, maximize/restore and Escape; underlined current panel; reduced-motion control transitions disabled. Theme contrast against the window panel: primary text 14.25:1, muted text 6.38:1, gold focus ring 9.77:1. See [operations](docs/OPERATIONS.md#epic-15-release-verification) for outstanding hosted checks.
 
 Acceptance: the workspace survives a refresh and a real remote group can complete the core flows without coaching.
+
+Local checks: 623 unit/database/component tests, six Edge auth/smoke tests, lint, TypeScript and production build passed. Repository-wide formatting flagged existing files. Hosted multiplayer was not run.
 
 ## Per-epic completion checklist
 

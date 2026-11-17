@@ -358,7 +358,8 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await player.page.getByRole('button', { name: 'Pop out roll window' }).click();
     const rolls = player.page.getByRole('dialog', { name: 'Rolls', exact: true });
     await expect(rolls).toBeVisible();
-    await expect(rolls).toHaveCSS('resize', 'both');
+    await rolls.getByLabel('Resize roll window').press('ArrowRight');
+    const restoredWidth = (await rolls.boundingBox())!.width;
     await player.page.getByRole('button', { name: 'Party', exact: true }).click();
     await expect(rolls).toBeVisible();
     await rolls.getByRole('button', { name: 'Roll dice', exact: false }).click();
@@ -366,7 +367,10 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(rolls.locator('.roll-card').first()).toContainText('Athletics check');
     await rolls.getByRole('button', { name: 'Maximize roll window' }).click();
     await expect(rolls).toHaveClass(/is-maximized/);
+    await player.page.reload();
+    await expect(rolls).toHaveClass(/is-maximized/);
     await rolls.getByRole('button', { name: 'Restore roll window' }).click();
+    await expect(rolls).toHaveCSS('width', `${restoredWidth}px`);
     await rolls.getByRole('button', { name: 'Dock roll window' }).click();
     await expect(rolls).toHaveCount(0);
     await player.page.getByRole('button', { name: 'Party', exact: true }).click();

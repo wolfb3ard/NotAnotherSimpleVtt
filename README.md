@@ -17,6 +17,12 @@
 - Public/private roll history, optimistic revision checks, reconnect reconciliation, and database-enforced access controls.
 - Fog-safe ephemeral pings, explicit Follow/Decline for GM camera requests, tab-aware presence, and separate snapshot/live-channel health.
 
+## Remembered windows
+
+Open a character sheet or choose **Dice → Pop out roll window**. Drag the title to move or the **Resize** handle to change size. Keyboard: Tab to either handle and use the arrow keys. Escape closes the sheet (with a prompt for unsaved edits) or docks Rolls.
+
+Refresh or return in the same browser to restore open windows, sizes, positions and maximization for this account and game. **Room → Reset layout** docks Rolls and restores default geometry without discarding an open sheet draft. Layout storage does not save drafts, rolls or sheet contents. Clearing site data removes remembered layouts.
+
 ## Shared attention & connection confidence
 
 - **Ping map** then click revealed space, or use **Attention coordinates & policy** for keyboard/numeric entry. Pings are static, labelled, non-flashing markers lasting 8 seconds, independent of zoom. Hidden tokens are never used as attention targets; no token IDs or private metadata are transmitted.
