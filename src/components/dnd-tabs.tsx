@@ -196,11 +196,10 @@ export function DndTabs({
   const spells = [...details.spells].sort(
     (a, b) => a.level - b.level || a.name.localeCompare(b.name),
   );
+  const options = (spell: CharacterDetails['spells'][number]) =>
+    spell.level ? castChoices(sheet, spell).filter((c) => c.key !== 'manual') : [];
   function spellCard(spell: CharacterDetails['spells'][number]) {
-    const choices =
-      spell.level && spell.prepared
-        ? castChoices(sheet, spell).filter((c) => c.changes.length)
-        : [];
+    const choices = options(spell);
     const canCast = spell.level === 0 || spell.prepared;
     return (
       <article className="dnd-box" key={spell.id}>
@@ -213,13 +212,26 @@ export function DndTabs({
         </p>
         <p className="dnd-description">{spell.description || 'No description recorded.'}</p>
         {choices.map((c) => (
-          <button
-            key={c.key}
-            disabled={!quickUpdate || !quickEditable || !c.available || dirty}
-            onClick={() => quickUpdate?.(c.changes)}
-          >
-            Cast {spell.name} · {c.label}
-          </button>
+          <div key={c.key}>
+            <button
+              disabled={
+                !rollable ||
+                !c.available ||
+                dirty ||
+                (c.changes.length > 0 && (!quickUpdate || !quickEditable))
+              }
+              onClick={() => {
+                if (c.changes.length) quickUpdate?.(c.changes);
+                else
+                  setCastPractice(
+                    `${spell.name}: ${c.label}. ${c.note ?? ''} Resolve its effect at the table.`,
+                  );
+              }}
+            >
+              Cast {spell.name} · {c.label}
+            </button>
+            {c.note && <p className="small">{c.note}</p>}
+          </div>
         ))}
         {spell.level === 0 && (
           <button
@@ -315,7 +327,9 @@ export function DndTabs({
               {children}
               {actionTypes.map((type) => {
                 const availableSpells = spells.filter(
-                  (s) => s.actionType === type && (s.level === 0 || s.prepared),
+                  (s) =>
+                    s.actionType === type &&
+                    (s.level === 0 || s.prepared || (tab === label && options(s).length > 0)),
                 );
                 const features = details.features.filter((f) => f.actionType === type);
                 return (
