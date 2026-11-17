@@ -232,7 +232,12 @@ export function DndTabs({
           </button>
         )}
         {!!spell.level && canCast && !choices.length && (
-          <p>No tracked casting option. Resolve the spell and any cost manually.</p>
+          <p>
+            No casting cost is tracked for this spell. Check its rules and track the cost manually.
+          </p>
+        )}
+        {choices.length > 0 && choices.every((c) => !c.available) && (
+          <p>No tracked uses left. Check the spell’s rules for any other way to cast it.</p>
         )}
         {canCast &&
           spell.casting?.map((c) => {
