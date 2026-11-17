@@ -58,10 +58,13 @@ export function PlayAssistance({
     queueMicrotask(() => {
       if (!mounted) return;
       try {
-        const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
+        const saved: {
+          attempt?: { command?: unknown; payload?: unknown };
+          undoId?: unknown;
+        } | null = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
         const command = saved?.attempt?.command;
         if (command === 'actor_resources' || command === 'assist_damage') {
-          const parsed = commandSchemas[command].safeParse(saved.attempt.payload);
+          const parsed = commandSchemas[command].safeParse(saved?.attempt?.payload);
           if (
             parsed.success &&
             parsed.data.id === actor.id &&
