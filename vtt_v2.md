@@ -22,7 +22,7 @@ Make preparation, joining, navigation, and ordinary D&D turns understandable wit
 - Epic 06 (conditions, concentration, death saves) merged in [PR #36](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/36) on 2026-11-17.
 - Epic 07 merged in [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) on 2026-11-17 (commit `65787f4`).
 - Epic 08 merged in [PR #38](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/38) on 2026-11-17 (commit `a6447f1`).
-- Epic 09 adds shared grid calibration, optional snapping, Euclidean drag feedback, Space-pan, room help and browser-local scene viewports; review PR pending publication.
+- Epic 09 adds shared grid calibration, optional snapping, Euclidean drag feedback, Space-pan, room help and browser-local scene viewports; [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) ready for review, not merged.
 - Follow-ups merged: token quick actions [#27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27), production deployment fixes [#29](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/29)/[#30](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/30), compact monster sheets [#32](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/32).
 - Latest local implementation verification: E09's 549 unit/database/component tests, production build/TypeScript, lint, native-line-ending formatting, and six Edge auth/smoke tests passed. The opt-in multiplayer scenario was skipped.
 - Complete means merged, not hosted acceptance verified. Historical per-epic test counts below describe their original implementation checks; hosted migration, multiplayer, privacy, and performance verification remain separate release gates.
@@ -187,7 +187,7 @@ Local verification: 517 unit/database/component tests, production build/TypeScri
 
 ### Epic 09 — Navigation, grid, and movement feedback
 
-Status: Implemented; review PR pending publication. Dependencies: E03, E08 (merged).
+Status: Implemented; [PR #39](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/39) ready for review, not merged. Dependencies: E03, E08 (merged).
 
 - [x] E09-T01: Add configurable grid overlay, size/origin calibration, and optional snapping; keep free movement.
 - [x] E09-T02: Show measured movement distance while dragging using scene scale and an explicit distance convention.
