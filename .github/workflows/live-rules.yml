@@ -25,4 +25,5 @@ jobs:
           export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
           export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
-          E2E_SUPABASE=1 npx playwright test multiplayer.spec.ts -g 'live actor updates'
+          npm run build
+          E2E_PRODUCTION=1 E2E_SUPABASE=1 npx playwright test multiplayer.spec.ts -g 'live actor updates'
