@@ -962,7 +962,7 @@ summary {
 .sheet-window {
   position: fixed;
   z-index: 40;
-  width: min(1140px, calc(100vw - 48px));
+  width: min(1320px, calc(100vw - 48px));
   height: min(850px, calc(100vh - 90px));
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);
@@ -1080,7 +1080,7 @@ summary {
 }
 .dnd-sheet label {
   color: #514c40;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 .dnd-sheet h3 {
@@ -1163,8 +1163,9 @@ summary {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 0;
-  font-size: 11px;
+  padding: 16px 0;
+  flex-wrap: wrap;
+  font-size: 13px;
   color: #645d4f;
 }
 .dnd-roll-toolbar label {
@@ -1178,19 +1179,19 @@ summary {
 .dnd-columns {
   display: grid;
   grid-template-columns: 0.95fr 1.15fr 1fr;
-  gap: 14px;
+  gap: 20px;
   align-items: start;
 }
 .dnd-column {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
   min-width: 0;
 }
 .dnd-box {
   border: 1px solid #d8ceba;
   border-radius: 8px;
-  padding: 12px;
+  padding: 16px;
   min-width: 0;
 }
 .dnd-box > .dnd-value {
@@ -1226,8 +1227,8 @@ summary {
   background: transparent;
   border: 1px solid #c3b79e;
   color: #302d25;
-  padding: 7px 8px;
-  font-size: 11px;
+  padding: 10px;
+  font-size: 13px;
   text-align: left;
   width: 100%;
   justify-content: space-between;
@@ -1245,14 +1246,14 @@ summary {
 }
 .dnd-stat-row {
   display: grid;
-  grid-template-columns: 90px 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 5px;
   align-items: center;
   margin-bottom: 6px;
 }
 .dnd-sheet .dnd-proficiency {
-  font-size: 10px;
-  padding: 7px 3px;
+  font-size: 12px;
+  padding: 10px 5px;
 }
 .dnd-inline,
 .dnd-combat-stats,
@@ -1752,6 +1753,52 @@ dialog[aria-labelledby='srd-builder-title'] label.row {
 }
 dialog[aria-labelledby='srd-builder-title'] input[type='checkbox'] {
   width: auto;
+}
+.builder-journey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.builder-journey a {
+  color: var(--gold);
+  padding: 8px 0;
+}
+.builder-help {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.builder-guide,
+.dnd-guide {
+  margin: 16px 0;
+  line-height: 1.6;
+}
+.dnd-guide dt {
+  font-weight: 700;
+  margin-top: 12px;
+}
+.dnd-guide dd {
+  margin: 4px 0 0;
+}
+dialog[aria-labelledby='srd-builder-title'] fieldset > * + * {
+  margin-top: 16px;
+}
+dialog[aria-labelledby='srd-builder-title'] .row > label:not(.row) {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+dialog[aria-labelledby='srd-builder-title'] label.row {
+  padding: 8px;
+  gap: 12px;
+  line-height: 1.5;
+}
+.builder-actions {
+  position: sticky;
+  bottom: -24px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+  z-index: 2;
 }
 .token-portrait {
   display: inline-flex;

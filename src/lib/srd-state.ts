@@ -530,6 +530,7 @@ function semanticErrors(state: SrdBuilderState): string[] {
     total: number,
     category?: string,
     forcedList?: string,
+    source = 'Feat',
   ) {
     if (!feat) {
       fail('Choose all granted feats and their options.');
@@ -607,7 +608,7 @@ function semanticErrors(state: SrdBuilderState): string[] {
         (forcedList && feat.spellList !== forcedList) ||
         feat.spellAbility === undefined
       )
-        fail('Magic Initiate requires its spell list and ability.');
+        fail(`${source}: Magic Initiate requires its spell list and ability.`);
       unique(feat.spells, 'Magic Initiate');
       const spells = feat.spells.map((id) => srdById.get(id));
       if (
@@ -619,7 +620,7 @@ function semanticErrors(state: SrdBuilderState): string[] {
         spells.filter((spell) => spell?.level === 0).length !== 2 ||
         spells.filter((spell) => spell?.level === 1).length !== 1
       )
-        fail('Magic Initiate grants two cantrips and one level 1 spell from its list.');
+        fail(`${source}: Magic Initiate grants two cantrips and one level 1 spell from its list.`);
     } else if (
       feat.spells.length ||
       feat.spellList !== undefined ||
@@ -630,9 +631,16 @@ function semanticErrors(state: SrdBuilderState): string[] {
   if (state.originFeat) {
     if (srdById.get(state.originFeat.id)?.name !== bg.feat)
       fail('Background feat does not match background.');
-    checkFeat(state.originFeat, 0, 'Origin', 'magicList' in bg ? bg.magicList : undefined);
+    checkFeat(
+      state.originFeat,
+      0,
+      'Origin',
+      'magicList' in bg ? bg.magicList : undefined,
+      'Background feat',
+    );
   } else fail('Choose background feat options.');
-  if (state.species === 'Human') checkFeat(state.humanFeat, 0, 'Origin');
+  if (state.species === 'Human')
+    checkFeat(state.humanFeat, 0, 'Origin', undefined, 'Human bonus feat');
   else if (state.humanFeat) fail('Only Human grants this additional Origin feat.');
   const counts: Partial<Record<SrdClass, number>> = {};
   const previous: Partial<Record<SrdClass, SrdLevelChoice>> = {};
@@ -863,7 +871,9 @@ function semanticErrors(state: SrdBuilderState): string[] {
       fail('Lessons of the First Ones requires a different Origin feat each time.');
     // These are current invocations, not a new feat grant each level.
     const beforeInvocationFeats = takenFeats.length;
-    step.invocationFeats.forEach((feat) => checkFeat(feat, total, 'Origin'));
+    step.invocationFeats.forEach((feat, i) =>
+      checkFeat(feat, total, 'Origin', undefined, `Level ${total} invocation feat ${i + 1}`),
+    );
     if (level > 1) takenFeats.splice(beforeInvocationFeats);
     expectCount(step.mastery, masteryCount(name, level), 'weapon masteries');
     if (step.mastery.some((weapon) => !weaponNames.includes(weapon)))
@@ -901,7 +911,8 @@ function semanticErrors(state: SrdBuilderState): string[] {
       )
         fail('Rogue mastery requires proficiency with the chosen weapon.');
     }
-    if (featAt(name, level)) checkFeat(step.feat, total);
+    if (featAt(name, level))
+      checkFeat(step.feat, total, undefined, undefined, `Level ${total} feat`);
     else if (step.feat) fail(`${label}: no feat is granted at this class level.`);
     const closedChoices = featureChoicesAt(name, level, index === 0);
     for (const choice of closedChoices) {
