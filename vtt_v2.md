@@ -285,7 +285,7 @@ Local verification: 620 unit/database/component tests, lint, TypeScript, product
 
 ### Epic 15 — Remembered windows and usability hardening
 
-Status: Implemented locally; remote playtest and hosted benchmark pending. Dependencies: E01–E14.
+Status: [PR #45](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/45) ready for review; remote playtest and hosted benchmark pending. Dependencies: E01–E14.
 
 - [x] E15-T01: Persist sheet/roll window positions, sizes, and dock state per user/workspace.
 - [x] E15-T02: Restore safely after viewport changes; offer Reset layout and prevent offscreen windows.
