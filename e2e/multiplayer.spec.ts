@@ -561,6 +561,34 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await expect(player.page.getByRole('button', { name: 'Encounter', exact: true })).toHaveClass(
       'active',
     );
+    // Epic 09: shared grid, discoverable help, optional snap and a remembered camera.
+    await player.page.getByRole('button', { name: 'Close quick actions', exact: true }).click();
+    await gm.page.getByRole('button', { name: 'Grid settings', exact: true }).click();
+    await gm.page.getByLabel('Show grid to everyone', { exact: true }).check();
+    await gm.page.getByLabel('Cell size (pixels)', { exact: true }).fill('50');
+    await gm.page.getByLabel('Grid origin X', { exact: true }).fill('10');
+    await gm.page.getByLabel('Grid origin Y', { exact: true }).fill('20');
+    await gm.page.getByRole('button', { name: 'Apply grid', exact: true }).click();
+    await expect(player.page.getByLabel('Snap to grid', { exact: true })).toBeEnabled();
+    const gridState = await (await player.page.request.get(`/api/games/${gameId}`)).json();
+    expect(
+      gridState.scenes.find((s: { id: string }) => s.id === gridState.game.active_scene_id).grid,
+    ).toEqual({ enabled: true, size: 50, origin_x: 10, origin_y: 20 });
+    await expect(
+      player.page.getByRole('button', { name: 'Grid settings', exact: true }),
+    ).toHaveCount(0);
+    await player.page.getByText('Map help & shortcuts', { exact: true }).click();
+    await expect(player.page.locator('.map-help-content')).toContainText('Euclidean');
+    await player.page.getByText('Map help & shortcuts', { exact: true }).click();
+    await player.page.getByRole('button', { name: 'Find my character', exact: true }).click();
+    await player.page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    const cameraKey = `vtt-viewport:v1:${player.id}:${gameId}:${gridState.game.active_scene_id}`;
+    const camera = await player.page.evaluate((key) => localStorage.getItem(key), cameraKey);
+    expect(camera).not.toBeNull();
+    await player.page.reload();
+    expect(await player.page.evaluate((key) => localStorage.getItem(key), cameraKey)).toBe(camera);
+    await expect(player.page.locator('.canvas-bottom')).toContainText('120%');
+    await player.page.getByRole('button', { name: 'Fit map / Reset view', exact: true }).click();
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
     if (gameId) {

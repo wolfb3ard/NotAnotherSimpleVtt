@@ -38,3 +38,27 @@ it.each([
   expect(await mutate(game, 'tabletop_move', payload)).toHaveProperty('error');
   expect(rpc).not.toHaveBeenCalled();
 });
+it('routes shared grid settings to their authorized revision-checked boundary', async () => {
+  const p = {
+    scene_id: scene,
+    revision: 2,
+    operation_id: operation,
+    grid: { enabled: true, size: 50, origin_x: 10, origin_y: 20 },
+  };
+  await mutate(game, 'scene_grid', p);
+  expect(rpc).toHaveBeenCalledWith('configure_scene_grid', { p_game: game, p });
+});
+it.each([0, -5, NaN, Infinity, 1025])(
+  'rejects invalid grid cell size %s before RPC',
+  async (size) => {
+    expect(
+      await mutate(game, 'scene_grid', {
+        scene_id: scene,
+        revision: 2,
+        operation_id: operation,
+        grid: { enabled: true, size, origin_x: 0, origin_y: 0 },
+      }),
+    ).toHaveProperty('error');
+    expect(rpc).not.toHaveBeenCalled();
+  },
+);

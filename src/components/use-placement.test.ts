@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { usePlacement } from './use-placement';
+import { useConfirmedMapCommand, usePlacement } from './use-placement';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root, container: HTMLDivElement, controls: ReturnType<typeof usePlacement>;
@@ -75,4 +75,84 @@ it('rejects invalid numeric coordinates before sending and makes uncertain dismi
   confirm.mockReturnValue(true);
   await act(async () => controls.dismiss());
   expect(controls.uncertain).toBe(false);
+});
+it('persists exact grid retries independently from placement and never calls a failure saved', async () => {
+  const run = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValue({ confirmed: 'true' });
+  let grid: ReturnType<typeof useConfirmedMapCommand<'scene_grid'>>;
+  function Harness() {
+    grid = useConfirmedMapCommand('user:game:scene', run, 'scene_grid');
+    return null;
+  }
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Harness)));
+  const p = {
+    scene_id: payload.scene_id,
+    revision: 3,
+    grid: { enabled: true, size: 50, origin_x: 0, origin_y: 0 },
+  };
+  await act(async () => {
+    await grid.commit(p);
+    await grid.commit(p);
+  });
+  expect(grid!.message).toContain('unconfirmed');
+  expect(run).toHaveBeenCalledTimes(1);
+  const request = run.mock.calls[0][1];
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Harness)));
+  expect(grid!.uncertain).toBe(true);
+  await act(async () => {
+    await grid.retry();
+  });
+  expect(run).toHaveBeenLastCalledWith('scene_grid', request);
+  expect(grid!.message).toBe('Grid change confirmed.');
+  expect(sessionStorage.length).toBe(0);
+});
+it('does not let a late old-scene response erase a newer remounted grid attempt', async () => {
+  let finish!: (value: { confirmed: string }) => void;
+  const run = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockResolvedValue(undefined);
+  let grid: ReturnType<typeof useConfirmedMapCommand<'scene_grid'>>;
+  function Harness() {
+    grid = useConfirmedMapCommand('user:game:scene', run, 'scene_grid');
+    return null;
+  }
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Harness)));
+  const p = {
+    scene_id: payload.scene_id,
+    revision: 3,
+    grid: { enabled: true, size: 50, origin_x: 0, origin_y: 0 },
+  };
+  let old!: Promise<boolean>;
+  await act(async () => {
+    old = grid.commit(p);
+  });
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await act(async () => root.render(createElement(Harness)));
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  await act(async () => grid.dismiss());
+  await act(async () => {
+    await grid.commit({ ...p, revision: 4 });
+  });
+  const key = 'vtt-grid:user:game:scene';
+  const newer = sessionStorage.getItem(key);
+  await act(async () => {
+    finish({ confirmed: 'true' });
+    await old;
+  });
+  expect(sessionStorage.getItem(key)).toBe(newer);
+  expect(grid!.uncertain).toBe(true);
 });

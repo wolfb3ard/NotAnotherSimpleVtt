@@ -3,6 +3,7 @@ import { sheetSchema } from './sheets';
 import { tokenRings } from './token-appearance';
 import { encounterCommandSchema } from './encounter-commands';
 import { combatCommandSchema } from './combat';
+import { gridSchema } from './navigation';
 
 const id = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -19,6 +20,7 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  scene_grid: z.object({ scene_id: id, revision, operation_id: id, grid: gridSchema }),
   scene_calibrate: z.object({
     scene_id: id,
     revision,

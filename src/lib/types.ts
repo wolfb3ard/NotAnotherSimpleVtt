@@ -46,6 +46,7 @@ export type Scene = {
   height: number;
   units_per_pixel: number;
   calibrated?: boolean;
+  grid?: import('./navigation').Grid;
   unit: string;
   fog: FogRect[];
   revision: number;

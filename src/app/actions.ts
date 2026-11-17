@@ -124,6 +124,14 @@ export async function mutate(
     const deletion =
       command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
+    if (command === 'scene_grid') {
+      const { data, error } = await db.rpc('configure_scene_grid', {
+        p_game: gameId,
+        p: validated,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     if (command === 'token_place' || command === 'party_spawn' || command === 'scene_calibrate') {
       const { data, error } = await db.rpc('onboarding_command', {
         p_game: gameId,
