@@ -124,6 +124,15 @@ export async function mutate(
     const deletion =
       command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
+    if (['scene_draft', 'scene_publish', 'group_save', 'group_place'].includes(command)) {
+      const { data, error } = await db.rpc('stage_scene', {
+        p_game: gameId,
+        p_command: command,
+        p: validated,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     if (command === 'tactical_template') {
       const { data, error } = await db.rpc('tactical_template_command', {
         p_game: gameId,

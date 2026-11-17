@@ -109,7 +109,15 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       .getByLabel('Background image')
       .setInputFiles({ name: 'forest.png', mimeType: 'image/png', buffer: image });
     await gm.page.getByRole('button', { name: 'Create scene', exact: true }).click();
-    await expect(gm.page.getByRole('button', { name: 'Active', exact: true })).toBeVisible();
+    await expect(gm.page.getByText('Preparing Forest privately.')).toBeVisible();
+    const draftId = (await (await gm.page.request.get(`/api/games/${gameId}`)).json()).scenes[0].id;
+    const duringPrep = await (
+      await player.page.request.get(`/api/games/${gameId}?prepare=${draftId}`)
+    ).json();
+    expect(duringPrep.scenes).toEqual([]);
+    expect((await player.page.request.get(`/api/images/${draftId}?scene=1`)).status()).toBe(404);
+    await gm.page.getByRole('button', { name: 'Show to players', exact: true }).click();
+    await expect(gm.page.getByRole('button', { name: 'Live', exact: true })).toBeVisible();
     await gm.page.getByRole('button', { name: 'Set party spawn', exact: true }).click();
     await gm.page.getByLabel('Placement X', { exact: true }).fill('100');
     await gm.page.getByLabel('Placement Y', { exact: true }).fill('100');
@@ -150,8 +158,10 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     // Default map offset is 50,50; the GM-defined party spawn is 100,100.
     const canvas = player.page.locator('canvas').first();
     const box = (await canvas.boundingBox())!;
-    // Token selection opens actions, not the full sheet.
-    await player.page.mouse.click(box.x + 150, box.y + 150);
+    await player.page.mouse.dblclick(box.x + 150, box.y + 150);
+    await expect(player.page.getByRole('dialog', { name: 'Aria', exact: true })).toBeVisible();
+    await player.page.getByRole('button', { name: 'Close character sheet', exact: true }).click();
+    await player.page.mouse.click(box.x + 150, box.y + 150, { button: 'right' });
     await expect(
       player.page.getByRole('dialog', { name: 'Aria quick actions', exact: true }),
     ).toBeVisible();

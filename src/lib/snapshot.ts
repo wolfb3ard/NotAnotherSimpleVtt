@@ -2,7 +2,7 @@ import 'server-only';
 import { supabaseServer } from './supabase/server';
 import type { Snapshot } from './types';
 
-export async function getSnapshot(gameId: string): Promise<Snapshot> {
+export async function getSnapshot(gameId: string, prepare?: string): Promise<Snapshot> {
   const db = await supabaseServer();
   const {
     data: { user },
@@ -10,6 +10,8 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
   if (!user) throw new Error('Login required');
   const { data: game, error } = await db.from('games').select('*').eq('id', gameId).single();
   if (error || !game) throw new Error('Game access denied');
+  const gm = game.gm_id === user.id;
+  const sceneId = gm && prepare ? prepare : game.active_scene_id;
   const [queries, encounterQuery, tacticalQuery] = await Promise.all([
     Promise.all([
       db.from('memberships').select('user_id,role,display_name').eq('game_id', gameId),
@@ -19,7 +21,7 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
         .from('tokens')
         .select('*')
         .eq('game_id', gameId)
-        .eq('scene_id', game.active_scene_id ?? '00000000-0000-0000-0000-000000000000'),
+        .eq('scene_id', sceneId ?? '00000000-0000-0000-0000-000000000000'),
       db.from('templates').select('*').eq('game_id', gameId).order('name'),
       db
         .from('roll_cues')
@@ -34,6 +36,8 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
   for (const q of [...queries, encounterQuery, tacticalQuery])
     if (q.error) throw new Error('Unable to load room data.');
   const [members, actors, scenes, tokens, templates, rollCues] = queries.map((q) => q.data ?? []);
+  if (gm && prepare && !scenes.some((s) => s.id === prepare))
+    throw new Error('Prepared scene is unavailable.');
   // Read the results after the cues: a newly committed cue must not outrun
   // its authorized roll because these requests use separate DB transactions.
   const rollQuery = await db
@@ -59,7 +63,10 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
     ? await db.from('sheet_grants').select('*').in('actor_id', actorIds)
     : { data: [], error: null };
   if (grants.error) throw new Error('Unable to load sheet permissions.');
-  const gm = game.gm_id === user.id;
+  const groups = gm
+    ? await db.from('encounter_groups').select('id,name,labels').eq('game_id', gameId).order('name')
+    : { data: [], error: null };
+  if (groups.error) throw new Error('Unable to load encounter groups.');
   const ownRoll = await db
     .from('rolls')
     .select('id')
@@ -85,13 +92,18 @@ export async function getSnapshot(gameId: string): Promise<Snapshot> {
         .from('party_spawns')
         .select('x,y')
         .eq('game_id', gameId)
-        .eq('scene_id', game.active_scene_id ?? '00000000-0000-0000-0000-000000000000')
+        .eq('scene_id', sceneId ?? '00000000-0000-0000-0000-000000000000')
         .maybeSingle(),
     ]);
     if (invitations.error || spawn.error) throw new Error('Unable to load setup state.');
     onboarding = { ...onboarding, invited: !!invitations.data?.length, spawn: spawn.data };
   }
   return {
+    preparedSceneId:
+      gm && prepare && scenes.some((s) => s.id === prepare) && prepare !== game.active_scene_id
+        ? prepare
+        : undefined,
+    groups: groups.data,
     game,
     role: game.gm_id === user.id ? 'gm' : 'player',
     userId: user.id,

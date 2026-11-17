@@ -9,7 +9,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!configured())
     return Response.json({ error: 'Database is not configured.' }, { status: 503 });
   try {
-    return Response.json(await getSnapshot(id), {
+    const prepare = z.string().uuid().safeParse(new URL(_request.url).searchParams.get('prepare'));
+    return Response.json(await getSnapshot(id, prepare.success ? prepare.data : undefined), {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch (error) {

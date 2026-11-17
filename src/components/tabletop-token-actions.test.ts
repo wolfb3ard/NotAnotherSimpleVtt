@@ -10,6 +10,7 @@ vi.mock('react-konva', () => {
     children?: React.ReactNode;
     onContextMenu?: (e: unknown) => void;
     onClick?: (e: unknown) => void;
+    onDblClick?: (e: unknown) => void;
     text?: string;
     stroke?: string;
   }) =>
@@ -22,6 +23,7 @@ vi.mock('react-konva', () => {
         onContextMenu: (e: React.MouseEvent) =>
           props.onContextMenu?.({ evt: e.nativeEvent, cancelBubble: false }),
         onClick: (e: React.MouseEvent) => props.onClick?.({ evt: e.nativeEvent }),
+        onDoubleClick: (e: React.MouseEvent) => props.onDblClick?.({ evt: e.nativeEvent }),
       },
       props.children,
     );
@@ -106,6 +108,7 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
     },
   };
   const open = vi.fn();
+  const sheet = vi.fn();
   const previewChange = vi.fn(() => true);
   container = document.createElement('div');
   document.body.append(container);
@@ -127,6 +130,7 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
         },
         run: vi.fn(),
         openQuickActions: open,
+        openTokenSheet: sheet,
         onPreviewChange: previewChange,
       }),
     ),
@@ -151,7 +155,14 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
       .querySelector('[data-token="true"]')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })),
   );
-  expect(open).toHaveBeenCalledTimes(2);
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(sheet).not.toHaveBeenCalled();
+  await act(async () =>
+    container
+      .querySelector('[data-token="true"]')!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true, button: 0 })),
+  );
+  expect(sheet).toHaveBeenCalledWith('actor');
   expect(container.querySelector('[data-stroke="#79c9e8"]')).not.toBeNull();
   const chooser = container.querySelector<HTMLSelectElement>('[aria-label="Token quick actions"]')!;
   expect([...chooser.options].map((o) => o.textContent)).not.toContain('Off-scene');

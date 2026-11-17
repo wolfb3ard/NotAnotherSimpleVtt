@@ -335,6 +335,62 @@ describe.sequential('independent encounter creatures', () => {
     await db.query('update games set gm_id=$1 where id=$2', [gm, game]);
     await as(gm);
   });
+  it('stages privately, reuses independent foes and publishes existing PC sheets atomically', async () => {
+    const stage = async (command: string, p: object) =>
+      (
+        await db.query<{ value: { id: string } }>('select stage_scene($1,$2,$3::jsonb) value', [
+          game,
+          command,
+          JSON.stringify(p),
+        ])
+      ).rows[0].value;
+    const map = (
+      await db.query<{ asset_id: string }>('select asset_id from scenes where id=$1', [scene])
+    ).rows[0].asset_id;
+    const draft = (await stage('scene_draft', { name: 'Private encounter', asset_id: map })).id;
+    const gridEdit = {
+      scene_id: draft,
+      preparing: true,
+      revision: 0,
+      operation_id: randomUUID(),
+      grid: { enabled: true, size: 40, origin_x: 0, origin_y: 0 },
+      feet_per_cell: 5,
+    };
+    await db.query('select configure_scene_grid($1,$2::jsonb)', [game, JSON.stringify(gridEdit)]);
+    expect(
+      (await db.query('select units_per_pixel,unit,calibrated from scenes where id=$1', [draft]))
+        .rows[0],
+    ).toEqual({ units_per_pixel: 0.125, unit: 'ft', calibrated: true });
+    await add(randomUUID(), 1, null, null, draft);
+    await stage('group_save', { scene_id: draft, name: 'Ambush' });
+    const group = (await db.query<{ id: string }>('select id from encounter_groups')).rows[0].id;
+    await stage('group_place', { scene_id: draft, group_id: group, member: 0, x: 10, y: 12 });
+    const copies = await db.query('select distinct actor_id from tokens where scene_id=$1', [
+      draft,
+    ]);
+    expect(copies.rows).toHaveLength(2);
+    const pc = (
+      await mutate('actor_create', { name: 'Scout', kind: 'character', owner_id: player, sheet })
+    ).id;
+    await db.query('select place_actor_token($1,$2,$3)', [game, pc, scene]);
+    await as(player);
+    expect((await db.query('select id from scenes where id=$1', [draft])).rows).toEqual([]);
+    expect((await db.query('select id from encounter_groups')).rows).toEqual([]);
+    expect((await db.query('select id from tokens where scene_id=$1', [draft])).rows).toEqual([]);
+    const publish = { scene_id: draft, previous: scene, party: true, revision: 1 };
+    await expect(stage('scene_publish', publish)).rejects.toThrow(/GM required/);
+    await as(gm);
+    await stage('scene_publish', publish);
+    await expect(stage('scene_publish', publish)).rejects.toThrow(/Scene changed/);
+    expect(
+      (await db.query('select actor_id from tokens where scene_id=$1 and actor_id=$2', [draft, pc]))
+        .rows,
+    ).toEqual([{ actor_id: pc }]);
+    expect(
+      (await db.query<{ sheet: Sheet }>('select sheet from actors where id=$1', [pc])).rows[0]
+        .sheet,
+    ).toEqual(sheet);
+  });
   it('rejects invalid new definitions atomically and keeps foreign-key cascades safe on game deletion', async () => {
     const before = (await actors()).length;
     await expect(

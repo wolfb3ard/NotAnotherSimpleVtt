@@ -35,6 +35,8 @@ type Tab = 'party' | 'encounter' | 'dice' | 'scenes' | 'settings' | 'appearance'
 export function Room({ initial }: { initial: Snapshot }) {
   const [diceZoom, setDiceZoom] = useDiceZoom();
   const [snapshot, setSnapshot] = useState(initial);
+  const prepare = useRef<string | undefined>(undefined);
+  const [bringParty, setBringParty] = useState(false);
   const [tab, setTab] = useState<Tab>('party');
   const [selectedActor, setSelectedActor] = useState<string>();
   const [initialBuilderActor, setInitialBuilderActor] = useState<string>();
@@ -74,7 +76,9 @@ export function Room({ initial }: { initial: Snapshot }) {
   const refreshAgain = useRef(false);
   const gm = snapshot.role === 'gm';
   const selectedDice = selectedDiceSides(expression);
-  const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
+  const scene = snapshot.scenes.find(
+    (s) => s.id === (snapshot.preparedSceneId ?? snapshot.game.active_scene_id),
+  );
   const tabletopEdits = useTabletopEdits(
     `${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`,
     scene?.id,
@@ -82,7 +86,9 @@ export function Room({ initial }: { initial: Snapshot }) {
   );
   const actor = snapshot.actors.find((a) => a.id === selectedActor);
   const quickToken = snapshot.tokens.find(
-    (t) => t.id === quickActions?.tokenId && t.scene_id === snapshot.game.active_scene_id,
+    (t) =>
+      t.id === quickActions?.tokenId &&
+      t.scene_id === (snapshot.preparedSceneId ?? snapshot.game.active_scene_id),
   );
   const quickActor = snapshot.actors.find((a) => a.id === quickToken?.actor_id);
   function leaveQuickActions() {
@@ -125,13 +131,19 @@ export function Room({ initial }: { initial: Snapshot }) {
     try {
       do {
         refreshAgain.current = false;
-        const response = await fetch(`/api/games/${initial.game.id}`, { cache: 'no-store' });
+        const target = prepare.current;
+        const response = await fetch(
+          `/api/games/${initial.game.id}${target ? `?prepare=${encodeURIComponent(target)}` : ''}`,
+          { cache: 'no-store' },
+        );
         if (response.status === 403) {
           setDenied(true);
           return;
         }
         if (!response.ok) throw new Error('Sync failed');
         const updated: Snapshot = await response.json();
+        if (target !== prepare.current) continue;
+        if (!updated.preparedSceneId) prepare.current = undefined;
         const fresh = (updated.rollCues ?? [])
           .filter(
             (c) =>
@@ -150,7 +162,9 @@ export function Room({ initial }: { initial: Snapshot }) {
         setSnapshot(updated);
         setQuickActions((current) =>
           updated.tokens.some(
-            (t) => t.id === current?.tokenId && t.scene_id === updated.game.active_scene_id,
+            (t) =>
+              t.id === current?.tokenId &&
+              t.scene_id === (updated.preparedSceneId ?? updated.game.active_scene_id),
           )
             ? current
             : undefined,
@@ -242,7 +256,16 @@ export function Room({ initial }: { initial: Snapshot }) {
       return;
     }
     try {
-      const result = await mutate(snapshot.game.id, command, payload);
+      const stageEdit =
+        command.startsWith('tabletop_') ||
+        ['party_spawn', 'scene_grid', 'scene_calibrate', 'token_place'].includes(command);
+      const result = await mutate(
+        snapshot.game.id,
+        command,
+        stageEdit && snapshot.preparedSceneId && typeof payload === 'object' && payload
+          ? { ...payload, preparing: true }
+          : payload,
+      );
       if (result.error) {
         setError(result.error);
         await refresh();
@@ -412,7 +435,15 @@ export function Room({ initial }: { initial: Snapshot }) {
           snapshot={snapshot}
           edits={tabletopEdits}
           run={run}
-          attention={attention}
+          attention={snapshot.preparedSceneId ? undefined : attention}
+          openTokenSheet={(actorId) => {
+            if (
+              snapshot.actors.some((a) => a.id === actorId) &&
+              leaveQuickActions() &&
+              openSheet(actorId)
+            )
+              setQuickActions(undefined);
+          }}
           openQuickActions={(tokenId, anchor) => {
             if (quickActions?.tokenId !== tokenId && !leaveQuickActions()) return false;
             const target = snapshot.tokens.find((t) => t.id === tokenId);
@@ -547,7 +578,13 @@ export function Room({ initial }: { initial: Snapshot }) {
                 }
               }}
             />
-            {tab === 'encounter' && (
+            {tab === 'encounter' && snapshot.preparedSceneId && (
+              <p>
+                Return to the live scene to run initiative. Add creatures and save encounter groups
+                under Scenes.
+              </p>
+            )}
+            {tab === 'encounter' && !snapshot.preparedSceneId && (
               <EncounterPanel
                 key={`${snapshot.userId}:${snapshot.game.id}:${scene?.id ?? 'none'}`}
                 snapshot={snapshot}
@@ -897,8 +934,31 @@ export function Room({ initial }: { initial: Snapshot }) {
               <div className="stack">
                 <span className="eyebrow">SET THE STAGE</span>
                 <h2>Your scenes</h2>
+                <p>
+                  {snapshot.preparedSceneId
+                    ? `Preparing ${scene?.name} privately.`
+                    : 'Viewing the players’ scene.'}
+                </p>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={bringParty}
+                    onChange={(e) => setBringParty(e.target.checked)}
+                  />{' '}
+                  Bring current party to the destination spawn when showing a scene. Existing
+                  placements are kept.
+                </label>
                 {snapshot.scenes.map((s) => (
                   <article key={s.id} className="scene-card">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      width={72}
+                      height={48}
+                      style={{ objectFit: 'cover' }}
+                      loading="lazy"
+                      alt=""
+                      src={`/api/images/${s.id}?scene=1&r=${s.revision}`}
+                    />
                     <div>
                       <strong>{s.name}</strong>
                       <small>
@@ -907,12 +967,94 @@ export function Room({ initial }: { initial: Snapshot }) {
                     </div>
                     <button
                       disabled={s.id === scene?.id}
-                      onClick={() => run('scene_activate', { id: s.id })}
+                      onClick={() => {
+                        if (!leaveQuickActions()) return;
+                        prepare.current = s.id;
+                        void refresh();
+                      }}
                     >
-                      {s.id === scene?.id ? 'Active' : 'Activate'}
+                      {s.id === scene?.id
+                        ? 'Viewing'
+                        : s.id === snapshot.game.active_scene_id
+                          ? 'Return to live scene'
+                          : 'Prepare'}
+                    </button>
+                    <button
+                      disabled={s.id === snapshot.game.active_scene_id}
+                      onClick={() =>
+                        run('scene_publish', {
+                          scene_id: s.id,
+                          previous: snapshot.game.active_scene_id,
+                          revision: s.revision,
+                          party: bringParty,
+                        })
+                      }
+                    >
+                      {s.id === snapshot.game.active_scene_id ? 'Live' : 'Show to players'}
                     </button>
                   </article>
                 ))}
+                {scene && (
+                  <>
+                    <details>
+                      <summary>Add creatures to {scene.name}</summary>
+                      <MonsterLibrary snapshot={snapshot} run={run} />
+                    </details>
+                    <form
+                      className="stack"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const form = e.currentTarget;
+                        if (
+                          await run('group_save', {
+                            scene_id: scene.id,
+                            name: new FormData(form).get('name'),
+                          })
+                        )
+                          form.reset();
+                      }}
+                    >
+                      <label>
+                        Encounter group name
+                        <input name="name" required maxLength={100} />
+                      </label>
+                      <button>Save this scene’s NPCs and enemies as a group</button>
+                    </form>
+                    {snapshot.groups?.map((g) => (
+                      <details key={g.id}>
+                        <summary>
+                          {g.name} ({g.labels.length})
+                        </summary>
+                        <p>
+                          Drag onto the map or click to place at its center. Each copy starts
+                          hidden.
+                        </p>
+                        {['Whole group', ...g.labels].map((label, i) => {
+                          const payload = {
+                            group_id: g.id,
+                            scene_id: scene.id,
+                            ...(i ? { member: i - 1 } : {}),
+                          };
+                          return (
+                            <button
+                              key={i}
+                              draggable
+                              onDragStart={(e) =>
+                                e.dataTransfer.setData(
+                                  'application/x-vtt-group',
+                                  JSON.stringify(payload),
+                                )
+                              }
+                              onClick={() => run('group_place', payload)}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </details>
+                    ))}
+                  </>
+                )}
                 <form
                   className="card stack"
                   onSubmit={async (e) => {
@@ -923,11 +1065,15 @@ export function Room({ initial }: { initial: Snapshot }) {
                     setError('');
                     try {
                       const assetId = await imageUpload(form.get('image') as File, 'background');
-                      const data = await run('scene_create', {
+                      const data = await run('scene_draft', {
                         name: form.get('name'),
                         asset_id: assetId,
                       });
-                      if (data) element.reset();
+                      if (data?.id) {
+                        element.reset();
+                        prepare.current = data.id;
+                        await refresh();
+                      }
                     } catch (err) {
                       setError(err instanceof Error ? err.message : 'Upload failed.');
                     } finally {

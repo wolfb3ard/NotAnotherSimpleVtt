@@ -21,15 +21,34 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  scene_draft: z.object({ name, asset_id: id }),
+  scene_publish: z.object({ scene_id: id, previous: id.nullable(), revision, party: z.boolean() }),
+  group_save: z.object({ scene_id: id, name }),
+  group_place: z.object({
+    scene_id: id,
+    group_id: id,
+    member: z.number().int().min(0).max(19).optional(),
+    x: z.number().finite().nonnegative().optional(),
+    y: z.number().finite().nonnegative().optional(),
+  }),
   tactical_template: tacticalCommandSchema,
-  scene_grid: z.object({ scene_id: id, revision, operation_id: id, grid: gridSchema }),
+  scene_grid: z.object({
+    preparing: z.boolean().optional(),
+    scene_id: id,
+    revision,
+    operation_id: id,
+    feet_per_cell: z.number().min(0.001).max(100000).optional(),
+    grid: gridSchema,
+  }),
   scene_calibrate: z.object({
+    preparing: z.boolean().optional(),
     scene_id: id,
     revision,
     units_per_pixel: z.number().finite().positive().max(100000000),
     unit: z.string().trim().min(1).max(20),
   }),
   party_spawn: z.object({
+    preparing: z.boolean().optional(),
     scene_id: id,
     revision,
     x: z.number().finite().min(0).max(4096),
@@ -37,6 +56,7 @@ export const commandSchemas = {
   }),
   token_place: z
     .object({
+      preparing: z.boolean().optional(),
       actor_id: id,
       scene_id: id,
       revision,
@@ -108,9 +128,10 @@ export const commandSchemas = {
       ]),
     })
     .strict(),
-  tabletop_history: z.object({ scene_id: id }),
-  tabletop_undo: z.object({ scene_id: id, operation_id: id }),
+  tabletop_history: z.object({ preparing: z.boolean().optional(), scene_id: id }),
+  tabletop_undo: z.object({ preparing: z.boolean().optional(), scene_id: id, operation_id: id }),
   tabletop_move: z.object({
+    preparing: z.boolean().optional(),
     id,
     scene_id: id,
     operation_id: id,
@@ -118,7 +139,14 @@ export const commandSchemas = {
     x: z.number().finite().min(0).max(4096),
     y: z.number().finite().min(0).max(4096),
   }),
-  tabletop_fog: z.object({ id, scene_id: id, operation_id: id, revision, fog }),
+  tabletop_fog: z.object({
+    preparing: z.boolean().optional(),
+    id,
+    scene_id: id,
+    operation_id: id,
+    revision,
+    fog,
+  }),
   token_update: z.object({
     id,
     revision,
