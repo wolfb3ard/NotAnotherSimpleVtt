@@ -146,7 +146,7 @@ Local verification: 486 unit/database/component tests, lint, production build/Ty
 
 ### Epic 07 — Token quick actions
 
-Status: Implemented; PR pending publication, not merged. Dependencies: E05 and E06 (merged).
+Status: Implemented; [PR #37](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/37) ready for review, not merged. Dependencies: E05 and E06 (merged).
 
 Delivered foundation: [PR #27](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/27) provides token right-click/keyboard quick actions, Open sheet, Damage/Heal, resources, save/retry feedback and permission/draft guards. [PR #28](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/28) adds Duplicate as independent creature. [PR #31](https://github.com/wolfb3ard/NotAnotherSimpleVtt/pull/31) supplies initiative through the encounter panel. E06 adds condition/survival controls.
 
