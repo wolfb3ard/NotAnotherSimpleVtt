@@ -383,6 +383,9 @@ export function Room({ initial }: { initial: Snapshot }) {
             {Math.max(0, Math.floor((attention.now - syncedAt) / 1000))}s ago
           </span>
         </span>
+        <Link className="button ghost" href={`/games/${snapshot.game.id}/journal`} prefetch={false}>
+          Journal
+        </Link>
         <Link className="button ghost" href="/">
           Leave table ↗
         </Link>

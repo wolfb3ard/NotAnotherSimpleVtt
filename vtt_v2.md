@@ -254,13 +254,13 @@ Acceptance: a GM can prepare the next encounter while players remain on the curr
 
 ### Epic 13 — Notes, handouts, and session journal
 
-Status: Planned. Dependencies: E12.
+Status: Implemented. Dependencies: E12. Migration: `20261117204208_campaign_journal.sql`.
 
-- [ ] E13-T01: Add GM-private scene notes with strict server-side access control.
-- [ ] E13-T02: Add handouts with explicit audience, publish/revoke controls, and safe asset delivery.
-- [ ] E13-T03: Add a lightweight journal for session recaps, clues, and objectives; separate private/shared entries.
-- [ ] E13-T04: Link notes and handouts to scenes/encounters; provide search and empty states.
-- [ ] E13-T05: Test direct unauthorized reads, realtime secrecy, shared links, revoked access, and unsafe content.
+- [x] E13-T01: Add GM-private scene notes with strict server-side access control.
+- [x] E13-T02: Add handouts with explicit audience, publish/revoke controls, and safe asset delivery.
+- [x] E13-T03: Add a lightweight journal for session recaps, clues, and objectives; separate private/shared entries.
+- [x] E13-T04: Link notes and handouts to scenes/encounters; provide search and empty states.
+- [x] E13-T05: Test direct unauthorized reads, realtime secrecy, shared links, revoked access, and unsafe content.
 
 Acceptance: GM preparation stays private until explicitly shared; the party can recover last session's context.
 
