@@ -12,7 +12,7 @@ import { castChoices } from '@/lib/play-assistance';
 import type { QuickUpdate } from '@/lib/resources';
 import { classBuilder, fighterBuilder } from '@/lib/srd-test-fixtures';
 import { blankFeat } from '@/lib/srd-state';
-import { srdEntry } from '@/lib/srd-catalog';
+import { srdEntry, srdExcerpt } from '@/lib/srd-catalog';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root;
@@ -417,8 +417,16 @@ describe('character tabs', () => {
     const card = [...panel().querySelectorAll('article')].find(
       (article) => article.querySelector('h4')?.textContent === 'Spellcasting',
     )!;
-    expect(card.textContent).not.toContain('Signature Spells');
-    expect(card.textContent).toContain('See the Wizard Features progression table in the SRD.');
+    expect(card.querySelector('.dnd-description > p')?.textContent).not.toContain(
+      'Signature Spells',
+    );
+    const progression = card.querySelector('table')!;
+    expect(progression.caption?.textContent).toBe('Wizard Features');
+    expect(progression.closest('details')?.open).toBe(false);
+    expect(progression.tBodies[0].rows).toHaveLength(20);
+    expect(
+      [...progression.tBodies[0].rows[0].cells].slice(0, 6).map((cell) => cell.textContent),
+    ).toEqual(['1', '+2', 'Spellcasting, Ritual Adept, Arcane Recovery', '3', '4', '2']);
     expect([...card.querySelectorAll('strong')].map((label) => label.textContent)).toEqual(
       expect.arrayContaining(['Cantrips.', 'Prepared Spells of Level 1+.', 'Spellcasting Focus.']),
     );
@@ -438,9 +446,48 @@ describe('character tabs', () => {
     const card = [...panel().querySelectorAll('article')].find(
       (article) => article.querySelector('h4')?.textContent === 'Spellcasting',
     )!;
-    expect(card.textContent).not.toContain('Archdruid');
     expect(card.textContent).toContain('details how you use those rules with Druid spells');
-    expect(card.textContent).toContain('See the Druid Features progression table in the SRD.');
+    expect(card.querySelector('caption')?.textContent).toBe('Druid Features');
+    expect(card.querySelector('tbody tr:last-child')?.textContent).toContain('Archdruid');
+  });
+
+  it('renders feature bullets without including the following paragraph in the list', async () => {
+    await fixture(applySrdBuilder(createDndSheet(), classBuilder('Monk')));
+    await click('Features & Traits');
+    const card = [...panel().querySelectorAll('article')].find(
+      (article) => article.querySelector('h4')?.textContent === 'Martial Arts',
+    )!;
+    const list = card.querySelector('ul')!;
+    expect([...list.children].map((item) => item.textContent)).toEqual([
+      'Simple Melee weapons',
+      'Martial Melee weapons that have the Light property',
+    ]);
+    expect(list.nextElementSibling?.textContent).toMatch(/^You gain the following benefits/);
+  });
+
+  it('renders inline spell tables without swallowing the following rules', async () => {
+    const sheet = createDndSheet();
+    sheet.character = emptyCharacterDetails();
+    sheet.character.spells.push({
+      id: crypto.randomUUID(),
+      name: 'Confusion',
+      level: 4,
+      prepared: true,
+      actionType: 'Action',
+      description: srdExcerpt(srdEntry('spell', 'Confusion')!),
+    });
+    await fixture(sheet);
+    await click('Spell');
+    const table = panel().querySelector('table')!;
+    expect(table.caption?.textContent).toBe('Confusion Behavior');
+    expect([...table.tBodies[0].rows].map((row) => row.cells[0].textContent)).toEqual([
+      '1',
+      '2–6',
+      '7–8',
+      '9–10',
+    ]);
+    expect(table.tBodies[0].rows[0].cells[1].textContent).toContain('its movement to move');
+    expect(table.parentElement?.nextElementSibling?.textContent).toMatch(/^At the end/);
   });
 
   it('limits attunement to three items and permits ending attunement', async () => {

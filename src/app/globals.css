@@ -1713,6 +1713,38 @@ summary {
 .dnd-rules-reference > .dnd-description {
   margin-block-start: 8px;
 }
+.dnd-rules-list {
+  margin: 0;
+  padding-inline-start: 1.5em;
+  list-style: disc;
+}
+.dnd-rules-list > li + li {
+  margin-block-start: 4px;
+}
+.dnd-rules-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.dnd-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.dnd-rules-table caption {
+  padding: 4px 0;
+  font-weight: 700;
+  text-align: start;
+}
+.dnd-rules-table :is(th, td) {
+  padding: 4px 8px;
+  border: 1px solid #d8ceba;
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+.dnd-rules-table thead {
+  background: #eee6d6;
+}
 .dnd-action-group > :is(h3, p),
 .dnd-rules-card > :is(h4, p),
 .dnd-description p {

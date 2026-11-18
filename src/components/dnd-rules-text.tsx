@@ -1,4 +1,6 @@
 import { srdById, srdExcerpt } from '@/lib/srd-catalog';
+import { DndRulesTable, type RulesTable } from './dnd-rules-table';
+import { inlineRulesTable } from './dnd-inline-rules-tables';
 
 const sourceLine = /^(?:SRD 5\.2\.1[ ,]+PDF p|Source\(s\):)/;
 const ruleLead =
@@ -8,6 +10,21 @@ const reflow = (text: string) => text.trim().replace(/[ \t]*\n[ \t]*/g, ' ');
 
 const progressionHeading =
   /^(Barbarian|Bard|Cleric|Druid|Fighter|Monk|Paladin|Ranger|Rogue|Sorcerer|Warlock|Wizard) Features[ \t]*$/m;
+const slots = (count: number) => Array.from({ length: count }, (_, i) => `Level ${i + 1} Slots`);
+const progressionColumns: Record<string, string[]> = {
+  Barbarian: ['Rages', 'Rage Damage', 'Weapon Mastery'],
+  Bard: ['Bardic Die', 'Cantrips', 'Prepared Spells', ...slots(9)],
+  Cleric: ['Channel Divinity', 'Cantrips', 'Prepared Spells', ...slots(9)],
+  Druid: ['Wild Shape', 'Cantrips', 'Prepared Spells', ...slots(9)],
+  Fighter: ['Second Wind', 'Weapon Mastery'],
+  Monk: ['Martial Arts', 'Focus Points', 'Unarmored Movement'],
+  Paladin: ['Channel Divinity', 'Prepared Spells', ...slots(5)],
+  Ranger: ['Favored Enemy', 'Prepared Spells', ...slots(5)],
+  Rogue: ['Sneak Attack'],
+  Sorcerer: ['Sorcery Points', 'Cantrips', 'Prepared Spells', ...slots(9)],
+  Warlock: ['Eldritch Invocations', 'Cantrips', 'Prepared Spells', 'Spell Slots', 'Slot Level'],
+  Wizard: ['Cantrips', 'Prepared Spells', ...slots(9)],
+};
 
 // The PDF extraction inserts the table at its page position, sometimes mid-sentence.
 // Verify the row sequence before removing the table, then join the surrounding text.
@@ -21,8 +38,31 @@ function extractProgression(text: string) {
   const afterLastRow = afterHeading.slice(lastRow.index + lastRow[0].length);
   const cells = /^\n[^\n]+(?:\n(?:—|D\d+|\d+d\d+|\+?\d+(?: ft\.)?)[ \t]*)+/.exec(afterLastRow);
   if (!cells) return;
+  const end = lastRow.index + lastRow[0].length + cells[0].length;
+  const columns = progressionColumns[heading[1]];
+  const rows = levels.map((row, index) => {
+    const body = afterHeading
+      .slice(row.index + row[0].length, levels[index + 1]?.index ?? end)
+      .trim()
+      .split('\n');
+    const values = body.splice(-columns.length).map((value) => value.trim());
+    return [row[1], row[0].split('\n')[1], reflow(body.join('\n')), ...values];
+  });
+  if (
+    rows.some(
+      (row) =>
+        !row[2] ||
+        row.length !== columns.length + 3 ||
+        !row.slice(3).every((value) => /^(?:—|D\d+|\d+d\d+|\+?\d+(?: ft\.)?)$/.test(value)),
+    )
+  )
+    return;
   return {
-    name: `${heading[1]} Features`,
+    table: {
+      name: `${heading[1]} Features`,
+      columns: ['Level', 'Proficiency Bonus', 'Class Features', ...columns],
+      rows,
+    },
     text: text.slice(0, heading.index) + afterLastRow.slice(cells[0].length + 1),
   };
 }
@@ -40,14 +80,14 @@ function featureRules(description: string) {
   if (!progression) return { text: description };
 
   const sidebar =
-    progression.name === 'Wizard Features'
+    progression.table.name === 'Wizard Features'
       ? /\nExpanding and Replacing a Spellbook\n([\s\S]+?)(?=\n\t When you reach Wizard levels 4 and 10)/.exec(
           progression.text,
         )
       : null;
   return {
     text: sidebar ? progression.text.replace(sidebar[0], '') : progression.text,
-    progression: progression.name,
+    progression: progression.table,
     sidebar: sidebar?.[1],
   };
 }
@@ -73,16 +113,66 @@ export function spellRules(description: string) {
   };
 }
 
-function RulesParagraphs({ text, imported }: { text: string; imported: boolean }) {
+type RulesBlock = { paragraph: string } | { bullets: string[] } | { table: RulesTable };
+
+function rulesBlocks(text: string, imported: boolean): RulesBlock[] {
   // The PDF uses indents instead of blank lines for many paragraph breaks.
-  const paragraphs = text
-    .split(/\n[ \t]*\n(?:[ \t]*\n)*|\n(?=\t)/)
-    .map((paragraph) => (imported ? reflow(paragraph) : paragraph.trim()))
-    .filter(Boolean);
+  const blocks: RulesBlock[] = [];
+  const lines = text.split('\n');
+  let pending: string[] = [];
+  const flush = () => {
+    const paragraph = (imported ? reflow : (value: string) => value.trim())(pending.join('\n'));
+    if (paragraph) blocks.push({ paragraph });
+    pending = [];
+  };
+  const bullet = /^[ \t]*•[ \t]+/;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const table = imported ? inlineRulesTable(lines, i) : undefined;
+    if (table) {
+      flush();
+      blocks.push({ table: table.table });
+      i = table.next - 1;
+    } else if (bullet.test(line)) {
+      flush();
+      const items: string[] = [];
+      do {
+        let item = lines[i].replace(bullet, '');
+        // Wrapped PDF lines end in a space; a new bullet or indented paragraph ends the item.
+        while (/[ \t]$/.test(lines[i]) && /^(?![ \t]*•)[^\s]/.test(lines[i + 1] ?? '')) {
+          item += `\n${lines[++i]}`;
+        }
+        items.push(reflow(item));
+        i++;
+      } while (bullet.test(lines[i] ?? ''));
+      blocks.push({ bullets: items });
+      i--;
+    } else {
+      if (!line.trim() || line.startsWith('\t')) flush();
+      pending.push(line);
+    }
+  }
+  flush();
+  return blocks;
+}
+
+function RulesParagraphs({ text, imported }: { text: string; imported: boolean }) {
+  const blocks = rulesBlocks(text, imported);
   return (
     <>
-      {paragraphs.length === 0 && <p>No description recorded.</p>}
-      {paragraphs.map((paragraph, index) => {
+      {blocks.length === 0 && <p>No description recorded.</p>}
+      {blocks.map((block, index) => {
+        if ('table' in block) return <DndRulesTable key={index} {...block.table} />;
+        if ('bullets' in block) {
+          return (
+            <ul className="dnd-rules-list" key={index}>
+              {block.bullets.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
+          );
+        }
+        const { paragraph } = block;
         const lead = ruleLead.exec(paragraph);
         return (
           <p key={index}>
@@ -123,7 +213,10 @@ export function DndRulesText({
         </details>
       )}
       {rules.progression && (
-        <p className="small muted">See the {rules.progression} progression table in the SRD.</p>
+        <details className="dnd-rules-reference">
+          <summary>{rules.progression.name} progression table</summary>
+          <DndRulesTable {...rules.progression} />
+        </details>
       )}
     </div>
   );
