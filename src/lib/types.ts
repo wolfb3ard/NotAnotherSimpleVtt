@@ -66,6 +66,7 @@ export type Token = {
   y: number;
   size: number;
   hidden: boolean;
+  folder?: string | null;
   revision: number;
 };
 export type Member = { user_id: string; role: Role; display_name: string };

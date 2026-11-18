@@ -21,6 +21,7 @@ import { TokenQuickActions } from './token-quick-actions';
 import { useTabletopEdits } from './use-tabletop-edits';
 import { monsterId } from '@/lib/monster-sheet';
 import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
+import { TableTokenList } from './table-token-list';
 import { PracticeTable } from './practice-table';
 import { tableSystem } from '@/lib/table-system';
 import { useRoomAttention } from './use-room-attention';
@@ -362,7 +363,8 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
         ? `(${expression}) + (${Number(modifier)})`
         : expression;
     const type = (sheetRoll?.rollType ?? rollType).slice(0, 160);
-    const key = JSON.stringify([finalExpression, actorId, visibility, type]);
+    const sheetInitiative = sheetRoll?.rollType.trim().toLowerCase() === 'initiative';
+    const key = JSON.stringify([finalExpression, actorId, visibility, type, sheetInitiative]);
     if (rollAttempt.current?.key !== key) rollAttempt.current = { key, id: crypto.randomUUID() };
     try {
       const result = await roll(snapshot.game.id, {
@@ -371,6 +373,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
         expression: finalExpression,
         visibility,
         roll_type: type,
+        ...(sheetInitiative ? { sheet_initiative: true } : {}),
       });
       if (result.error) {
         setError(result.error);
@@ -768,11 +771,26 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                     </div>
                   )}
                   {scene && (
-                    <p className="small muted">
-                      To place a linked token, choose a character in the map toolbar, then Click to
-                      place or Place at party spawn. Tokens use the sheet’s portrait/ring and share
-                      its resources.
-                    </p>
+                    <>
+                      <TableTokenList
+                        key={scene.id}
+                        tokens={snapshot.tokens.filter((token) => token.scene_id === scene.id)}
+                        gm={gm}
+                        onChange={(token, remove, folder) =>
+                          run('token_organize', {
+                            scene_id: token.scene_id,
+                            id: token.id,
+                            revision: token.revision,
+                            remove,
+                            folder,
+                          })
+                        }
+                      />
+                      <p className="small muted">
+                        To place a linked token, choose a character in the map toolbar, then Click
+                        to place or Place at party spawn.
+                      </p>
+                    </>
                   )}
                 </>
               </>

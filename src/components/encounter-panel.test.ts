@@ -183,11 +183,15 @@ it('restores an uncertain command after remount and retries the same revision an
   expect(run.mock.calls[1]).toEqual(['encounter', request]);
   expect(sessionStorage.length).toBe(0);
 });
-it('offers explicit manual initiative and complete tie reorder while preserving the current token', async () => {
+it('shows initiative, offers manual editing and only allows ties to be reordered', async () => {
   const run = vi.fn().mockResolvedValue({ id: encounter, revision: '5' });
   await mount(
     createElement(EncounterPanel, { snapshot: fixture(), run, refresh, onSheet: vi.fn() }),
   );
+  expect(container.querySelector('.initiative-score')?.textContent).toBe('Initiative 15');
+  expect(
+    container.querySelector<HTMLButtonElement>('[aria-label="Move Hero down"]')!.disabled,
+  ).toBe(true);
   await act(async () => {
     const input = container.querySelector<HTMLInputElement>('input[type="number"]')!;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '12.5');
@@ -198,12 +202,22 @@ it('offers explicit manual initiative and complete tie reorder while preserving 
     'encounter',
     expect.objectContaining({ action: 'initiative', changes: [{ token_id: hero, value: 12.5 }] }),
   );
+  const tied = fixture();
+  tied.encounter!.participants[1].initiative = 15;
+  await act(async () =>
+    root.render(createElement(EncounterPanel, { snapshot: tied, run, refresh, onSheet: vi.fn() })),
+  );
   await act(async () =>
     container.querySelector<HTMLButtonElement>('[aria-label="Move Hero down"]')!.click(),
   );
   expect(run).toHaveBeenLastCalledWith(
     'encounter',
     expect.objectContaining({ action: 'reorder', token_ids: [enemy, hero] }),
+  );
+  await click('Remove from encounter');
+  expect(run).toHaveBeenLastCalledWith(
+    'encounter',
+    expect.objectContaining({ action: 'remove', token_ids: [hero] }),
   );
 });
 it('exposes a read-only player tracker and Your turn cue without hidden labels or GM controls', async () => {

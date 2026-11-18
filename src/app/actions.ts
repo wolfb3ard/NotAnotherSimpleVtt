@@ -126,6 +126,19 @@ export async function mutate(
     const deletion =
       command === 'actor_delete' ? commandSchemas.actor_delete.parse(validated) : null;
     const db = await supabaseServer();
+    if (command === 'token_organize') {
+      const request = commandSchemas.token_organize.parse(validated);
+      const { data, error } = await db.rpc('organize_scene_token', {
+        p_game: gameId,
+        p_scene: request.scene_id,
+        p_token: request.id,
+        p_revision: request.revision,
+        p_remove: request.remove,
+        p_folder: request.folder,
+      });
+      if (error) throw new Error(error.message);
+      return { data };
+    }
     if (['scene_draft', 'scene_publish', 'group_save', 'group_place'].includes(command)) {
       const { data, error } = await db.rpc('stage_scene', {
         p_game: gameId,
@@ -399,6 +412,7 @@ export async function roll(gameId: string, payload: unknown) {
         expression: z.string().min(1).max(500),
         roll_type: z.string().trim().min(1).max(160).default('Manual roll'),
         visibility: z.enum(['public', 'private']),
+        sheet_initiative: z.boolean().optional(),
       })
       .parse(payload);
     const db = await supabaseServer();
@@ -409,6 +423,7 @@ export async function roll(gameId: string, payload: unknown) {
     const { data: game } = await db.from('games').select('*').eq('id', gameId).single();
     if (!game) throw new Error('Game access denied.');
     let fields = {};
+    let actorRevision: number | undefined;
     if (input.actor_id) {
       const { data: actor } = await db
         .from('actors')
@@ -419,9 +434,38 @@ export async function roll(gameId: string, payload: unknown) {
       // Sheet access and character control are separate; record_roll checks control again.
       if (!actor) throw new Error('Character sheet access denied.');
       fields = tableSystem(game).numbers(sheetSchema.parse(actor.sheet));
+      if (input.sheet_initiative) {
+        const saved = initiativeInput(actor.sheet);
+        const allowed = [
+          saved.expression,
+          saved.expression.replace(/^1d20\b/, '2d20kh1'),
+          saved.expression.replace(/^1d20\b/, '2d20kl1'),
+        ];
+        if (!allowed.includes(input.expression))
+          throw new Error('Initiative rule changed. Reload the sheet before rolling.');
+        fields = saved.fields;
+        actorRevision = actor.revision;
+      }
     }
     const result = rollDice(input.expression, game.dice, fields);
     const admin = supabaseAdmin();
+    if (input.sheet_initiative) {
+      if (!input.actor_id || actorRevision === undefined)
+        throw new Error('A saved character sheet is required.');
+      const { data, error } = await admin.rpc('commit_sheet_initiative', {
+        p_user: user.id,
+        p_game: gameId,
+        p_id: input.id,
+        p_actor: input.actor_id,
+        p_revision: actorRevision,
+        p_scene: game.active_scene_id,
+        p_expression: input.expression,
+        p_visibility: input.visibility,
+        p_result: result,
+      });
+      if (error) throw new Error(error.message);
+      return { success: true, result: data as typeof result };
+    }
     const { error } = await admin.rpc('record_roll', {
       p_user: user.id,
       p_game: gameId,
@@ -430,7 +474,7 @@ export async function roll(gameId: string, payload: unknown) {
       p_expression: input.expression,
       p_visibility: input.visibility,
       p_result: result,
-      p_roll_type: input.roll_type,
+      p_roll_type: input.roll_type === 'Sheet initiative' ? 'Manual roll' : input.roll_type,
     });
     if (error) throw new Error(error.message);
     return { success: true, result };
