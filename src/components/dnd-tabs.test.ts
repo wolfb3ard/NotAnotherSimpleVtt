@@ -17,7 +17,12 @@ import { srdEntry } from '@/lib/srd-catalog';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root;
 let container: HTMLDivElement;
-async function fixture(initial = createDndSheet(), editable = true, quickUpdate?: QuickUpdate) {
+async function fixture(
+  initial = createDndSheet(),
+  editable = true,
+  quickUpdate?: QuickUpdate,
+  onEquip?: (id: string) => void,
+) {
   let current = initial;
   const onRoll = vi.fn();
   function Harness() {
@@ -31,6 +36,8 @@ async function fixture(initial = createDndSheet(), editable = true, quickUpdate?
       dirty: false,
       onRoll,
       quickUpdate,
+      onEquip,
+      onUseItem: onEquip ? () => {} : undefined,
       update: (edit: (copy: Sheet) => void) => {
         const copy = structuredClone(sheet);
         edit(copy);
@@ -74,6 +81,21 @@ afterEach(async () => {
 });
 
 describe('character tabs', () => {
+  it('opens and focuses the Inventory tab with its existing equipment controls', async () => {
+    const sheet = applySrdBuilder(createDndSheet(), fighterBuilder());
+    const onEquip = vi.fn();
+    await fixture(sheet, true, undefined, onEquip);
+    await click('Manage equipped items');
+    expect(document.activeElement?.textContent).toBe('Inventory');
+    const unequipArmor = [...panel().querySelectorAll('button')].find(
+      (element) => element.textContent === 'Unequip Chain Mail',
+    );
+    expect(unequipArmor?.disabled).toBe(false);
+    await act(async () => unequipArmor!.click());
+    expect(onEquip).toHaveBeenCalledWith(
+      sheet.character!.items.find((item) => item.name === 'Chain Mail')!.id,
+    );
+  });
   it('spends the chosen tracked slot from the active Actions tab', async () => {
     const sheet = applySrdBuilder(createDndSheet(), classBuilder('Wizard'));
     const spell = sheet.character!.spells.find(

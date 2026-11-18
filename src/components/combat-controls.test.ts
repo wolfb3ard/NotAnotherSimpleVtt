@@ -116,9 +116,9 @@ it('adds and edits source/notes without implying automatic rules', async () => {
 it('keeps failed attempts exact across reload and blocks new edits until retry confirmation', async () => {
   const { run, busy } = await setup();
   run.mockResolvedValueOnce(undefined);
-  await click('Record death-save failure');
+  await click('Record failure');
   const request = run.mock.calls[0][1];
-  expect(button('Record death-save success').disabled).toBe(true);
+  expect(button('Record success').disabled).toBe(true);
   expect(busy).toHaveBeenLastCalledWith(true);
   await act(async () => root.unmount());
   root = createRoot(container);
@@ -156,6 +156,18 @@ it('keeps failed attempts exact across reload and blocks new edits until retry c
 });
 it('supports death-save rolls, explicit stabilization/recovery and read-only/draft guards', async () => {
   const { actor, run, roll, render } = await setup();
+  const group = container.querySelector('[aria-label="Roll and record death save"]');
+  expect([...group!.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+    'Roll death save (d20)',
+    'Record success',
+    'Record failure',
+  ]);
+  const adjustments = [...container.querySelectorAll('summary')].find(
+    (summary) => summary.textContent === 'Adjust or reset',
+  )!.parentElement as HTMLDetailsElement;
+  expect(adjustments.open).toBe(false);
+  expect(adjustments).toBe(button('Stabilize — reset death saves').closest('details'));
+  expect(adjustments.textContent).toContain('does not heal');
   await click('Roll death save (d20)');
   expect(roll).toHaveBeenCalledWith({
     actorId: id,
@@ -175,7 +187,7 @@ it('supports death-save rolls, explicit stabilization/recovery and read-only/dra
   await click('Recovered / revived — reset death saves');
   expect((run.mock.calls[1][1] as { state: unknown }).state).toEqual(emptyCombat());
   await render(false);
-  expect(button('Record death-save success').disabled).toBe(true);
+  expect(button('Record success').disabled).toBe(true);
   await render(true, true);
   expect(button('Start concentration').disabled).toBe(true);
 });

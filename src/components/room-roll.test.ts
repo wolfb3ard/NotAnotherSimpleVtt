@@ -482,11 +482,61 @@ it('restores a resized roll window after remount, isolates rooms and users, and 
   await render(snapshot);
   expect(dialog()?.style.width).toBe(width);
   await click('Settings');
-  await click('Reset layout');
+  expect(container.querySelector('[aria-label="Window layout"]')?.textContent).toContain(
+    'Reset window positions',
+  );
+  await click('Reset window positions');
   expect(dialog()).toBeNull();
   await click('Dice');
   await click('Pop out roll window');
   expect(dialog()?.style.width).toBe('440px');
+});
+
+it('copies an owned template to the selected game by name', async () => {
+  const template = {
+    id: 'mine',
+    game_id: 'game',
+    creator_id: 'owner',
+    name: 'Scout',
+    sheet: createDndSheet(),
+  };
+  const snapshot: Snapshot = {
+    userId: 'owner',
+    role: 'player',
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [20] },
+    actors: [],
+    grants: [],
+    tokens: [],
+    scenes: [],
+    templates: [template, { ...template, id: 'other', creator_id: 'gm' }],
+    rolls: [],
+    members: [],
+    rollCues: [],
+    diceStyles: [],
+  };
+  mutate.mockResolvedValue({ data: {} });
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () =>
+    root.render(
+      createElement(Room, {
+        initial: snapshot,
+        templateDestinations: [{ id: 'destination', name: 'Second campaign' }],
+      }),
+    ),
+  );
+  await act(async () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Settings')!.click(),
+  );
+  const section = container.querySelector('[aria-label="Sheet templates"]')!;
+  expect(section.querySelectorAll('form')).toHaveLength(1);
+  const select = section.querySelector('select')!;
+  expect(select.options[1].textContent).toBe('Second campaign');
+  select.value = 'destination';
+  await act(async () => section.querySelector('button')!.click());
+  expect(mutate).toHaveBeenCalledExactlyOnceWith('destination', 'template_copy', { id: 'mine' });
+  expect(section.querySelector('[role="status"]')?.textContent).toBe('Copied to Second campaign.');
 });
 
 it('clears a deleted roll target and permits another manual roll without reloading', async () => {

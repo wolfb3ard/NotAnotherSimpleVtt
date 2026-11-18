@@ -5,11 +5,7 @@ import { emptyCharacterDetails } from '@/lib/character-details';
 import { srdById, srdCatalog, srdExcerpt } from '@/lib/srd-catalog';
 import { applySrdBuilder, deriveSrd, srdTransitionErrors } from '@/lib/srd-engine';
 import { defaultEquipment, deriveEquipment } from '@/lib/srd-equipment';
-import {
-  draftEquipmentItems,
-  SrdEquipmentControls,
-  SrdEquipmentSummary,
-} from './srd-equipment-controls';
+import { draftEquipmentItems, SrdEquipmentControls } from './srd-equipment-controls';
 import { defaultCompanions } from '@/lib/srd-shapes';
 import { SrdShapesControls } from './srd-shapes-controls';
 import {
@@ -1272,7 +1268,6 @@ export function SrdBuilder({
           </button>
         )}
       </div>
-      <SrdEquipmentSummary sheet={sheet} />
       <SrdCatalog
         onAddItem={
           editable

@@ -14,6 +14,7 @@ import { dndNumbers } from '@/lib/dnd';
 import type { QuickUpdate } from '@/lib/resources';
 import { castChoices } from '@/lib/play-assistance';
 import { PlayInventory } from './play-inventory';
+import { SrdEquipmentSummary } from './srd-equipment-controls';
 
 const tabs = [
   'Actions',
@@ -285,6 +286,15 @@ export function DndTabs({
   return (
     <div className="dnd-tabbed">
       {castPractice && <p role="status">{castPractice}</p>}
+      {playing && tab !== 'Inventory' && (
+        <SrdEquipmentSummary
+          sheet={sheet}
+          onManage={() => {
+            setTab('Inventory');
+            document.getElementById(`${id}-tab-${tabs.indexOf('Inventory')}`)?.focus();
+          }}
+        />
+      )}
       <div role="tablist" aria-label="Character details" className="dnd-tabs">
         {tabs.map((label, index) => (
           <button

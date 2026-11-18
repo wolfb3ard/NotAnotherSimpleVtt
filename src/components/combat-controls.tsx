@@ -329,20 +329,6 @@ export function CombatControls({
       <details open={state.death.successes > 0 || state.death.failures > 0 || state.death.stable}>
         <summary>Death saves & recovery</summary>
         <div className="stack">
-          {onRoll && (
-            <button
-              disabled={disabled}
-              onClick={() =>
-                void onRoll({
-                  actorId: actor.id,
-                  expression: '1d20',
-                  rollType: 'Death saving throw — record outcome manually',
-                })
-              }
-            >
-              Roll death save (d20)
-            </button>
-          )}
           <p>
             {state.death.successes} successes / {state.death.failures} failures ·{' '}
             {state.death.failures >= 3
@@ -351,7 +337,21 @@ export function CombatControls({
                 ? 'Stable'
                 : 'Not stabilized'}
           </p>
-          <div className="wrap">
+          <div className="wrap" role="group" aria-label="Roll and record death save">
+            {onRoll && (
+              <button
+                disabled={disabled}
+                onClick={() =>
+                  void onRoll({
+                    actorId: actor.id,
+                    expression: '1d20',
+                    rollType: 'Death saving throw — record outcome manually',
+                  })
+                }
+              >
+                Roll death save (d20)
+              </button>
+            )}
             <button
               disabled={disabled || state.death.successes >= 3}
               onClick={() =>
@@ -360,7 +360,7 @@ export function CombatControls({
                 })
               }
             >
-              Record death-save success
+              Record success
             </button>
             <button
               disabled={disabled || state.death.failures >= 3}
@@ -371,67 +371,77 @@ export function CombatControls({
                 })
               }
             >
-              Record death-save failure
+              Record failure
             </button>
           </div>
-          <label>
-            Manual successes
-            <input
-              type="number"
-              min={0}
-              max={3}
-              step={1}
-              disabled={disabled}
-              value={state.death.successes}
-              onChange={(e) =>
-                change((next) => {
-                  next.death.successes = Number(e.target.value);
-                })
-              }
-            />
-          </label>
-          <label>
-            Manual failures
-            <input
-              type="number"
-              min={0}
-              max={3}
-              step={1}
-              disabled={disabled}
-              value={state.death.failures}
-              onChange={(e) =>
-                change((next) => {
-                  next.death.failures = Number(e.target.value);
-                })
-              }
-            />
-          </label>
-          <button
-            disabled={disabled}
-            onClick={() =>
-              change((next) => {
-                next.death = { successes: 0, failures: 0, stable: true };
-              })
-            }
-          >
-            Stabilize — reset death saves
-          </button>
-          <button
-            disabled={disabled}
-            onClick={() =>
-              change((next) => {
-                next.death = emptyCombat().death;
-              })
-            }
-          >
-            Recovered / revived — reset death saves
-          </button>
           <p className="small">
-            Roll d20 from Dice; record results manually. Natural 1: two failures; natural 20: apply
-            1 HP with health controls, then reset here. Recovery/reset does not heal, revive, remove
-            conditions or end concentration. Use HP and markers explicitly; automatic monster death
-            is not assumed.
+            {onRoll ? 'Record the result manually.' : 'Roll a d20 and record the result manually.'}{' '}
+            Natural 1: record two failures. Natural 20: apply 1 HP with the health controls, then
+            reset death saves below.
           </p>
+          <details>
+            <summary>Adjust or reset</summary>
+            <div className="stack">
+              <label>
+                Manual successes
+                <input
+                  type="number"
+                  min={0}
+                  max={3}
+                  step={1}
+                  disabled={disabled}
+                  value={state.death.successes}
+                  onChange={(e) =>
+                    change((next) => {
+                      next.death.successes = Number(e.target.value);
+                    })
+                  }
+                />
+              </label>
+              <label>
+                Manual failures
+                <input
+                  type="number"
+                  min={0}
+                  max={3}
+                  step={1}
+                  disabled={disabled}
+                  value={state.death.failures}
+                  onChange={(e) =>
+                    change((next) => {
+                      next.death.failures = Number(e.target.value);
+                    })
+                  }
+                />
+              </label>
+              <div className="wrap">
+                <button
+                  disabled={disabled}
+                  onClick={() =>
+                    change((next) => {
+                      next.death = { successes: 0, failures: 0, stable: true };
+                    })
+                  }
+                >
+                  Stabilize — reset death saves
+                </button>
+                <button
+                  disabled={disabled}
+                  onClick={() =>
+                    change((next) => {
+                      next.death = emptyCombat().death;
+                    })
+                  }
+                >
+                  Recovered / revived — reset death saves
+                </button>
+              </div>
+              <p className="small">
+                Resetting death saves does not heal, revive, remove conditions, or end
+                concentration. Monster death is not automatic.
+              </p>
+            </div>
+          </details>
         </div>
       </details>
       <p role="status">{operation.message}</p>
