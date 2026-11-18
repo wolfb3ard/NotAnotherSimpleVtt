@@ -454,21 +454,25 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await zoomSlider.focus();
     await zoomSlider.press('Home');
     await expect(zoomSlider).toHaveValue('1');
-    const d20 = gm.page.getByRole('button', { name: 'd20', exact: true });
-    const d6 = gm.page.getByRole('button', { name: 'd6', exact: true });
-    await expect(d20).toHaveAttribute('aria-pressed', 'true');
-    await d6.click();
-    await expect(d6).toHaveAttribute('aria-pressed', 'true');
-    await expect(d20).toHaveAttribute('aria-pressed', 'false');
-    await gm.page.getByLabel('Expression', { exact: true }).fill('2d6 + 1d8');
-    await expect(d6).toHaveAttribute('aria-pressed', 'true');
-    await expect(gm.page.getByRole('button', { name: 'd8', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    const expression = gm.page.getByLabel('Expression', { exact: true });
+    const d20 = gm.page.getByRole('button', { name: 'Add d20', exact: true });
+    const d6 = gm.page.getByRole('button', { name: 'Add d6', exact: true });
+    const d8 = gm.page.getByRole('button', { name: 'Add d8', exact: true });
+    await expect(expression).toHaveValue('');
+    for (let i = 0; i < 6; i++) await d6.click();
+    await d8.click();
+    await expect(expression).toHaveValue('6d6 + 1d8');
+    await gm.page.getByRole('button', { name: 'Remove d6', exact: true }).click();
+    await expect(expression).toHaveValue('5d6 + 1d8');
+    await gm.page.getByRole('button', { name: 'Clear expression', exact: true }).click();
+    await expect(expression).toHaveValue('');
+    await expression.fill('2d6 + 1d8');
+    await expect(d6).toHaveText('d6 ×2');
+    await expect(d8).toHaveText('d8 ×1');
     await gm.page.getByRole('button', { name: 'Advantage', exact: true }).click();
-    await expect(d20).toHaveAttribute('aria-pressed', 'true');
-    await expect(d6).toHaveAttribute('aria-pressed', 'false');
+    await expect(d20).toHaveText('d20 ×2');
+    await expect(d6).toHaveText('d6');
+    await gm.page.getByRole('button', { name: 'Clear expression', exact: true }).click();
     await d20.click();
     await gm.page.getByLabel('Visibility').selectOption('private');
     await gm.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
@@ -481,6 +485,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       (await (await player.page.request.get(`/api/games/${gameId}`)).json()).rollCues,
     ).toHaveLength(0);
     await player.page.getByLabel('Visibility').selectOption('private');
+    await player.page.getByRole('button', { name: 'Add d20', exact: true }).click();
     await player.page.getByRole('button', { name: 'Roll dice', exact: false }).click();
     await expect(player.page.locator('.roll-card')).toHaveCount(1);
     await expect(spectators[0].page.getByLabel('A private roll occurred')).toBeVisible({

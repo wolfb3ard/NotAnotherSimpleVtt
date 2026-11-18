@@ -8,7 +8,7 @@ import type { Command } from '@/lib/commands';
 import type { Snapshot } from '@/lib/types';
 import { emptySheet } from '@/lib/sheets';
 import { defaultDiceStyle } from '@/lib/dice-style';
-import { selectedDiceSides } from '@/lib/dice-selection';
+import { diceSelection } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
 import { DiceStyleEditor } from './dice-style-editor';
 import { SheetWindow } from './sheet-window';
@@ -92,7 +92,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
   const attention = useRoomAttention(snapshot, live, !denied);
   const [pending, setPending] = useState(false);
   const [invite, setInvite] = useState('');
-  const [expression, setExpression] = useState('1d20');
+  const [expression, setExpression] = useState('');
   const [rollType, setRollType] = useState('Manual roll');
   const [rollActor, setRollActor] = useState('');
   const [diceSetting, setDiceSetting] = useState(initial.game.dice.join(', '));
@@ -106,7 +106,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
   const refreshRunning = useRef(false);
   const refreshAgain = useRef(false);
   const gm = snapshot.role === 'gm';
-  const selectedDice = selectedDiceSides(expression);
+  const diceTray = diceSelection(expression);
   const scene = snapshot.scenes.find(
     (s) => s.id === (snapshot.preparedSceneId ?? snapshot.game.active_scene_id),
   );
@@ -813,16 +813,35 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                       </button>
                     )}
                   </div>
-                  <div className="dice-types">
-                    {snapshot.game.dice.map((d) => (
-                      <button
-                        key={d}
-                        aria-pressed={selectedDice.has(d)}
-                        onClick={() => setExpression(`1d${d}`)}
-                      >
-                        d{d}
-                      </button>
-                    ))}
+                  <div className="dice-types" role="group" aria-label="Dice tray">
+                    {snapshot.game.dice.map((d) => {
+                      const count = diceTray.counts.get(d) ?? 0;
+                      return (
+                        <div className="dice-stepper" key={d}>
+                          <button
+                            aria-label={`Remove d${d}`}
+                            disabled={diceTray.change(d, -1) === expression}
+                            onClick={() =>
+                              setExpression((value) => diceSelection(value).change(d, -1))
+                            }
+                          >
+                            −
+                          </button>
+                          <button
+                            aria-label={`Add d${d}`}
+                            aria-description={`${count} in expression`}
+                            className={count ? 'dice-selected' : undefined}
+                            disabled={diceTray.change(d, 1) === expression}
+                            onClick={() =>
+                              setExpression((value) => diceSelection(value).change(d, 1))
+                            }
+                          >
+                            d{d}
+                            {count > 0 && <span className="dice-count"> ×{count}</span>}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                   <label>
                     Dice zoom: {Math.round(diceZoom * 100)}%
@@ -856,15 +875,24 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                       placeholder="Athletics check, attack with Longsword…"
                     />
                   </label>
-                  <label>
-                    Expression
-                    <input
-                      value={expression}
-                      maxLength={500}
-                      onChange={(e) => setExpression(e.target.value)}
-                      placeholder="2d6 + 3"
-                    />
-                  </label>
+                  <div className="dice-expression">
+                    <label>
+                      Expression
+                      <input
+                        value={expression}
+                        maxLength={500}
+                        onChange={(e) => setExpression(e.target.value)}
+                        placeholder="2d6 + 3"
+                      />
+                    </label>
+                    <button
+                      aria-label="Clear expression"
+                      disabled={!expression}
+                      onClick={() => setExpression('')}
+                    >
+                      Clear
+                    </button>
+                  </div>
                   <div className="row">
                     <button
                       disabled={!snapshot.game.dice.includes(20)}
@@ -885,7 +913,9 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                       <select
                         value=""
                         onChange={(e) => {
-                          if (e.target.value) setExpression((v) => `${v} + @{${e.target.value}}`);
+                          const field = e.target.value;
+                          if (field)
+                            setExpression((v) => (v.trim() ? `${v} + ` : '') + `@{${field}}`);
                         }}
                       >
                         <option value="">Insert numeric field…</option>
@@ -923,7 +953,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                   </div>
                   <button
                     className="primary roll-button"
-                    disabled={pending || !expression || !rollType.trim()}
+                    disabled={pending || !expression.trim() || !rollType.trim()}
                     onClick={() => void sendRoll()}
                   >
                     {pending ? 'Rolling…' : '◇ Roll dice'}
@@ -933,7 +963,8 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                     <p className="small muted">
                       Use + − * / and parentheses. Try (2d6 + 3) / 2. Keep highest: 4d6kh3; lowest:
                       2d20kl1. Up to 100 dice per roll. Division keeps decimals. Sheet fields use
-                      stable references inserted above.
+                      stable references inserted above. The minus buttons remove plain added dice;
+                      edit grouped, subtracted, or keep-highest/lowest dice in the expression.
                     </p>
                   </details>
                   <div className="section-divider">
