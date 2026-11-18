@@ -12,7 +12,9 @@ const participants = z
 export const encounterCommandSchema = z
   .discriminatedUnion('action', [
     z.object({ ...base, action: z.literal('start'), participants }).strict(),
+    z.object({ ...base, action: z.literal('prepare'), participants }).strict(),
     z.object({ ...current, action: z.literal('add'), participants }).strict(),
+    z.object({ ...current, action: z.literal('queue'), participants }).strict(),
     z.object({ ...current, action: z.literal('roll'), token_ids: tokens }).strict(),
     z.object({ ...current, action: z.literal('remove'), token_ids: tokens }).strict(),
     z.object({ ...current, action: z.literal('reorder'), token_ids: tokens }).strict(),
@@ -26,7 +28,15 @@ export const encounterCommandSchema = z
           .max(50),
       })
       .strict(),
-    z.object({ ...current, action: z.enum(['next', 'pause', 'resume', 'end']) }).strict(),
+    z
+      .object({
+        ...current,
+        action: z.literal('outcome'),
+        token_id: id,
+        outcome: z.enum(['active', 'defeated', 'fled']),
+      })
+      .strict(),
+    z.object({ ...current, action: z.enum(['begin', 'next', 'pause', 'resume', 'end']) }).strict(),
   ])
   .superRefine((request, ctx) => {
     const ids =
@@ -44,7 +54,7 @@ export type EncounterRequest = z.infer<typeof encounterCommandSchema>;
 export function initiativeTokenIds(request: EncounterRequest): string[] {
   return request.action === 'roll'
     ? request.token_ids
-    : 'participants' in request
+    : request.action === 'start' || request.action === 'add'
       ? request.participants.filter((p) => p.initiative === null).map((p) => p.token_id)
       : [];
 }

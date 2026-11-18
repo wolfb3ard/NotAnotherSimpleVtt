@@ -10,12 +10,16 @@ export function boardEncounter(snapshot: Snapshot): Encounter | null {
   const participants = encounter.participants
     .filter((p) => tokens.has(p.token_id))
     .map((p) => ({ ...p, label: tokens.get(p.token_id)!.label }));
+  const inOrder = (id: string | null | undefined) =>
+    participants.some((p) => p.token_id === id && (!p.outcome || p.outcome === 'active'));
   return {
     ...encounter,
     participants,
-    active_token_id: participants.some((p) => p.token_id === encounter.active_token_id)
-      ? encounter.active_token_id
-      : null,
+    active_token_id: inOrder(encounter.active_token_id) ? encounter.active_token_id : null,
+    next_token_id:
+      inOrder(encounter.active_token_id) && inOrder(encounter.next_token_id)
+        ? encounter.next_token_id
+        : null,
   };
 }
 export function encounterTurn(snapshot: Snapshot) {
@@ -29,5 +33,6 @@ export function encounterTurn(snapshot: Snapshot) {
     snapshot.role === 'player' &&
     (token.controller_id === snapshot.userId ||
       snapshot.actors.some((a) => a.id === token.actor_id && a.owner_id === snapshot.userId));
-  return { encounter, token, yours };
+  const upNext = token && snapshot.tokens.find((t) => t.id === encounter?.next_token_id);
+  return { encounter, token, yours, upNext };
 }

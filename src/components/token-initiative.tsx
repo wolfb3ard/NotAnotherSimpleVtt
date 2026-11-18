@@ -38,13 +38,14 @@ export function TokenInitiative({
   const encounter = boardEncounter(snapshot);
   const live = encounter && encounter.status !== 'ended';
   const participant = live && encounter.participants.find((p) => p.token_id === token.id);
+  const outOfOrder = participant && participant.outcome && participant.outcome !== 'active';
   const rule = actor && initiativeExpression(actor.sheet);
   const manual = total.trim() !== '';
   const valid = manual
     ? Number.isFinite(Number(total)) && Math.abs(Number(total)) <= 1000000
     : !!rule;
   async function commit() {
-    if (disabled || operation.blocked || !valid) return;
+    if (disabled || operation.blocked || !valid || outOfOrder) return;
     const context = live ? { id: encounter.id, revision: encounter.revision } : {};
     await operation.commit({
       scene_id: token.scene_id,
@@ -59,13 +60,23 @@ export function TokenInitiative({
           }),
     });
   }
+  if (outOfOrder) {
+    return (
+      <p className="small">
+        {participant.outcome === 'defeated' ? 'Defeated' : 'Fled'} · Manage in Encounter.
+      </p>
+    );
+  }
   return (
     <details>
       <summary>Initiative</summary>
       <p className="small">
         GM only. Blank rolls saved initiative privately; a manual total overrides it.
         {!live && ' Starts a new encounter with this token.'}
-        {participant && ` Current initiative: ${participant.initiative}.`}
+        {participant &&
+          (participant.initiative === null
+            ? ' Waiting for initiative.'
+            : ` Current initiative: ${participant.initiative}.`)}
       </p>
       {!rule && <p>No saved initiative rule. Enter a manual total.</p>}
       <label>

@@ -168,6 +168,63 @@ it('prevents double advancement and waits for a snapshot rather than advancing o
   await act(async () => resolve({ id: encounter, revision: '5' }));
   expect(container.querySelector('[aria-current="step"]')!.textContent).toContain('Hero');
 });
+it('prepares without rolls, shows readiness and sends begin only when ready', async () => {
+  const run = vi.fn().mockResolvedValue({ id: encounter, revision: '5' });
+  const render = (snapshot: Snapshot) =>
+    createElement(EncounterPanel, { snapshot, run, refresh, onSheet: vi.fn() });
+  await mount(render(fixture(false)));
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Include Hero in encounter"]')!.click(),
+  );
+  await click('Prepare encounter');
+  expect(run).toHaveBeenLastCalledWith(
+    'encounter',
+    expect.objectContaining({
+      action: 'prepare',
+      participants: [{ token_id: hero, initiative: null }],
+    }),
+  );
+  const setup = fixture();
+  setup.encounter!.status = 'setup';
+  setup.encounter!.active_token_id = null;
+  setup.encounter!.participants[0].initiative = null;
+  await act(async () => root.render(render(setup)));
+  expect(container.textContent).toContain('1 of 2 ready');
+  expect(container.textContent).toContain('Not rolled');
+  expect(button('Begin combat').disabled).toBe(true);
+  setup.encounter!.participants[0].initiative = 15;
+  await act(async () => root.render(render(setup)));
+  await click('Begin combat');
+  expect(run).toHaveBeenLastCalledWith('encounter', expect.objectContaining({ action: 'begin' }));
+});
+it('shows Up next and moves defeated or fled combatants out of the turn order', async () => {
+  const run = vi.fn().mockResolvedValue({ id: encounter, revision: '5' });
+  const snapshot = fixture();
+  snapshot.encounter!.next_token_id = enemy;
+  const render = () => createElement(EncounterPanel, { snapshot, run, refresh, onSheet: vi.fn() });
+  await mount(render());
+  expect(container.textContent).toContain('Up next: Secret enemy');
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Mark Secret enemy fled"]')!.click(),
+  );
+  expect(run).toHaveBeenLastCalledWith(
+    'encounter',
+    expect.objectContaining({
+      action: 'outcome',
+      token_id: enemy,
+      outcome: 'fled',
+    }),
+  );
+  snapshot.encounter!.participants[1].outcome = 'fled';
+  await act(async () => root.render(render()));
+  expect(container.querySelector('[aria-label="Turn order"]')?.textContent).not.toContain(
+    'Secret enemy',
+  );
+  expect(container.querySelector('[aria-label="Out of the turn order"]')?.textContent).toContain(
+    'Secret enemy · Fled',
+  );
+  expect(container.textContent).not.toContain('Up next: Secret enemy');
+});
 it('restores an uncertain command after remount and retries the same revision and operation', async () => {
   const run = vi.fn().mockResolvedValue(undefined),
     snapshot = fixture();

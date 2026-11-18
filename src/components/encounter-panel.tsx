@@ -9,7 +9,7 @@ import { useEncounterCommand } from './use-encounter-command';
 import { combatSummary } from '@/lib/combat';
 
 export function EncounterTurnCue({ snapshot }: { snapshot: Snapshot }) {
-  const { encounter, token, yours } = encounterTurn(snapshot);
+  const { encounter, token, yours, upNext } = encounterTurn(snapshot);
   if (!encounter) return null;
   return (
     <div
@@ -21,16 +21,19 @@ export function EncounterTurnCue({ snapshot }: { snapshot: Snapshot }) {
       <strong>
         {yours
           ? 'Your turn'
-          : encounter.status === 'paused'
-            ? 'Encounter paused'
-            : encounter.status === 'ended'
-              ? 'Encounter ended'
-              : token
-                ? 'Current turn'
-                : 'Waiting for GM'}
+          : encounter.status === 'setup'
+            ? 'Waiting for initiative'
+            : encounter.status === 'paused'
+              ? 'Encounter paused'
+              : encounter.status === 'ended'
+                ? 'Encounter ended'
+                : token
+                  ? 'Current turn'
+                  : 'Waiting for GM'}
       </strong>
       {token && <span>{token.label}</span>}
-      <span>Round {encounter.round}</span>
+      {upNext && <span>Up next: {upNext.label}</span>}
+      {encounter.status !== 'setup' && <span>Round {encounter.round}</span>}
     </div>
   );
 }
@@ -57,6 +60,12 @@ export function EncounterPanel({
   const [selection, setSelection] = useState<Record<string, string>>({});
   const participants = encounter?.participants ?? [];
   const live = encounter && encounter.status !== 'ended';
+  const setup = encounter?.status === 'setup';
+  const inOrder = participants.filter((p) => !p.outcome || p.outcome === 'active');
+  const outOfOrder = participants.filter((p) => p.outcome && p.outcome !== 'active');
+  const archived = gm ? (encounter?.archived_outcomes ?? []) : [];
+  const waiting = inOrder.filter((p) => p.initiative === null).length;
+  const upNext = inOrder.find((p) => p.token_id === encounter?.next_token_id);
   const available = snapshot.tokens.filter(
     (t) => t.scene_id === scene?.id && (!live || !participants.some((p) => p.token_id === t.id)),
   );
@@ -66,6 +75,9 @@ export function EncounterPanel({
   });
   const scoreValid = (text: string) =>
     text.trim() !== '' && Number.isFinite(Number(text)) && Math.abs(Number(text)) <= 1000000;
+  const validSelection =
+    chosen.length > 0 &&
+    chosen.every((t) => !selection[t.id].trim() || scoreValid(selection[t.id]));
   const canAdd =
     chosen.length > 0 &&
     chosen.every((t) =>
@@ -85,8 +97,8 @@ export function EncounterPanel({
       ...extra,
     });
   }
-  async function add() {
-    if (!scene || !canAdd) return;
+  async function add(prepare = false) {
+    if (!scene || !(prepare || setup ? validSelection : canAdd)) return;
     const extra = {
       participants: chosen.map((t) => ({
         token_id: t.id,
@@ -94,12 +106,16 @@ export function EncounterPanel({
       })),
     };
     const saved = live
-      ? await change('add', extra)
-      : await operation.commit({ action: 'start', scene_id: scene.id, ...extra });
+      ? await change(setup ? 'queue' : 'add', extra)
+      : await operation.commit({
+          action: prepare ? 'prepare' : 'start',
+          scene_id: scene.id,
+          ...extra,
+        });
     if (saved) setSelection({});
   }
   function reorder(index: number, delta: number) {
-    const ids = participants.map((p) => p.token_id);
+    const ids = [...inOrder, ...outOfOrder].map((p) => p.token_id);
     [ids[index], ids[index + delta]] = [ids[index + delta], ids[index]];
     void change('reorder', { token_ids: ids });
   }
@@ -120,11 +136,24 @@ export function EncounterPanel({
           </p>
           {encounter && (
             <>
-              <p>
-                <strong>Round {encounter.round}</strong> · {encounter.status}
-              </p>
+              {setup ? (
+                <p role="status">
+                  <strong>Waiting for initiative</strong> · {inOrder.length - waiting} of{' '}
+                  {inOrder.length} ready
+                </p>
+              ) : (
+                <p>
+                  <strong>Round {encounter.round}</strong> · {encounter.status}
+                  {upNext && (
+                    <>
+                      {' '}
+                      · Up next: <strong>{upNext.label}</strong>
+                    </>
+                  )}
+                </p>
+              )}
               <ol className="encounter-order" aria-label="Turn order">
-                {participants.map((p, index) => {
+                {inOrder.map((p, index) => {
                   const current = live && p.token_id === encounter.active_token_id;
                   const token = snapshot.tokens.find((t) => t.id === p.token_id);
                   const actor = snapshot.actors.find((a) => a.id === token?.actor_id);
@@ -138,7 +167,13 @@ export function EncounterPanel({
                         <strong>{p.label}</strong>
                         {current && <span className="small">Current turn</span>}
                         <span className="initiative-score">
-                          <small>Initiative</small> {p.initiative}
+                          {p.initiative === null ? (
+                            'Not rolled'
+                          ) : (
+                            <>
+                              <small>Initiative</small> {p.initiative}
+                            </>
+                          )}
                         </span>
                       </div>
                       {actor && <span className="small">{combatSummary(actor)}</span>}
@@ -164,7 +199,8 @@ export function EncounterPanel({
                               aria-label={`Move ${p.label} up`}
                               disabled={
                                 operation.blocked ||
-                                participants[index - 1]?.initiative !== p.initiative
+                                p.initiative === null ||
+                                inOrder[index - 1]?.initiative !== p.initiative
                               }
                               onClick={() => reorder(index, -1)}
                             >
@@ -174,18 +210,34 @@ export function EncounterPanel({
                               aria-label={`Move ${p.label} down`}
                               disabled={
                                 operation.blocked ||
-                                participants[index + 1]?.initiative !== p.initiative
+                                p.initiative === null ||
+                                inOrder[index + 1]?.initiative !== p.initiative
                               }
                               onClick={() => reorder(index, 1)}
                             >
                               ↓
                             </button>
                             <button
-                              disabled={operation.blocked}
+                              disabled={
+                                operation.blocked || !actor || !initiativeExpression(actor.sheet)
+                              }
                               onClick={() => void change('roll', { token_ids: [p.token_id] })}
                             >
-                              Reroll {p.label}
+                              {p.initiative === null ? 'Roll' : 'Reroll'} {p.label}
                             </button>
+                            {!setup &&
+                              (['defeated', 'fled'] as const).map((outcome) => (
+                                <button
+                                  key={outcome}
+                                  aria-label={`Mark ${p.label} ${outcome}`}
+                                  disabled={operation.blocked}
+                                  onClick={() =>
+                                    void change('outcome', { token_id: p.token_id, outcome })
+                                  }
+                                >
+                                  {outcome === 'defeated' ? 'Mark defeated' : 'Mark fled'}
+                                </button>
+                              ))}
                             <button
                               disabled={operation.blocked}
                               aria-label={`Remove ${p.label} from encounter`}
@@ -200,28 +252,70 @@ export function EncounterPanel({
                   );
                 })}
               </ol>
+              {(outOfOrder.length > 0 || archived.length > 0) && (
+                <section aria-label="Out of the turn order">
+                  <h3>Out of the turn order</h3>
+                  <ul className="encounter-order">
+                    {outOfOrder.map((p) => (
+                      <li key={p.token_id}>
+                        <strong>
+                          {p.label} · {p.outcome === 'defeated' ? 'Defeated' : 'Fled'}
+                        </strong>
+                        {p.initiative !== null && <small>Initiative {p.initiative}</small>}
+                        {gm && live && (
+                          <button
+                            aria-label={`Return ${p.label} to turn order`}
+                            disabled={operation.blocked}
+                            onClick={() =>
+                              void change('outcome', { token_id: p.token_id, outcome: 'active' })
+                            }
+                          >
+                            Return to turn order
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                    {archived.map((p) => (
+                      <li key={p.token_id}>
+                        <strong>
+                          {p.label} · {p.outcome === 'defeated' ? 'Defeated' : 'Fled'}
+                        </strong>
+                        <small>Removed from table</small>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
               {encounter.status === 'active' && !encounter.active_token_id && (
                 <p>Waiting for GM.</p>
               )}
-              {!participants.length && <p>No visible turn-order entries.</p>}
+              {!inOrder.length && <p>No visible turn-order entries.</p>}
               {gm && live && (
                 <div className="wrap">
-                  <button
-                    className="primary"
-                    disabled={
-                      operation.blocked || encounter.status !== 'active' || !participants.length
-                    }
-                    onClick={() => void change('next')}
-                  >
-                    Next turn
-                  </button>
-                  {encounter.status === 'active' ? (
-                    <button disabled={operation.blocked} onClick={() => void change('pause')}>
-                      Pause encounter
+                  {setup ? (
+                    <button
+                      className="primary"
+                      disabled={operation.blocked || !inOrder.length || waiting > 0}
+                      onClick={() => void change('begin')}
+                    >
+                      Begin combat
                     </button>
+                  ) : encounter.status === 'active' ? (
+                    <>
+                      <button
+                        className="primary"
+                        disabled={operation.blocked || !encounter.active_token_id}
+                        onClick={() => void change('next')}
+                      >
+                        Next turn
+                      </button>
+                      <button disabled={operation.blocked} onClick={() => void change('pause')}>
+                        Pause encounter
+                      </button>
+                    </>
                   ) : (
                     <button
-                      disabled={operation.blocked || !participants.length}
+                      disabled={operation.blocked || !encounter.active_token_id}
                       onClick={() => void change('resume')}
                     >
                       Resume encounter
@@ -248,10 +342,15 @@ export function EncounterPanel({
           {gm && (
             <>
               <details open={!live}>
-                <summary>{live ? 'Add participants' : 'Select tokens and start encounter'}</summary>
+                <summary>{live ? 'Add participants' : 'Select encounter participants'}</summary>
                 <p className="small">
-                  Leave the total blank to use a recent sheet roll or roll privately as GM. Enter a
-                  total to override it. Hidden combatants are omitted from the player tracker.
+                  {setup
+                    ? 'Leave initiative blank to use a recent sheet roll or wait for a new one.'
+                    : live
+                      ? 'Leave initiative blank to use a recent sheet roll or roll as GM.'
+                      : 'Prepare to wait for sheet rolls, or start immediately to roll missing initiative as GM.'}{' '}
+                  Enter a total to override it. Hidden combatants are omitted from the player
+                  tracker.
                 </p>
                 {available.map((t) => {
                   const actor = snapshot.actors.find((a) => a.id === t.actor_id);
@@ -288,7 +387,7 @@ export function EncounterPanel({
                             disabled={operation.blocked}
                             value={selection[t.id]}
                             placeholder={
-                              rule ? 'Use sheet roll or roll as GM' : 'Manual total required'
+                              rule ? 'Use saved initiative' : 'Add a total before combat'
                             }
                             onChange={(e) =>
                               setSelection((old) => ({ ...old, [t.id]: e.target.value }))
@@ -302,9 +401,22 @@ export function EncounterPanel({
                 {!available.length && (
                   <p>No additional tokens in this scene. Place creatures on the board first.</p>
                 )}
-                <button disabled={operation.blocked || !canAdd} onClick={() => void add()}>
-                  {live ? 'Add selected participants' : 'Start encounter'}
-                </button>
+                <div className="wrap">
+                  {!live && (
+                    <button
+                      disabled={operation.blocked || !validSelection}
+                      onClick={() => void add(true)}
+                    >
+                      Prepare encounter
+                    </button>
+                  )}
+                  <button
+                    disabled={operation.blocked || !(setup ? validSelection : canAdd)}
+                    onClick={() => void add()}
+                  >
+                    {live ? 'Add selected participants' : 'Start encounter'}
+                  </button>
+                </div>
               </details>
               <p className="small">
                 Highest initiative goes first; arrows only break ties. Removing a combatant here
@@ -336,11 +448,11 @@ function InitiativeEdit({
   onSave,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   disabled: boolean;
   onSave: (value: number) => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(value === null ? '' : String(value));
   const valid =
     draft.trim() !== '' && Number.isFinite(Number(draft)) && Math.abs(Number(draft)) <= 1000000;
   return (

@@ -363,6 +363,86 @@ describe.sequential('authorized encounter lifecycle', () => {
     await expect(sheetRoll(await packet(monster))).rejects.toThrow(/Character control/);
     await expect(sheetRoll(await packet(hero), outsider)).rejects.toThrow(/Game access/);
   });
+  it('waits in setup, reuses pre-rolls, and starts with the highest ready participant', async () => {
+    const early = await packet(hero, 16);
+    await sheetRoll(early);
+    const request = {
+      ...start([
+        { token_id: hero, initiative: null },
+        { token_id: monster, initiative: null },
+      ]),
+      action: 'prepare',
+    };
+    expect(await command(request)).toEqual(await command(request));
+    expect(await snapshot()).toMatchObject({
+      status: 'setup',
+      active_token_id: null,
+      next_token_id: null,
+      participants: [
+        { token_id: hero, initiative: early.result.total },
+        { token_id: monster, initiative: null },
+      ],
+    });
+    await expect(command(await change('begin'))).rejects.toThrow(/Waiting for initiative/);
+    await command(await change('queue', { participants: [{ token_id: secret, initiative: 2 }] }));
+    const resolved = await packet(monster, 20);
+    await sheetRoll(resolved, gm);
+    expect((await snapshot())!.active_token_id).toBeNull();
+    await command(await change('begin'));
+    expect(await snapshot()).toMatchObject({
+      status: 'active',
+      active_token_id: monster,
+      next_token_id: hero,
+    });
+  });
+  it('skips defeated and fled combatants, restores them, and archives removed tokens for the GM', async () => {
+    await command(
+      start([
+        { token_id: hero, initiative: 30 },
+        { token_id: secret, initiative: 20 },
+        { token_id: monster, initiative: 10 },
+      ]),
+    );
+    expect((await snapshot())!.next_token_id).toBe(secret);
+    const flee = await change('outcome', { token_id: secret, outcome: 'fled' });
+    await as(player);
+    expect((await snapshot())!.next_token_id).toBeNull();
+    await expect(command(flee)).rejects.toThrow(/GM required/);
+    await as(gm);
+    await command(flee);
+    expect(await snapshot()).toMatchObject({ active_token_id: hero, next_token_id: monster });
+    await command(await change('outcome', { token_id: hero, outcome: 'defeated' }));
+    expect(await snapshot()).toMatchObject({ active_token_id: monster, next_token_id: monster });
+    await sheetRoll(await packet(hero, 6));
+    expect((await snapshot())!.participants.find((p) => p.token_id === hero)).toMatchObject({
+      outcome: 'defeated',
+      initiative: 30,
+    });
+    await command(await change('outcome', { token_id: monster, outcome: 'fled' }));
+    expect(await snapshot()).toMatchObject({ status: 'paused', active_token_id: null });
+    await command(await change('outcome', { token_id: hero, outcome: 'active' }));
+    await command(await change('resume'));
+    expect(await snapshot()).toMatchObject({ status: 'active', active_token_id: hero });
+    await db.exec('begin');
+    try {
+      const token = await packet(secret);
+      await db.query('select organize_scene_token($1,$2,$3,$4,true,null)', [
+        game,
+        scene,
+        secret,
+        token.token_revision,
+      ]);
+      expect(await snapshot()).toMatchObject({
+        archived_outcomes: [{ token_id: secret, label: 'Secret enemy', outcome: 'fled' }],
+      });
+      await as(player);
+      expect(await snapshot()).toMatchObject({ archived_outcomes: [] });
+      await db.exec('set constraints all immediate');
+    } finally {
+      await db.exec('rollback');
+      await as(gm);
+    }
+  });
   it('persists folders and removes only the chosen placement, reconciling its encounter turn', async () => {
     const linked = await packet(hero);
     const created = await db.query<{ id: string }>(
