@@ -74,7 +74,7 @@ async function select(label: string, value: string) {
 }
 async function typeName(value: string) {
   const edit = [...container.querySelectorAll('button')].find(
-    (b) => b.textContent === 'Edit sheet',
+    (b) => b.textContent === 'Edit character',
   );
   if (edit) await click(edit);
   const element = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
@@ -172,7 +172,7 @@ describe('character sheet window', () => {
     expect(container.querySelector('output[aria-label="Hit Points"]')!.textContent).toBe('10');
     expect(container.querySelector('input[aria-label="Hit Points maximum"]')).toBeNull();
     const edit = [...container.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Edit sheet',
+      (b) => b.textContent === 'Edit character',
     )!;
     await click(edit);
     expect(container.querySelector('input[aria-label="Hit Points maximum"]')).not.toBeNull();
@@ -199,7 +199,7 @@ describe('character sheet window', () => {
     await render();
     expect(container.querySelectorAll('.dnd-attack')).toHaveLength(2);
     await click(
-      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Edit sheet')!,
+      [...container.querySelectorAll('button')].find((b) => b.textContent === 'Edit character')!,
     );
     expect(container.querySelectorAll('.dnd-attack')).toHaveLength(3);
   });
@@ -295,7 +295,7 @@ describe('character sheet window', () => {
     await render();
     expect(container.querySelector('output[aria-label="Strength"]')).not.toBeNull();
     expect(
-      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Edit sheet'),
+      [...container.querySelectorAll('button')].some((b) => b.textContent === 'Edit character'),
     ).toBe(false);
     expect(button('Roll Strength check').disabled).toBe(true);
     await click(button('Roll Strength check'));

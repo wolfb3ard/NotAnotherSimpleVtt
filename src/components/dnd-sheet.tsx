@@ -279,7 +279,7 @@ export function DndSheet({
             aria-pressed={editing}
             onClick={() => setEditing(!editing)}
           >
-            {editing ? 'Done editing' : 'Edit sheet'}
+            {editing ? 'Done editing' : 'Edit character'}
           </button>
         )}
         {!editable && <span className="dnd-read-only">Read only</span>}
@@ -308,9 +308,15 @@ export function DndSheet({
           </dd>
         </dl>
         <p>
-          Edit sheet changes your draft. Done editing does not save; use Save sheet before rolling.
+          Edit character changes your draft. Use Save sheet to keep your changes before rolling.
         </p>
       </details>
+      {editing && sheet.character?.builder && (
+        <p className="small">
+          Level, ability scores, and Hit Dice are managed by class progression. To edit them
+          manually, choose Use manual progression under Character settings &amp; tools.
+        </p>
+      )}
       <div className="dnd-roll-toolbar">
         <label>
           Sheet roll mode{' '}

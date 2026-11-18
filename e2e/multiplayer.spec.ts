@@ -275,18 +275,15 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await player.page.getByRole('button', { name: 'Create character' }).click();
     await player.page.getByLabel('Name', { exact: true }).fill('Aria');
     await player.page.getByRole('button', { name: 'Create actor', exact: true }).click();
-    await expect(player.page.getByLabel('Name', { exact: true })).toHaveValue('Aria');
-    await player.page.getByRole('button', { name: 'Add section', exact: false }).click();
-    await player.page.getByLabel('Section title').fill('Statistics');
-    await player.page.getByLabel('Add field', { exact: true }).selectOption('resource');
-    await player.page.getByLabel('Field label').fill('HP');
-    await player.page.getByLabel('HP maximum', { exact: true }).fill('10');
-    await player.page.getByLabel('HP', { exact: true }).fill('8');
+    const ariaSheet = player.page.getByRole('dialog', { name: 'Aria', exact: true });
+    await ariaSheet.getByRole('button', { name: 'Edit character', exact: true }).click();
+    await expect(ariaSheet.getByLabel('Name', { exact: true })).toHaveValue('Aria');
+    await expect(ariaSheet.getByLabel('Section title')).toHaveCount(0);
+    await ariaSheet.getByLabel('Hit Points', { exact: true }).fill('8');
     await player.page.getByRole('button', { name: 'Save sheet', exact: true }).click();
     await expect(
       player.page.getByRole('button', { name: 'Save sheet', exact: true }),
     ).toBeDisabled();
-    await expect(player.page.getByRole('region', { name: 'Play resources' })).toHaveCount(0);
     await gm.page.getByRole('button', { name: 'Scenes', exact: true }).click();
     await gm.page.getByLabel('Scene name').fill('Forest');
     const image = await sharp({

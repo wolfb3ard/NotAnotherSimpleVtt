@@ -7,7 +7,6 @@ import { supabaseBrowser } from '@/lib/supabase/browser';
 import type { Command } from '@/lib/commands';
 import type { Snapshot } from '@/lib/types';
 import { emptySheet } from '@/lib/sheets';
-import { createDndSheet } from '@/lib/dnd';
 import { defaultDiceStyle } from '@/lib/dice-style';
 import { selectedDiceSides } from '@/lib/dice-selection';
 import { presentCue, type Presentation } from '@/lib/dice-presentation';
@@ -25,7 +24,6 @@ import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
 import { PracticeTable } from './practice-table';
 import { tableSystem } from '@/lib/table-system';
 import { useRoomAttention } from './use-room-attention';
-import { ActionForm } from './action-form';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -35,27 +33,12 @@ const DiceOverlay = dynamic(() => import('./dice-overlay'), { ssr: false });
 const MonsterLibrary = dynamic(() => import('./monster-library'));
 type Tab = 'party' | 'encounter' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
-type RoomProps = {
-  initial: Snapshot;
-  templateDestinations?: { id: string; name: string }[] | null;
-};
-export function Room({ initial, templateDestinations }: RoomProps) {
+export function Room({ initial }: { initial: Snapshot }) {
   const storageKey = `vtt:layout:v1:${initial.userId}:${initial.game.id}`;
-  return (
-    <RoomWorkspace
-      key={storageKey}
-      initial={initial}
-      storageKey={storageKey}
-      templateDestinations={templateDestinations}
-    />
-  );
+  return <RoomWorkspace key={storageKey} initial={initial} storageKey={storageKey} />;
 }
 
-function RoomWorkspace({
-  initial,
-  storageKey,
-  templateDestinations,
-}: RoomProps & { storageKey: string }) {
+function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey: string }) {
   const [diceZoom, setDiceZoom] = useDiceZoom();
   const [snapshot, setSnapshot] = useState(initial);
   const prepare = useRef<string | undefined>(undefined);
@@ -712,20 +695,15 @@ function RoomWorkspace({
                         e.preventDefault();
                         setPending(true);
                         const form = new FormData(e.currentTarget);
-                        const template = snapshot.templates.find(
-                          (t) => t.id === form.get('template'),
-                        );
+                        const kind = form.get('kind') || 'character';
                         const data = await run('actor_create', {
                           name: form.get('name'),
-                          kind: form.get('kind') || 'character',
+                          kind,
                           owner_id: form.get('owner_id') || snapshot.userId,
-                          sheet:
-                            form.get('template') === 'srd-5.2.1'
-                              ? createDndSheet()
-                              : template?.sheet || emptySheet(),
+                          sheet: tableSystem(snapshot.game).createActorSheet(),
                         });
                         if (data?.id) {
-                          openSheet(data.id, form.get('template') === 'srd-5.2.1');
+                          openSheet(data.id, kind === 'character' && form.has('guided'));
                           setCreateActor(false);
                         }
                         setPending(false);
@@ -757,17 +735,13 @@ function RoomWorkspace({
                           </label>
                         </>
                       )}
-                      <label>
-                        Start from template
-                        <select name="template">
-                          <option value="">Blank sheet</option>
-                          <option value="srd-5.2.1">5.5e · SRD 5.2.1</option>
-                          {snapshot.templates.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
+                      <p className="small muted">
+                        New actors use the {tableSystem(snapshot.game).label} sheet. Edit their
+                        details on the sheet itself.
+                      </p>
+                      <label className="actor-builder-option dnd-check">
+                        <input type="checkbox" name="guided" />
+                        Open the guided builder for a player character
                       </label>
                       <button className="primary" disabled={pending}>
                         Create actor
@@ -1297,58 +1271,6 @@ function RoomWorkspace({
                   >
                     Reset window positions
                   </button>
-                </section>
-                <section className="stack" aria-label="Sheet templates">
-                  <h3 className="section-divider">Sheet templates</h3>
-                  {snapshot.templates.map((t) => (
-                    <div key={t.id} className="card">
-                      <strong>{t.name}</strong>
-                      {t.creator_id === snapshot.userId &&
-                        (templateDestinations?.length ? (
-                          <ActionForm
-                            label="Copy template"
-                            action={async (form) => {
-                              const destination = templateDestinations.find(
-                                (game) => game.id === form.get('destination'),
-                              );
-                              if (!destination) return { error: 'Choose a destination game.' };
-                              const result = await mutate(destination.id, 'template_copy', {
-                                id: t.id,
-                              });
-                              return result.error
-                                ? { error: result.error }
-                                : { success: `Copied to ${destination.name}.` };
-                            }}
-                          >
-                            <label>
-                              Destination game
-                              <select name="destination" defaultValue="" required>
-                                <option value="" disabled>
-                                  Choose a game…
-                                </option>
-                                {templateDestinations.map((game) => (
-                                  <option key={game.id} value={game.id}>
-                                    {game.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <p className="small muted">
-                              The copy is available to members of the destination game.
-                            </p>
-                          </ActionForm>
-                        ) : (
-                          <p className="small muted">
-                            {templateDestinations
-                              ? 'Join or create another game to copy this template.'
-                              : 'Could not load destination games.'}
-                          </p>
-                        ))}
-                    </div>
-                  ))}
-                  {snapshot.templates.length === 0 && (
-                    <p className="small muted">Save a sheet as a template from its editor.</p>
-                  )}
                 </section>
                 <p className="small muted">
                   Game ID: <code>{snapshot.game.id}</code>

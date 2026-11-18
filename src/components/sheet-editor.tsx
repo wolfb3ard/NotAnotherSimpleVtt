@@ -18,7 +18,7 @@ import {
 import { numericFields } from '@/lib/sheets';
 import { QuickResources } from './quick-resources';
 import type { ResourceWriter } from '@/lib/resource-writer';
-import { monsterId } from '@/lib/monster-sheet';
+import { monsterId, monsterSourceId } from '@/lib/monster-sheet';
 import { tableSystem } from '@/lib/table-system';
 import { PlayInventory } from './play-inventory';
 import type { changeInventory } from '@/lib/inventory-play';
@@ -222,9 +222,6 @@ export function SheetEditor({
               <>
                 <div className="row sheet-mode">
                   <strong>5.5e · Character sheet</strong>
-                  <button aria-pressed={customize} onClick={() => setCustomize(!customize)}>
-                    {customize ? 'Character sheet layout' : 'Customize sheet'}
-                  </button>
                 </div>
                 <SrdBuilder
                   commit={
@@ -240,10 +237,10 @@ export function SheetEditor({
                 <details className="sheet-help">
                   <summary>Rules guidance & SRD attribution</summary>
                   <p>
-                    Use the SRD builder for creation and class/multiclass progression. Apply its
-                    draft, then save the sheet before rolling. Manual/homebrew sheets remain
-                    available; detach the builder before overriding its level or ability scores.
-                    Conditional effects still require reviewing the source rules.
+                    Edit character details directly on the sheet. The optional builder manages class
+                    progression and calculates level and ability scores. For manual control of those
+                    values, switch to manual progression. Conditional effects still require
+                    reviewing the source rules.
                   </p>
                   <p>
                     Weapon attacks add the chosen ability and proficiency; damage never adds
@@ -262,27 +259,6 @@ export function SheetEditor({
                 </details>
               </>
             )}
-            {monster && (
-              <button onClick={() => setCustomize(!customize)} aria-pressed={customize}>
-                {customize ? 'Monster play view' : 'Customize monster sheet'}
-              </button>
-            )}
-            {editable && (
-              <button
-                disabled={dirty}
-                onClick={() =>
-                  run('template_create', { actor_id: actor.id, name: `${name} template` })
-                }
-              >
-                Save as reusable template
-              </button>
-            )}
-            {monster && editable && (
-              <p className="small">
-                Saving a reusable template shares its complete sheet with all campaign members.
-                Encounter creatures stay private unless you explicitly grant access.
-              </p>
-            )}
           </div>
         </details>
         {((!dnd && !monster) || customize) && (
@@ -298,6 +274,9 @@ export function SheetEditor({
               }}
             />
           </label>
+        )}
+        {monster && customize && (
+          <button onClick={() => setCustomize(false)}>Done editing monster</button>
         )}
         {monster && !customize ? (
           <MonsterSheet
@@ -357,7 +336,7 @@ export function SheetEditor({
             quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
             onRoll={(expression, label) => onRoll(actor.id, expression, label)}
           />
-        ) : dnd && !customize ? (
+        ) : dnd ? (
           <DndSheet
             onUseItem={(id) => void inventoryChange({ type: 'use', id })}
             onEquip={(id) => void inventoryChange({ type: 'toggle', id })}
@@ -381,76 +360,84 @@ export function SheetEditor({
         ) : (
           sheet.sections.map((section, si) => (
             <section className="sheet-section" key={section.id}>
-              <div className="row">
-                <input
-                  aria-label="Section title"
-                  className="section-title"
-                  value={section.title}
-                  disabled={!editable}
-                  onChange={(e) =>
-                    update((s) => {
-                      s.sections[si].title = e.target.value;
-                    })
-                  }
-                />
-                {editable && (
-                  <>
-                    <button
-                      title="Move section up"
-                      disabled={si === 0}
-                      onClick={() =>
-                        update((s) => {
-                          [s.sections[si - 1], s.sections[si]] = [
-                            s.sections[si],
-                            s.sections[si - 1],
-                          ];
-                        })
-                      }
-                    >
-                      ↑
-                    </button>
-                    {!dnd && (
+              {monster ? (
+                <h3>{section.title}</h3>
+              ) : (
+                <div className="row">
+                  <input
+                    aria-label="Section title"
+                    className="section-title"
+                    value={section.title}
+                    disabled={!editable}
+                    onChange={(e) =>
+                      update((s) => {
+                        s.sections[si].title = e.target.value;
+                      })
+                    }
+                  />
+                  {editable && (
+                    <>
                       <button
-                        aria-label={`Delete ${section.title} section`}
+                        title="Move section up"
+                        disabled={si === 0}
                         onClick={() =>
                           update((s) => {
-                            s.sections.splice(si, 1);
+                            [s.sections[si - 1], s.sections[si]] = [
+                              s.sections[si],
+                              s.sections[si - 1],
+                            ];
                           })
                         }
                       >
-                        ×
+                        ↑
                       </button>
-                    )}
-                  </>
-                )}
-              </div>
+                      {!dnd && (
+                        <button
+                          aria-label={`Delete ${section.title} section`}
+                          onClick={() =>
+                            update((s) => {
+                              s.sections.splice(si, 1);
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               {section.fields.map((field, fi) => (
                 <div className="sheet-field" key={field.id}>
-                  <div className="row">
-                    <input
-                      aria-label="Field label"
-                      placeholder="Field name"
-                      value={field.label}
-                      disabled={!editable}
-                      onChange={(e) =>
-                        update((s) => {
-                          s.sections[si].fields[fi].label = e.target.value;
-                        })
-                      }
-                    />
-                    {editable && !dnd && (
-                      <button
-                        aria-label={`Delete ${field.label}`}
-                        onClick={() =>
+                  {monster ? (
+                    <strong>{field.label}</strong>
+                  ) : (
+                    <div className="row">
+                      <input
+                        aria-label="Field label"
+                        placeholder="Field name"
+                        value={field.label}
+                        disabled={!editable}
+                        onChange={(e) =>
                           update((s) => {
-                            s.sections[si].fields.splice(fi, 1);
+                            s.sections[si].fields[fi].label = e.target.value;
                           })
                         }
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
+                      />
+                      {editable && !dnd && (
+                        <button
+                          aria-label={`Delete ${field.label}`}
+                          onClick={() =>
+                            update((s) => {
+                              s.sections[si].fields.splice(fi, 1);
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className="row">
                     {dnd && dndFieldOptions(field.id) ? (
                       <select
@@ -473,7 +460,7 @@ export function SheetEditor({
                       <textarea
                         aria-label={field.label}
                         value={field.value}
-                        disabled={!editable}
+                        disabled={!editable || field.id === monsterSourceId}
                         onChange={(e) =>
                           update((s) => {
                             s.sections[si].fields[fi].value = e.target.value;
@@ -607,7 +594,7 @@ export function SheetEditor({
                           })
                         }
                       />
-                      {editable && (
+                      {editable && !monster && (
                         <button
                           aria-label={`Delete ${ability.name}`}
                           onClick={() =>
@@ -675,7 +662,7 @@ export function SheetEditor({
                   </div>
                 );
               })}
-              {editable && (
+              {editable && !monster && (
                 <div className="wrap">
                   <select
                     aria-label="Add field"
@@ -729,7 +716,7 @@ export function SheetEditor({
                     ? 'Unsaved changes'
                     : 'All changes saved'}
             </span>
-            {(!dnd || customize) && (
+            {!dnd && !monster && (
               <button
                 onClick={() =>
                   update((s) => {

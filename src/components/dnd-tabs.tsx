@@ -202,8 +202,20 @@ export function DndTabs({
   function spellCard(spell: CharacterDetails['spells'][number]) {
     const choices = options(spell);
     const canCast = spell.level === 0 || spell.prepared;
+    const sources = canCast
+      ? (spell.casting ?? []).flatMap((casting) =>
+          castingSources.filter((source) => source.id === casting.sourceId),
+        )
+      : [];
+    const hasAttack = /spell attack/i.test(spell.description);
+    const description = spell.description.includes('\n\nSRD 5.2.1, PDF p.')
+      ? spell.description
+          .split(/\n\s*\n/)
+          .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' '))
+          .join('\n\n')
+      : spell.description;
     return (
-      <article className="dnd-box" key={spell.id}>
+      <article className="dnd-box dnd-spell-card" key={spell.id}>
         <h4>
           {spell.name} · {spell.level ? `Level ${spell.level}` : 'Cantrip'}
         </h4>
@@ -211,38 +223,70 @@ export function DndTabs({
           {spell.actionType}
           {!canCast && ' · Not prepared'}
         </p>
-        <p className="dnd-description">{spell.description || 'No description recorded.'}</p>
-        {choices.map((c) => (
-          <div key={c.key}>
-            <button
-              disabled={
-                !rollable ||
-                !c.available ||
-                dirty ||
-                (c.changes.length > 0 && (!quickUpdate || !quickEditable))
-              }
-              onClick={() => {
-                if (c.changes.length) quickUpdate?.(c.changes);
-                else
-                  setCastPractice(
-                    `${spell.name}: ${c.label}. ${c.note ?? ''} Resolve its effect at the table.`,
-                  );
-              }}
-            >
-              Cast {spell.name} · {c.label}
-            </button>
-            {c.note && <p className="small">{c.note}</p>}
+        <p className="dnd-description">{description || 'No description recorded.'}</p>
+        {sources.length > 0 && (
+          <p className="small">
+            {sources
+              .map((source) => `${source.label} · Save DC ${computed[dndId(source.dcKey)]}`)
+              .join(' / ')}
+          </p>
+        )}
+        {(choices.length > 0 || !spell.level || (hasAttack && sources.length > 0)) && (
+          <div className="dnd-spell-buttons" role="group" aria-label={`${spell.name} actions`}>
+            {choices.map((c) => (
+              <button
+                key={c.key}
+                disabled={
+                  !rollable ||
+                  !c.available ||
+                  dirty ||
+                  (c.changes.length > 0 && (!quickUpdate || !quickEditable))
+                }
+                onClick={() => {
+                  if (c.changes.length) quickUpdate?.(c.changes);
+                  else
+                    setCastPractice(
+                      `${spell.name}: ${c.label}. ${c.note ?? ''} Resolve its effect at the table.`,
+                    );
+                }}
+              >
+                Cast {spell.name} · {c.label}
+              </button>
+            ))}
+            {spell.level === 0 && (
+              <button
+                disabled={!rollable || dirty}
+                onClick={() =>
+                  setCastPractice(`${spell.name}: no slot spent. Resolve its effect at the table.`)
+                }
+              >
+                Cast {spell.name} · No slot
+              </button>
+            )}
+            {hasAttack &&
+              sources.map((source) => (
+                <button
+                  key={source.id}
+                  disabled={!rollable || dirty}
+                  onClick={() =>
+                    onRoll(
+                      `${d20} + @{${dndId(source.attackKey)}}`,
+                      `Spell attack with ${spell.name} (${source.label})`,
+                    )
+                  }
+                >
+                  Roll {spell.name} ({source.label})
+                </button>
+              ))}
           </div>
-        ))}
-        {spell.level === 0 && (
-          <button
-            disabled={!rollable || dirty}
-            onClick={() =>
-              setCastPractice(`${spell.name}: no slot spent. Resolve its effect at the table.`)
-            }
-          >
-            Cast {spell.name} · No slot
-          </button>
+        )}
+        {choices.map(
+          (choice) =>
+            choice.note && (
+              <p key={choice.key} className="small">
+                {choice.label}: {choice.note}
+              </p>
+            ),
         )}
         {!!spell.level && canCast && !choices.length && (
           <p>
@@ -252,30 +296,6 @@ export function DndTabs({
         {choices.length > 0 && choices.every((c) => !c.available) && (
           <p>No tracked uses left. Check the spell’s rules for any other way to cast it.</p>
         )}
-        {canCast &&
-          spell.casting?.map((c) => {
-            const source = castingSources.find((s) => s.id === c.sourceId);
-            return (
-              source && (
-                <div key={source.id}>
-                  {source.label} · Save DC {computed[dndId(source.dcKey)]}
-                  {/spell attack/i.test(spell.description) && (
-                    <button
-                      disabled={!rollable || dirty}
-                      onClick={() =>
-                        onRoll(
-                          `${d20} + @{${dndId(source.attackKey)}}`,
-                          `Spell attack with ${spell.name} (${source.label})`,
-                        )
-                      }
-                    >
-                      Roll {spell.name} ({source.label})
-                    </button>
-                  )}
-                </div>
-              )
-            );
-          })}
       </article>
     );
   }
