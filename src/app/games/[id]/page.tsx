@@ -15,11 +15,5 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
   if (!user) redirect('/login');
   const snapshot = await getSnapshot(id).catch(() => null);
   if (!snapshot) notFound();
-  const { data: destinations } = await db
-    .from('games')
-    .select('id,name')
-    .neq('id', id)
-    .order('name')
-    .order('id');
-  return <Room initial={snapshot} templateDestinations={destinations} />;
+  return <Room initial={snapshot} />;
 }

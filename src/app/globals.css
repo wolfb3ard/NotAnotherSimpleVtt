@@ -1670,6 +1670,28 @@ summary {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.dnd-spell-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.dnd-spell-card > :is(h4, p) {
+  margin: 0;
+}
+.dnd-spell-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+.dnd-spell-buttons > button {
+  min-height: 36px;
+  max-width: 100%;
+}
+.actor-builder-option {
+  flex-direction: row;
+  align-items: center;
+}
 .dnd-rarity {
   display: inline-block;
   background: #252525;

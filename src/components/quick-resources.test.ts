@@ -179,7 +179,7 @@ it('previews damage and healing, then submits an atomic health change', async ()
 });
 it('preserves configuration drafts during remote updates and requires an explicit sheet save', async () => {
   const { a, run, render } = await setup(true);
-  await act(async () => button('Edit sheet').click());
+  await act(async () => button('Edit character').click());
   await value('Name', 'Draft hero');
   expect(input('Quick Hit Points')).toBeNull();
   expect(run).not.toHaveBeenCalled();
@@ -293,6 +293,6 @@ it('reloads the latest name along with its revision so later draft saves cannot 
     vi.fn(async () => ({ ok: true, json: async () => ({ actors: [latest] }) })),
   );
   await act(async () => button('Reload resources').click());
-  await act(async () => button('Edit sheet').click());
+  await act(async () => button('Edit character').click());
   expect(input('Name').value).toBe('Renamed remotely');
 });

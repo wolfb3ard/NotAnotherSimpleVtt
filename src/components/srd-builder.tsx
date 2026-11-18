@@ -1255,7 +1255,7 @@ export function SrdBuilder({
             onClick={() => {
               if (
                 window.confirm(
-                  'Detach automated builder? Existing fields, spells, features, and spent resources remain. Future progression becomes manual.',
+                  'Use manual progression? Current values, spells, features, and spent resources stay on the sheet. The builder will no longer automate future progression or class-based casting.',
                 )
               )
                 update((target) => {
@@ -1264,7 +1264,7 @@ export function SrdBuilder({
                 });
             }}
           >
-            Detach builder (manual/homebrew)
+            Use manual progression
           </button>
         )}
       </div>

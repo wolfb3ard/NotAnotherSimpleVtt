@@ -140,6 +140,14 @@ describe('character tabs', () => {
     const { onRoll } = await fixture(sheet);
     await value('Sheet roll mode', 'advantage');
     await click('Spell');
+    const actions = panel().querySelector('[aria-label="Fire Bolt actions"]')!;
+    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      'Cast Fire Bolt · No slot',
+      'Roll Fire Bolt (Human · Magic Initiate)',
+    ]);
+    const description = actions.closest('article')!.querySelector('.dnd-description')!;
+    expect(description.textContent).toMatch(/\n\nSRD 5\.2\.1, PDF p\./);
+    expect(description.textContent).not.toMatch(/(?<!\n)\n(?!\n)/);
     await click('Roll Fire Bolt (Human · Magic Initiate)');
     expect(onRoll).toHaveBeenCalledExactlyOnceWith(
       `2d20kh1 + @{${dndId('srd-resource:casting:feat:human:attack')}}`,
@@ -170,7 +178,7 @@ describe('character tabs', () => {
       attuned: i < 3,
     }));
     const { current } = await fixture(sheet);
-    await click('Edit sheet');
+    await click('Edit character');
     await click('Inventory');
     const fourth = container.querySelector<HTMLInputElement>('[aria-label="Attune Relic 4"]')!;
     expect(fourth.disabled).toBe(false);
@@ -231,7 +239,7 @@ describe('character tabs', () => {
   it('switches panels with mouse and keyboard without losing edits', async () => {
     await fixture();
     expect(panel().textContent).toContain('Weapon & spell attacks');
-    await click('Edit sheet');
+    await click('Edit character');
     await click('Inventory');
     await click('Add item');
     await value('Item name', 'Rope');
@@ -248,7 +256,7 @@ describe('character tabs', () => {
 
   it('adds, sorts, prepares and removes spells; Actions reflects prepared spells and cantrips', async () => {
     const { current } = await fixture();
-    await click('Edit sheet');
+    await click('Edit character');
     await click('Spell');
     await click('Add spell');
     await value('Spell name', 'Fireball');
@@ -281,7 +289,7 @@ describe('character tabs', () => {
 
   it('uses and recovers spell slots and clamps remaining slots when maximum is reduced', async () => {
     const { current } = await fixture();
-    await click('Edit sheet');
+    await click('Edit character');
     await click('Spell');
     await value('Level 1 slots remaining maximum', '2');
     await click('Recover level 1 slot');
@@ -299,7 +307,7 @@ describe('character tabs', () => {
 
   it('manages item rarity, quantity, attunement and removal', async () => {
     const { current } = await fixture();
-    await click('Edit sheet');
+    await click('Edit character');
     await click('Inventory');
     await click('Add item');
     await value('Item name', 'Ring');
@@ -361,7 +369,7 @@ describe('character tabs', () => {
     const { current } = await fixture(initial);
     await click('Inventory');
     const fourth = () => container.querySelector<HTMLInputElement>('[aria-label="Attune Ring 3"]')!;
-    await click('Edit sheet');
+    await click('Edit character');
     expect(fourth().disabled).toBe(true);
     await act(async () =>
       container.querySelector<HTMLInputElement>('[aria-label="Attune Ring 0"]')!.click(),
@@ -376,7 +384,7 @@ describe('character tabs', () => {
 
   it('stores biography and background in the reusable sheet document', async () => {
     const { current } = await fixture();
-    await click('Edit sheet');
+    await click('Edit character');
     await click('Biography');
     await value('Background', 'Sage');
     await value('Physical description', 'Silver hair');

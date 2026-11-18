@@ -109,7 +109,7 @@ afterEach(async () => {
 it('blocks card writes while the same sheet has an unsaved configuration draft', async () => {
   await setup();
   await click('Open character sheet');
-  await click('Edit sheet');
+  await click('Edit character');
   await value('Name', 'Unsaved name');
   expect(
     container.querySelector<HTMLInputElement>('[aria-label="Quick Hit Points"]')!.disabled,

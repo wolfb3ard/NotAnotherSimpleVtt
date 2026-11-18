@@ -297,7 +297,9 @@ it('guards shortcut sheet switches and removes shortcuts when refreshed ownershi
   };
   await choose('Aria');
   await act(async () =>
-    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Edit sheet')!.click(),
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent === 'Edit character')!
+      .click(),
   );
   const name = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
   await act(async () => {
@@ -492,7 +494,7 @@ it('restores a resized roll window after remount, isolates rooms and users, and 
   expect(dialog()?.style.width).toBe('440px');
 });
 
-it('copies an owned template to the selected game by name', async () => {
+it('creates a system sheet without selecting a saved template or opening the builder by default', async () => {
   const template = {
     id: 'mine',
     game_id: 'game',
@@ -518,25 +520,22 @@ it('copies an owned template to the selected game by name', async () => {
   const container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
+  await act(async () => root.render(createElement(Room, { initial: snapshot })));
   await act(async () =>
-    root.render(
-      createElement(Room, {
-        initial: snapshot,
-        templateDestinations: [{ id: 'destination', name: 'Second campaign' }],
-      }),
-    ),
+    container.querySelector<HTMLButtonElement>('[aria-label="Create character"]')!.click(),
   );
-  await act(async () =>
-    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Settings')!.click(),
-  );
-  const section = container.querySelector('[aria-label="Sheet templates"]')!;
-  expect(section.querySelectorAll('form')).toHaveLength(1);
-  const select = section.querySelector('select')!;
-  expect(select.options[1].textContent).toBe('Second campaign');
-  select.value = 'destination';
-  await act(async () => section.querySelector('button')!.click());
-  expect(mutate).toHaveBeenCalledExactlyOnceWith('destination', 'template_copy', { id: 'mine' });
-  expect(section.querySelector('[role="status"]')?.textContent).toBe('Copied to Second campaign.');
+  const name = container.querySelector<HTMLInputElement>('input[name="name"]')!;
+  const form = name.form!;
+  expect(form.querySelector('[name="template"]')).toBeNull();
+  expect(form.querySelector<HTMLInputElement>('[name="guided"]')?.checked).toBe(false);
+  name.value = 'Aria';
+  await act(async () => form.querySelector('button')!.click());
+  expect(mutate).toHaveBeenCalledWith('game', 'actor_create', {
+    name: 'Aria',
+    kind: 'character',
+    owner_id: 'owner',
+    sheet: createDndSheet(),
+  });
 });
 
 it('clears a deleted roll target and permits another manual roll without reloading', async () => {
@@ -608,7 +607,7 @@ it('clears a deleted roll target and permits another manual roll without reloadi
   );
 });
 
-it('starts guided creation for the built-in SRD template, but not on later manual sheet opens', async () => {
+it('opens the builder only when requested on creation, not on later sheet opens', async () => {
   let snapshot: Snapshot = {
     userId: 'owner',
     role: 'player',
@@ -660,8 +659,7 @@ it('starts guided creation for the built-in SRD template, but not on later manua
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Create character"]')!.click(),
     );
-    const template = container.querySelector<HTMLSelectElement>('select[name="template"]')!;
-    template.value = 'srd-5.2.1';
+    container.querySelector<HTMLInputElement>('input[name="guided"]')!.checked = true;
     container.querySelector<HTMLInputElement>('input[name="name"]')!.value = 'New hero';
     await act(async () =>
       container

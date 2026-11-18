@@ -1,6 +1,6 @@
 import { numericFields } from './sheets';
 import { tokenRolls } from './token-rolls';
-import { dndId } from './dnd';
+import { createDndSheet, dndId } from './dnd';
 import { monsterId } from './monster-sheet';
 import { applySrdBuilder } from './srd-engine';
 import { changeInventory } from './inventory-play';
@@ -12,6 +12,7 @@ const systems = new Map([
     defaultSystem,
     {
       label: 'D&D 5.5e · SRD 5.2.1',
+      createActorSheet: createDndSheet,
       numbers: numericFields,
       rolls: tokenRolls,
       applyProgression: applySrdBuilder,

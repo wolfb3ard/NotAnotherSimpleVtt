@@ -532,7 +532,7 @@ export default function MonsterSheet({
         </div>
         {editable && onCustomize && (
           <button className="dnd-edit-toggle" onClick={onCustomize}>
-            Customize monster sheet
+            Edit monster stats
           </button>
         )}
         {!editable && <span className="dnd-read-only">Read only</span>}
