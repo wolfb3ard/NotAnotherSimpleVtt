@@ -696,8 +696,8 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     const tracker = gm.page.getByRole('region', { name: 'Encounter tracker' });
     for (const name of ['Builder hero', 'Incubus 1', 'Incubus 2'])
       await tracker
-        .getByRole('checkbox', { name: `Include ${name} in encounter`, exact: true })
-        .check();
+        .getByRole('button', { name: `Include ${name} in encounter`, exact: true })
+        .click();
     await tracker.getByLabel('Manual initiative for Builder hero', { exact: true }).fill('-100000');
     await tracker.getByLabel('Manual initiative for Incubus 1', { exact: true }).fill('99999');
     await tracker.getByRole('button', { name: 'Start encounter', exact: true }).click();

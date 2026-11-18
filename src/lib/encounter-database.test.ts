@@ -100,6 +100,28 @@ async function commit(p: unknown, rolls: unknown[], user = gm) {
     await as(gm);
   }
 }
+async function sheetRoll(source: Awaited<ReturnType<typeof packet>>, user = player) {
+  await db.exec('reset role; set role service_role');
+  try {
+    return (
+      await db.query<{ value: { total: number } }>(
+        "select commit_sheet_initiative($1,$2,$3,$4,$5,$6,$7,'public',$8) value",
+        [
+          user,
+          game,
+          source.roll_id,
+          source.actor_id,
+          source.actor_revision,
+          scene,
+          source.expression,
+          JSON.stringify(source.result),
+        ],
+      )
+    ).rows[0].value;
+  } finally {
+    await as(gm);
+  }
+}
 beforeAll(async () => {
   db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(`
@@ -307,16 +329,88 @@ describe.sequential('authorized encounter lifecycle', () => {
     await command(await change('initiative', { changes: [{ token_id: hero, value: 35.5 }] }));
     expect((await snapshot())!.participants[0]).toMatchObject({ token_id: hero, initiative: 35.5 });
     expect((await snapshot())!.active_token_id).toBe(secret);
+    await command(await change('initiative', { changes: [{ token_id: hero, value: 10 }] }));
     await command(await change('reorder', { token_ids: [monster, secret, hero] }));
     expect((await snapshot())!.participants.map((p) => p.token_id)).toEqual([
-      monster,
       secret,
+      monster,
       hero,
     ]);
     expect((await snapshot())!.active_token_id).toBe(secret);
     await expect(command(await change('reorder', { token_ids: [hero] }))).rejects.toThrow(
       /every participant/,
     );
+  });
+  it('uses a sheet roll once when the GM adds the token, then updates its live initiative', async () => {
+    const early = await packet(hero, 18);
+    expect(await sheetRoll(early)).toEqual(early.result);
+    expect(await snapshot()).toBeNull();
+    await commit(start([{ token_id: hero, initiative: null }]), [await packet(hero, 1)]);
+    expect((await snapshot())!.participants).toMatchObject([
+      { token_id: hero, initiative: early.result.total },
+    ]);
+    expect((await db.query('select id from rolls')).rows).toEqual([{ id: early.roll_id }]);
+    await command(await change('add', { participants: [{ token_id: monster, initiative: 12 }] }));
+    const live = await packet(hero, 4);
+    await sheetRoll(live);
+    const updated = await snapshot();
+    expect(updated).toMatchObject({
+      active_token_id: hero,
+      participants: [{ token_id: monster }, { token_id: hero, initiative: live.result.total }],
+    });
+    expect(await sheetRoll({ ...live, result: early.result })).toEqual(live.result);
+    expect(await snapshot()).toEqual(updated);
+    await expect(sheetRoll(await packet(monster))).rejects.toThrow(/Character control/);
+    await expect(sheetRoll(await packet(hero), outsider)).rejects.toThrow(/Game access/);
+  });
+  it('persists folders and removes only the chosen placement, reconciling its encounter turn', async () => {
+    const linked = await packet(hero);
+    const created = await db.query<{ id: string }>(
+      'select id from tokens where id=$1 and actor_id=$2',
+      [hero, linked.actor_id],
+    );
+    expect(created.rows).toHaveLength(1);
+    const organize = (remove: boolean, revision = linked.token_revision) =>
+      db.query('select organize_scene_token($1,$2,$3,$4,$5,$6)', [
+        game,
+        scene,
+        hero,
+        revision,
+        remove,
+        'Party',
+      ]);
+    await as(player);
+    await expect(organize(true)).rejects.toThrow(/GM required/);
+    await as(gm);
+    await organize(false);
+    await expect(organize(true)).rejects.toThrow(/Token changed/);
+    expect((await db.query('select folder from tokens where id=$1', [hero])).rows).toEqual([
+      { folder: 'Party' },
+    ]);
+    await command(
+      start([
+        { token_id: hero, initiative: 20 },
+        { token_id: monster, initiative: 10 },
+      ]),
+    );
+    await db.exec('begin');
+    try {
+      await organize(true, linked.token_revision + 1);
+      expect((await db.query('select id from tokens where id=$1', [hero])).rows).toEqual([]);
+      expect(
+        (await db.query('select id from actors where id=$1', [linked.actor_id])).rows,
+      ).toHaveLength(1);
+      expect(
+        (await db.query('select id from tokens where id=$1', [secondToken])).rows,
+      ).toHaveLength(1);
+      expect(await snapshot()).toMatchObject({
+        active_token_id: monster,
+        participants: [{ token_id: monster }],
+      });
+      await db.exec('set constraints all immediate');
+    } finally {
+      await db.exec('rollback');
+    }
   });
   it('serializes competing asynchronous next-turn submissions against the same revision', async () => {
     await command(start());

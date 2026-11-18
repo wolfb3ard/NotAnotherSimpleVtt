@@ -115,8 +115,8 @@ export function EncounterPanel({
       ) : (
         <>
           <p className="small">
-            Encounters stay with their scene. Only the GM advances turns. Rolls use saved initiative
-            rules; manual totals override them.
+            Roll Initiative on your sheet to update your token here. The tracker shows totals, even
+            for private rolls. Only the GM advances turns.
           </p>
           {encounter && (
             <>
@@ -134,17 +134,20 @@ export function EncounterPanel({
                       className={current ? 'is-current-turn' : ''}
                       aria-current={current ? 'step' : undefined}
                     >
-                      <strong>
-                        {current ? '▶ ' : ''}
-                        {p.label}
-                      </strong>
-                      <span>Initiative {p.initiative}</span>
+                      <div className="encounter-entry">
+                        <strong>{p.label}</strong>
+                        {current && <span className="small">Current turn</span>}
+                        <span className="initiative-score">
+                          <small>Initiative</small> {p.initiative}
+                        </span>
+                      </div>
                       {actor && <span className="small">{combatSummary(actor)}</span>}
                       {actor && (
                         <button onClick={() => onSheet(actor.id)}>Sheet for {p.label}</button>
                       )}
                       {gm && live && (
-                        <>
+                        <details>
+                          <summary>Manage {p.label}</summary>
                           <InitiativeEdit
                             key={`${p.token_id}:${p.initiative}`}
                             label={p.label}
@@ -159,14 +162,20 @@ export function EncounterPanel({
                           <div className="wrap">
                             <button
                               aria-label={`Move ${p.label} up`}
-                              disabled={operation.blocked || index === 0}
+                              disabled={
+                                operation.blocked ||
+                                participants[index - 1]?.initiative !== p.initiative
+                              }
                               onClick={() => reorder(index, -1)}
                             >
                               ↑
                             </button>
                             <button
                               aria-label={`Move ${p.label} down`}
-                              disabled={operation.blocked || index === participants.length - 1}
+                              disabled={
+                                operation.blocked ||
+                                participants[index + 1]?.initiative !== p.initiative
+                              }
                               onClick={() => reorder(index, 1)}
                             >
                               ↓
@@ -179,12 +188,13 @@ export function EncounterPanel({
                             </button>
                             <button
                               disabled={operation.blocked}
+                              aria-label={`Remove ${p.label} from encounter`}
                               onClick={() => void change('remove', { token_ids: [p.token_id] })}
                             >
-                              Remove {p.label}
+                              Remove from encounter
                             </button>
                           </div>
-                        </>
+                        </details>
                       )}
                     </li>
                   );
@@ -240,32 +250,32 @@ export function EncounterPanel({
               <details open={!live}>
                 <summary>{live ? 'Add participants' : 'Select tokens and start encounter'}</summary>
                 <p className="small">
-                  Blank total rolls saved initiative privately as GM. Enter a manual total when no
-                  rule exists. Tokens need not have visible sheets for players; hidden combatants
-                  are omitted from their tracker.
+                  Leave the total blank to use a recent sheet roll or roll privately as GM. Enter a
+                  total to override it. Hidden combatants are omitted from the player tracker.
                 </p>
                 {available.map((t) => {
                   const actor = snapshot.actors.find((a) => a.id === t.actor_id);
                   const rule = actor && initiativeExpression(actor.sheet);
                   return (
                     <div className="encounter-pick stack" key={t.id}>
-                      <label className="row">
-                        <input
-                          type="checkbox"
+                      <div className="encounter-entry">
+                        <strong>{t.label}</strong>
+                        <button
                           aria-label={`Include ${t.label} in encounter`}
-                          checked={Object.hasOwn(selection, t.id)}
+                          aria-pressed={Object.hasOwn(selection, t.id)}
                           disabled={operation.blocked}
-                          onChange={(e) =>
+                          onClick={() =>
                             setSelection((old) => {
                               const next = { ...old };
-                              if (e.target.checked) next[t.id] = '';
-                              else delete next[t.id];
+                              if (Object.hasOwn(old, t.id)) delete next[t.id];
+                              else next[t.id] = '';
                               return next;
                             })
                           }
-                        />
-                        {t.label} <small>({t.id.slice(0, 6)})</small>
-                      </label>
+                        >
+                          {Object.hasOwn(selection, t.id) ? 'Selected' : 'Select'}
+                        </button>
+                      </div>
                       {Object.hasOwn(selection, t.id) && (
                         <label>
                           Manual initiative for {t.label}
@@ -278,7 +288,7 @@ export function EncounterPanel({
                             disabled={operation.blocked}
                             value={selection[t.id]}
                             placeholder={
-                              rule ? 'Blank: roll saved initiative' : 'Manual total required'
+                              rule ? 'Use sheet roll or roll as GM' : 'Manual total required'
                             }
                             onChange={(e) =>
                               setSelection((old) => ({ ...old, [t.id]: e.target.value }))
@@ -297,10 +307,8 @@ export function EncounterPanel({
                 </button>
               </details>
               <p className="small">
-                Initial order is descending initiative; ties retain selection order. Up/down
-                resolves ties or overrides order. Editing/adding/rerolling preserves the current
-                turn; removal advances to the next survivor. No HP, actions or resources reset
-                automatically.
+                Highest initiative goes first; arrows only break ties. Removing a combatant here
+                leaves its token on the map.
               </p>
               <p role="status">{operation.message}</p>
               {operation.uncertain && (

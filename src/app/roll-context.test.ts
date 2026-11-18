@@ -10,6 +10,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: () => ({ rpc }) }));
 import { roll } from './actions';
+import { createDndSheet } from '@/lib/dnd';
+import { initiativeExpression } from '@/lib/initiative';
 
 const game = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const user = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -66,4 +68,31 @@ it.each(['', '  ', 'x'.repeat(161)])(
 it('does not report success when character control is denied', async () => {
   rpc.mockResolvedValue({ error: { message: 'Character control required' } });
   expect(await roll(game, payload)).toEqual({ error: 'Character control required' });
+});
+
+it('only links a server-validated sheet initiative roll and returns the committed result', async () => {
+  const sheet = createDndSheet();
+  const scene = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const actor = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  from.mockImplementation((table) => {
+    const query = {
+      select: () => query,
+      eq: () => query,
+      single: async () => ({
+        data: table === 'games' ? { dice: [20], active_scene_id: scene } : { sheet, revision: 7 },
+      }),
+    };
+    return query;
+  });
+  rpc.mockResolvedValue({ error: null, data: { total: 12 } });
+  const initiative = { ...payload, actor_id: actor, sheet_initiative: true };
+  expect(await roll(game, { ...initiative, expression: '1000' })).toHaveProperty('error');
+  expect(rpc).not.toHaveBeenCalled();
+  expect(
+    await roll(game, { ...initiative, expression: initiativeExpression(sheet) }),
+  ).toMatchObject({ success: true, result: { total: 12 } });
+  expect(rpc).toHaveBeenCalledExactlyOnceWith(
+    'commit_sheet_initiative',
+    expect.objectContaining({ p_actor: actor, p_revision: 7, p_scene: scene, p_user: user }),
+  );
 });

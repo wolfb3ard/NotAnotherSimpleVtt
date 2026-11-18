@@ -21,6 +21,15 @@ const fog = z
   )
   .max(500);
 export const commandSchemas = {
+  token_organize: z
+    .object({
+      scene_id: id,
+      id,
+      revision,
+      remove: z.boolean(),
+      folder: z.string().trim().max(60).nullable(),
+    })
+    .strict(),
   scene_draft: z.object({ name, asset_id: id }),
   scene_publish: z.object({ scene_id: id, previous: id.nullable(), revision, party: z.boolean() }),
   group_save: z.object({ scene_id: id, name }),
