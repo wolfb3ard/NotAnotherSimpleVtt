@@ -160,6 +160,27 @@ export const commandSchemas = {
     x: z.number().finite().min(0).max(4096),
     y: z.number().finite().min(0).max(4096),
   }),
+  tabletop_move_group: z
+    .object({
+      preparing: z.boolean().optional(),
+      scene_id: id,
+      operation_id: id,
+      moves: z
+        .array(
+          z
+            .object({
+              id,
+              revision,
+              x: z.number().min(0).max(4096),
+              y: z.number().min(0).max(4096),
+            })
+            .strict(),
+        )
+        .min(2)
+        .max(1000)
+        .refine((moves) => new Set(moves.map((move) => move.id)).size === moves.length),
+    })
+    .strict(),
   tabletop_fog: z.object({
     preparing: z.boolean().optional(),
     id,

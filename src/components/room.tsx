@@ -338,6 +338,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
       if (result.error) {
         setError(result.error);
         await refresh();
+        if (result.rejected && command !== 'tabletop_history') return { rejected: result.error };
         return;
       }
       await refresh();

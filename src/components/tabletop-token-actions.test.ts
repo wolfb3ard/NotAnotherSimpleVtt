@@ -11,13 +11,14 @@ vi.mock('react-konva', () => {
     onContextMenu?: (e: unknown) => void;
     onClick?: (e: unknown) => void;
     onDblClick?: (e: unknown) => void;
+    onDragStart?: (e: unknown) => void;
     text?: string;
     stroke?: string;
   }) =>
     createElement(
       'div',
       {
-        'data-token': props.onContextMenu ? 'true' : undefined,
+        'data-token': props.onDragStart ? 'true' : undefined,
         'data-text': props.text,
         'data-stroke': props.stroke,
         onContextMenu: (e: React.MouseEvent) =>

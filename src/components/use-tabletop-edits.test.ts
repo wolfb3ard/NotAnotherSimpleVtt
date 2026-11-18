@@ -82,6 +82,20 @@ it('retains an unconfirmed operation across reload and retries the identical req
   expect(edits.uncertain).toBe(false);
   expect(sessionStorage.length).toBe(0);
 });
+it('clears a rejected move so another token can be moved', async () => {
+  const { run } = await setup();
+  run.mockResolvedValueOnce({ rejected: 'Token changed. Try again.' });
+  await act(async () => {
+    expect(await edits.commit('tabletop_move', { id: 'first' })).toBe(false);
+  });
+  expect(edits.blocked).toBe(false);
+  expect(container.textContent).toContain('Token changed');
+  expect(sessionStorage.length).toBe(0);
+  run.mockResolvedValueOnce(response());
+  await act(async () => {
+    expect(await edits.commit('tabletop_move', { id: 'second' })).toBe(true);
+  });
+});
 it('keeps late old-scene responses out of the new scene and restores per-scene history', async () => {
   const { run, render } = await setup();
   let resolve!: (value: Record<string, string>) => void;

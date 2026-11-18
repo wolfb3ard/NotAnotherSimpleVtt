@@ -32,6 +32,8 @@ import {
 } from './tactical-templates';
 
 type Point = { x: number; y: number };
+type TokenMove = Point & { id: string; revision: number };
+type TokenDrag = { anchor: Token; tokens: Token[]; delta: Point; moved: boolean };
 type Mode =
   | 'move'
   | 'measure'
@@ -44,6 +46,15 @@ type Mode =
   | 'camera'
   | 'template';
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
+function selectionRect(from: Point, to: Point) {
+  return {
+    x: Math.min(from.x, to.x),
+    y: Math.min(from.y, to.y),
+    width: Math.abs(from.x - to.x),
+    height: Math.abs(from.y - to.y),
+  };
+}
+
 function useImage(url: string | undefined) {
   const [loaded, setLoaded] = useState<{ url: string; image: HTMLImageElement }>();
   const [failed, setFailed] = useState<string>();
@@ -71,40 +82,48 @@ function useImage(url: string | undefined) {
 function ActorToken({
   token,
   movable,
-  move,
+  dragStart,
+  dragMove,
+  dragEnd,
+  offset,
+  showDistance,
+  guardMouseDown,
   select,
   sheet,
   quickActions,
   active,
   selected,
-  destination,
   distanceLabel,
-  gesture,
   zoom,
 }: {
   token: Token;
   movable: boolean;
-  move: (x: number, y: number, revision: number) => Promise<boolean>;
+  dragStart: () => void;
+  dragMove: (point: Point) => Point;
+  dragEnd: (point: Point) => Point;
+  offset?: Point;
+  showDistance: boolean;
+  guardMouseDown: (event: KonvaEventObject<MouseEvent>) => void;
   select: () => void;
   sheet: () => void;
   quickActions: (x: number, y: number) => void;
   active: boolean;
   selected: boolean;
-  destination: (p: Point) => Point;
   distanceLabel: (from: Point, to: Point) => string;
-  gesture: (active: boolean) => void;
   zoom: number;
 }) {
   const { image } = useImage(token.asset_id ? `/api/images/${token.asset_id}` : undefined);
-  const [dragPosition, setDragPosition] = useState<Point | null>(null);
-  const draggingRevision = useRef(token.revision);
-  const [draggingOrigin, setDraggingOrigin] = useState<Point>({ x: token.x, y: token.y });
+  const position = { x: token.x + (offset?.x ?? 0), y: token.y + (offset?.y ?? 0) };
   return (
     <Group
-      x={dragPosition?.x ?? token.x}
-      y={dragPosition?.y ?? token.y}
+      x={position.x}
+      y={position.y}
       draggable={movable}
       opacity={token.hidden ? 0.4 : 1}
+      onMouseDown={(e) => {
+        if (e.evt.button === 1 && !e.currentTarget.isDragging()) e.currentTarget.stopDrag();
+        guardMouseDown(e);
+      }}
       onClick={(e) => {
         if (e.evt.button === 0) {
           e.cancelBubble = true;
@@ -126,28 +145,15 @@ function ActorToken({
       }}
       onDragStart={(e) => {
         e.cancelBubble = true;
-        gesture(true);
-        setDragPosition(e.target.position());
-        draggingRevision.current = token.revision;
-        setDraggingOrigin({ x: token.x, y: token.y });
+        dragStart();
       }}
       onDragMove={(e) => {
         e.cancelBubble = true;
-        const point = destination(e.target.position());
-        e.target.position(point);
-        setDragPosition(point);
+        e.target.position(dragMove(e.target.position()));
       }}
-      onDragEnd={async (e) => {
+      onDragEnd={(e) => {
         e.cancelBubble = true;
-        const point = destination(e.target.position());
-        e.target.position(point);
-        setDragPosition(point);
-        try {
-          await move(point.x, point.y, draggingRevision.current);
-        } finally {
-          setDragPosition(null);
-          gesture(false);
-        }
+        e.target.position(dragEnd(e.target.position()));
       }}
     >
       {selected && (
@@ -205,17 +211,17 @@ function ActorToken({
         shadowColor="#000"
         shadowBlur={4}
       />
-      {dragPosition && (
+      {showDistance && offset && (
         <>
           <Line
-            points={[draggingOrigin.x - dragPosition.x, draggingOrigin.y - dragPosition.y, 0, 0]}
+            points={[-offset.x, -offset.y, 0, 0]}
             stroke="#fff4bf"
             strokeWidth={2 / zoom}
             dash={[5 / zoom, 4 / zoom]}
             listening={false}
           />
           <Text
-            text={distanceLabel(draggingOrigin, dragPosition)}
+            text={distanceLabel(token, position)}
             x={-120 / zoom}
             y={-token.size / 2 - 28 / zoom}
             width={240 / zoom}
@@ -262,7 +268,13 @@ function TabletopScene({
   const [drawing, setDrawing] = useState(false);
   const [calibration, setCalibration] = useState('5');
   const [unit, setUnit] = useState('ft');
-  const [selected, setSelected] = useState<string>();
+  const [selected, setSelected] = useState<string[]>([]);
+  const marqueeStart = useRef<Point | null>(null);
+  const [marquee, setMarquee] = useState<{ from: Point; to: Point } | null>(null);
+  const rightPan = useRef<{ pointer: Point; view: Point } | null>(null);
+  const rightStartedOnMap = useRef(false);
+  const drag = useRef<TokenDrag | null>(null);
+  const [dragPreview, setDragPreview] = useState<TokenDrag | null>(null);
   const [placingActor, setPlacingActor] = useState('');
   const [placementX, setPlacementX] = useState('0');
   const [placementY, setPlacementY] = useState('0');
@@ -277,7 +289,6 @@ function TabletopScene({
   const setPosition = (p: Point) => updateView({ ...p, scale });
   const [spacePan, setSpacePan] = useState(false);
   const spaceHeld = useRef(false);
-  const tokenGesture = useRef(false);
   const pointerGesture = useRef(false);
   const [showGrid, setShowGrid] = useState(false);
   const [snap, setSnap] = useState(false);
@@ -300,7 +311,7 @@ function TabletopScene({
         e.ctrlKey ||
         e.metaKey ||
         navigationInput(e.target) ||
-        tokenGesture.current ||
+        drag.current ||
         pointerGesture.current
       )
         return;
@@ -319,6 +330,9 @@ function TabletopScene({
       spaceHeld.current = false;
       setSpacePan(false);
       pointerGesture.current = false;
+      rightPan.current = null;
+      marqueeStart.current = null;
+      setMarquee(null);
       setDrawing(false);
     };
     window.addEventListener('keydown', down);
@@ -358,9 +372,28 @@ function TabletopScene({
     };
   }
   function down(e: KonvaEventObject<MouseEvent>) {
+    if (pointerGesture.current || drag.current) return;
+    if (e.evt.button === 2) {
+      rightStartedOnMap.current = true;
+      const pointer = stage.current?.getPointerPosition();
+      if (pointer) {
+        rightPan.current = { pointer, view: position };
+        pointerGesture.current = true;
+      }
+      return;
+    }
+    if (e.evt.button !== 0) return;
     pointerGesture.current = true;
     if (spacePan) return;
-    if (mode === 'move' || e.evt.button !== 0) return;
+    if (mode === 'move') {
+      if (preview) return;
+      const p = point();
+      if (p) {
+        marqueeStart.current = p;
+        setMarquee({ from: p, to: p });
+      }
+      return;
+    }
     if (mode === 'template') {
       const p = point();
       if (p && scene && !preview) tactical.place(p);
@@ -430,11 +463,38 @@ function TabletopScene({
       x: dimensions.width / 2 - token.x * scale,
       y: dimensions.height / 2 - token.y * scale,
     });
-    setSelected(token.id);
+    setSelected([token.id]);
   }
-  async function up() {
+  async function up(e?: KonvaEventObject<MouseEvent>) {
+    if (rightPan.current && e && e.evt.button !== 2) return;
+    if (!rightPan.current && e?.evt.button === 2) return;
+    rightPan.current = null;
     pointerGesture.current = false;
     setSpacePan(spaceHeld.current);
+    const from = marqueeStart.current;
+    if (from) {
+      marqueeStart.current = null;
+      setMarquee(null);
+      const to = point();
+      if (to && mode === 'move' && !preview) {
+        const { x, y, width, height } = selectionRect(from, to);
+        setSelected(
+          Math.max(width, height) * scale < 3
+            ? []
+            : renderedTokens
+                .filter(
+                  (t) =>
+                    controlsToken(t) &&
+                    t.x >= x &&
+                    t.x <= x + width &&
+                    t.y >= y &&
+                    t.y <= y + height,
+                )
+                .map((t) => t.id),
+        );
+      }
+      return;
+    }
     setDrawing(false);
     if (mode === 'measure') {
       setStart(null);
@@ -469,6 +529,59 @@ function TabletopScene({
       t.scene_id === scene?.id &&
       (!preview || (!t.hidden && !!scene && visibleAt(scene.fog, t.x, t.y))),
   );
+  const selectedIds = new Set(selected);
+  const previewOrigins = new Map(dragPreview?.tokens.map((t) => [t.id, t]));
+  const controlsToken = (token: Token) => gm || token.controller_id === snapshot.userId;
+  function beginDrag(anchor: Token) {
+    const tokens = selectedIds.has(anchor.id)
+      ? renderedTokens.filter((t) => selectedIds.has(t.id) && controlsToken(t))
+      : [anchor];
+    setSelected(tokens.map((t) => t.id));
+    drag.current = { anchor, tokens, delta: { x: 0, y: 0 }, moved: false };
+  }
+  function updateDrag(p: Point) {
+    const current = drag.current;
+    if (!current || !scene) return p;
+    const { anchor, tokens } = current;
+    const destination = movementPoint(p, scene, grid, snap);
+    // Snap the grabbed token, then limit one shared translation so no token leaves the map.
+    const limit = (axis: keyof Point, edge: number) => {
+      const min = -Math.min(...tokens.map((t) => t[axis]));
+      // Tokens from older edits can already be exactly on the server's inclusive edge.
+      const max = Math.max(0, edge - 0.01 - Math.max(...tokens.map((t) => t[axis])));
+      return Math.min(max, Math.max(min, destination[axis] - anchor[axis]));
+    };
+    const delta = { x: limit('x', scene.width), y: limit('y', scene.height) };
+    const next = { ...current, delta, moved: true };
+    drag.current = next;
+    setDragPreview(next);
+    return { x: anchor.x + delta.x, y: anchor.y + delta.y };
+  }
+  function finishDrag(p: Point) {
+    if (drag.current && !drag.current.moved) updateDrag(p);
+    const current = drag.current;
+    drag.current = null;
+    pointerGesture.current = false;
+    if (!current) return p;
+    const { anchor, tokens, delta } = current;
+    const moves: TokenMove[] = tokens.map(({ id, revision, x, y }) => ({
+      id,
+      revision,
+      x: x + delta.x,
+      y: y + delta.y,
+    }));
+    void (async () => {
+      try {
+        if (delta.x || delta.y)
+          await (moves.length === 1
+            ? edits.commit('tabletop_move', moves[0])
+            : edits.commit('tabletop_move_group', { moves }));
+      } finally {
+        setDragPreview(null);
+      }
+    })();
+    return { x: anchor.x + delta.x, y: anchor.y + delta.y };
+  }
   function choose(token: Token, anchor?: Point) {
     if (preview || spacePan || mode !== 'move') return;
     const rect = container.current?.getBoundingClientRect();
@@ -479,7 +592,7 @@ function TabletopScene({
         y: (rect?.top ?? 0) + position.y + token.y * scale,
       },
     );
-    if (accepted !== false) setSelected(token.id);
+    if (accepted !== false && !selectedIds.has(token.id)) setSelected([token.id]);
   }
   return (
     <div
@@ -488,7 +601,15 @@ function TabletopScene({
       tabIndex={0}
       aria-label="Tabletop map"
       onKeyDown={(e) => {
-        if (e.key !== 'Escape' || mode === 'move') return;
+        if (e.key !== 'Escape') return;
+        if (mode === 'move') {
+          if (!selected.length && !marqueeStart.current) return;
+          marqueeStart.current = null;
+          setMarquee(null);
+          setSelected([]);
+          e.stopPropagation();
+          return;
+        }
         setDrawing(false);
         setStart(null);
         setEnd(null);
@@ -545,9 +666,9 @@ function TabletopScene({
                 visible active-scene token; choose explicitly when there are several.
               </p>
               <p>
-                Drag empty map to pan in Move mode. Hold Space before dragging to pan in any tool,
-                even over tokens. Release Space to return to your tool. Typing and active token
-                drags are never intercepted.
+                Right-drag empty map to pan, or hold Space and drag even over tokens. In Move mode,
+                left-drag empty map to box-select tokens you control, then drag any selected token
+                to move them together. Click empty map or press Esc to clear the selection.
               </p>
               <p>
                 Scroll to zoom around the pointer; +/− buttons zoom around the viewport center. Drag
@@ -683,12 +804,6 @@ function TabletopScene({
               >
                 Undo{edits.entry ? `: ${edits.entry.description}` : ''}
               </button>
-              {edits.uncertain && (
-                <>
-                  <button onClick={() => void edits.retry()}>Retry tabletop change</button>
-                  <button onClick={edits.dismiss}>Dismiss attempt</button>
-                </>
-              )}
               {gm && (
                 <>
                   {scene && (
@@ -719,7 +834,7 @@ function TabletopScene({
                     onClick={() => {
                       if (onPreviewChange?.(!preview) === false) return;
                       setMode('move');
-                      setSelected(undefined);
+                      setSelected([]);
                       setPreview(!preview);
                     }}
                   >
@@ -776,6 +891,12 @@ function TabletopScene({
             </>
           )}
           {edits.message}
+          {edits.uncertain && (
+            <>
+              <button onClick={() => void edits.retry()}>Retry tabletop change</button>
+              <button onClick={edits.dismiss}>Dismiss tabletop attempt</button>
+            </>
+          )}
           {gridEdits.message}
           {gridEdits.uncertain && (
             <>
@@ -814,7 +935,7 @@ function TabletopScene({
             y={position.y}
             scaleX={scale}
             scaleY={scale}
-            draggable={mode === 'move' || spacePan}
+            draggable={spacePan}
             dragBoundFunc={(p) => {
               const { x, y } = clampView({ ...p, scale }, scene, dimensions);
               return { x, y };
@@ -824,16 +945,38 @@ function TabletopScene({
             }}
             onMouseDown={down}
             onMouseMove={() => {
+              const pan = rightPan.current;
+              const pointer = stage.current?.getPointerPosition();
+              if (pan && pointer) {
+                setPosition({
+                  x: pan.view.x + pointer.x - pan.pointer.x,
+                  y: pan.view.y + pointer.y - pan.pointer.y,
+                });
+                return;
+              }
+              const from = marqueeStart.current;
+              const to = from && point();
+              if (from && to) setMarquee({ from, to });
               if (drawing) setEnd(point());
             }}
             onMouseUp={up}
+            onContextMenu={(e) => {
+              e.evt.preventDefault();
+              rightStartedOnMap.current = false;
+            }}
             onMouseLeave={() => {
+              if (marqueeStart.current) {
+                marqueeStart.current = null;
+                setMarquee(null);
+              }
+              rightPan.current = null;
               pointerGesture.current = false;
               setSpacePan(spaceHeld.current);
               if (drawing) void up();
             }}
             onWheel={(e) => {
               e.evt.preventDefault();
+              if (pointerGesture.current || drag.current) return;
               const p = stage.current?.getPointerPosition();
               if (!p) return;
               updateView(zoomView(view, p, scale * (e.evt.deltaY > 0 ? 0.9 : 1.1)));
@@ -888,44 +1031,66 @@ function TabletopScene({
                   />
                 </Group>
               )}
-              {renderedTokens.map((token) => (
-                <ActorToken
-                  active={encounter?.status === 'active' && encounter.active_token_id === token.id}
-                  key={`${scene.id}:${token.id}`}
-                  token={token}
-                  selected={!preview && selected === token.id}
-                  zoom={scale}
-                  quickActions={(x, y) => choose(token, { x, y })}
-                  movable={
-                    !spacePan &&
-                    !mapBlocked &&
-                    mode === 'move' &&
-                    !preview &&
-                    (gm || token.controller_id === snapshot.userId)
-                  }
-                  destination={(p) => movementPoint(p, scene, grid, snap)}
-                  distanceLabel={(from, to) =>
-                    `${distance(from, to, scene.units_per_pixel).toFixed(2)} ${scene.unit} · Euclidean${scene.calibrated ? '' : ' · estimate'}`
-                  }
-                  gesture={(active) => {
-                    tokenGesture.current = active;
-                  }}
-                  select={() => {
-                    if (!preview && !spacePan && mode === 'move') setSelected(token.id);
-                  }}
-                  sheet={() => {
-                    if (!preview && !spacePan && mode === 'move') openTokenSheet?.(token.actor_id);
-                  }}
-                  move={async (x, y, revision) => {
-                    return edits.commit('tabletop_move', {
-                      id: token.id,
-                      revision,
-                      x: Math.min(scene.width - 0.01, Math.max(0, x)),
-                      y: Math.min(scene.height - 0.01, Math.max(0, y)),
-                    });
-                  }}
+              {renderedTokens.map((token) => {
+                const origin = previewOrigins.get(token.id);
+                return (
+                  <ActorToken
+                    active={
+                      encounter?.status === 'active' && encounter.active_token_id === token.id
+                    }
+                    key={`${scene.id}:${token.id}`}
+                    token={origin ? { ...token, x: origin.x, y: origin.y } : token}
+                    offset={origin ? dragPreview?.delta : undefined}
+                    showDistance={dragPreview?.anchor.id === token.id}
+                    selected={!preview && selectedIds.has(token.id)}
+                    zoom={scale}
+                    quickActions={(x, y) => {
+                      if (!rightStartedOnMap.current) choose(token, { x, y });
+                      rightStartedOnMap.current = false;
+                    }}
+                    movable={
+                      !spacePan &&
+                      !mapBlocked &&
+                      mode === 'move' &&
+                      !preview &&
+                      controlsToken(token)
+                    }
+                    dragStart={() => beginDrag(token)}
+                    dragMove={updateDrag}
+                    dragEnd={finishDrag}
+                    guardMouseDown={(e) => {
+                      if (e.evt.button === 2) rightStartedOnMap.current = false;
+                      if (
+                        e.evt.button === 2 ||
+                        (!spacePan && mode === 'move' && e.evt.button === 0)
+                      ) {
+                        e.cancelBubble = true;
+                        if (e.evt.button === 0) pointerGesture.current = true;
+                      }
+                    }}
+                    distanceLabel={(from, to) =>
+                      `${distance(from, to, scene.units_per_pixel).toFixed(2)} ${scene.unit} · Euclidean${scene.calibrated ? '' : ' · estimate'}`
+                    }
+                    select={() => {
+                      if (!preview && !spacePan && mode === 'move' && !selectedIds.has(token.id))
+                        setSelected([token.id]);
+                    }}
+                    sheet={() => {
+                      if (!preview && !spacePan && mode === 'move')
+                        openTokenSheet?.(token.actor_id);
+                    }}
+                  />
+                );
+              })}
+              {marquee && (
+                <Rect
+                  {...selectionRect(marquee.from, marquee.to)}
+                  fill="#79c9e833"
+                  stroke="#79c9e8"
+                  strokeWidth={1 / scale}
+                  listening={false}
                 />
-              ))}
+              )}
               {start &&
                 end &&
                 (mode === 'calibrate' || drawing) &&

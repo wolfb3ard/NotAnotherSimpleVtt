@@ -116,7 +116,7 @@ export async function mutate(
   gameId: string,
   command: Command,
   payload: unknown,
-): Promise<{ error?: string; data?: Record<string, string> }> {
+): Promise<{ error?: string; data?: Record<string, string>; rejected?: boolean }> {
   try {
     uuid.parse(gameId);
     if (!Object.hasOwn(commandSchemas, command)) throw new Error('Unknown command.');
@@ -311,7 +311,11 @@ export async function mutate(
                   p_command: command,
                   p: validated,
                 });
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (command.startsWith('tabletop_') && error.code === 'P0001')
+        return { error: error.message, rejected: true };
+      throw new Error(error.message);
+    }
     if (command === 'invite' && data?.token) {
       const headerList = await headers();
       const host = headerList.get('x-forwarded-host') || headerList.get('host');
@@ -322,6 +326,8 @@ export async function mutate(
     }
     return { data };
   } catch (error) {
+    if (command.startsWith('tabletop_') && error instanceof z.ZodError)
+      return { error: message(error), rejected: true };
     return { error: message(error) };
   }
 }

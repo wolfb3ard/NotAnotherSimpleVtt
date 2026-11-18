@@ -1017,7 +1017,7 @@ describe.sequential('reversible tabletop edits', () => {
           [t],
         )
       ).rows[0];
-    return { g, s, t, fog, call, move, undo, history, position };
+    return { g, s, t, a, asset, fog, call, move, undo, history, position };
   }
   it('commits one move, retries idempotently, and retries undo without moving twice', async () => {
     const f = await fixture();
@@ -1061,6 +1061,91 @@ describe.sequential('reversible tabletop edits', () => {
     await expect(f.move()).rejects.toThrow(/changed/);
     expect(await f.history()).toHaveLength(1);
     expect(await f.position()).toEqual({ x: 120, revision: 1 });
+  });
+  it('moves a formation atomically, retries without reapplying, and undoes it together', async () => {
+    const f = await fixture();
+    const ally = (
+      await command(
+        'actor_create',
+        { name: 'Ally', kind: 'character', owner_id: player, sheet },
+        f.g,
+      )
+    ).id;
+    await command('token_create', { actor_id: ally, scene_id: f.s }, f.g);
+    const second = (
+      await db.query<{ id: string }>('select id from tokens where actor_id=$1', [ally])
+    ).rows[0].id;
+    const id = randomUUID();
+    const moves = [
+      { id: f.t, revision: 1, x: 140, y: 120 },
+      { id: second, revision: 0, x: 120, y: 100 },
+    ];
+    await as(player);
+    const first = randomUUID();
+    await f.move(0, first);
+    await as(gm);
+    await command('token_update', { id: second, revision: 0, controller_id: gm }, f.g);
+    await as(player);
+    await expect(f.call('tabletop_move_group', { operation_id: id, moves })).rejects.toThrow(
+      /Token control denied/,
+    );
+    expect(await f.position()).toEqual({ x: 120, revision: 1 });
+    await as(gm);
+    await command('token_update', { id: second, revision: 1, controller_id: player }, f.g);
+    await as(player);
+    await expect(f.call('tabletop_move_group', { operation_id: id, moves })).rejects.toThrow(
+      /changed/,
+    );
+    expect(await f.position()).toEqual({ x: 120, revision: 1 });
+    moves[1].revision = 2;
+    await f.call('tabletop_move_group', { operation_id: id, moves });
+    await f.call('tabletop_move_group', { operation_id: id, moves });
+    expect(await f.position()).toEqual({ x: 140, revision: 2 });
+    expect((await f.history())[0]).toEqual({ id, description: 'Move tokens' });
+    const last = randomUUID();
+    await f.move(2, last, 160);
+    await f.undo(last);
+    await f.undo(id);
+    await f.undo(id);
+    expect(await f.position()).toEqual({ x: 120, revision: 5 });
+    expect((await db.query('select x,revision from tokens where id=$1', [second])).rows[0]).toEqual(
+      { x: 100, revision: 4 },
+    );
+    await f.undo(first);
+    expect(await f.position()).toEqual({ x: 100, revision: 6 });
+  });
+  it('accepts GM moves and fog edits with the private preparation flag', async () => {
+    const f = await fixture();
+    const draft = (
+      await db.query<{ value: { id: string } }>(
+        "select public.stage_scene($1,'scene_draft',$2::jsonb) as value",
+        [f.g, JSON.stringify({ name: 'Draft', asset_id: f.asset })],
+      )
+    ).rows[0].value.id;
+    await command('token_create', { actor_id: f.a, scene_id: draft }, f.g);
+    const token = (
+      await db.query<{ id: string }>('select id from tokens where scene_id=$1', [draft])
+    ).rows[0].id;
+    const scope = { scene_id: draft, preparing: true };
+    const op = randomUUID();
+    const move = { ...scope, id: token, operation_id: op, revision: 0, x: 140, y: 100 };
+    await f.call('tabletop_move', move);
+    await f.call('tabletop_move', move);
+    expect((await db.query('select x,revision from tokens where id=$1', [token])).rows[0]).toEqual({
+      x: 140,
+      revision: 1,
+    });
+    await f.call('tabletop_undo', { ...scope, operation_id: op });
+    await f.call('tabletop_fog', {
+      ...scope,
+      id: draft,
+      revision: 0,
+      operation_id: randomUUID(),
+      fog: f.fog,
+    });
+    expect((await db.query('select fog from scenes where id=$1', [draft])).rows[0]).toEqual({
+      fog: f.fog,
+    });
   });
   it('restores fog privately, conceals tokens again, and never exposes inverse data', async () => {
     const f = await fixture();

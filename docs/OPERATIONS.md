@@ -8,6 +8,7 @@
 - In separate GM/player browsers, create/join a room, upload a scene, reveal part of it, add/move a token, calibrate/measure, save a sheet, and roll publicly/privately.
 - Check player requests cannot fetch raw backgrounds, hidden tokens, restricted sheets, or GM-private rolls.
 - Apply `20261116161714_reversible_tabletop.sql` before the Epic 03 app. Verify move/fog Undo, reload/retry acknowledgement, concurrent-change rejection, and loss of control. Inverse history must have no client table grants or Realtime publication. Undo does not erase information already seen.
+- Apply `20261118080807_tabletop_token_groups.sql` before deploying group moves. Verify GM moves in private preparation and confirm a box-selected group moves and undoes together.
 - Disconnect/reconnect a player and verify persisted state returns. Revoke a sheet grant and confirm it disappears from that player's view.
 - Load-test a GM and eight players, including large supported images and repeated fog edits. Measure image processing duration, request latency, reconnect behavior, and service quota usage.
 

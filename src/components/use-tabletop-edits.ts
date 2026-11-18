@@ -6,7 +6,7 @@ import type { Command } from '@/lib/commands';
 type Run = (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
 type Entry = { id: string; description: string };
 type Attempt = {
-  command: 'tabletop_move' | 'tabletop_fog' | 'tabletop_undo';
+  command: 'tabletop_move' | 'tabletop_move_group' | 'tabletop_fog' | 'tabletop_undo';
   payload: Record<string, unknown>;
 };
 type State = { scope: string; history: Entry[]; attempt?: Attempt; message: string };
@@ -88,7 +88,7 @@ export function useTabletopEdits(scope: string, sceneId: string | undefined, run
 
   const ready = state.scope === scope;
   const blocked = !ready || busy || !!state.attempt;
-  async function send(attempt: Attempt) {
+  async function send(attempt: Attempt, retrying = false) {
     if (locked.current) return false;
     locked.current = true;
     generation.current++;
@@ -107,7 +107,9 @@ export function useTabletopEdits(scope: string, sceneId: string | undefined, run
     }
     locked.current = false;
     setBusy(false);
-    if (result) {
+    const history = result?.history;
+    const rejection = !retrying && result?.rejected;
+    if (history !== undefined || rejection) {
       try {
         sessionStorage.removeItem(storageKey);
       } catch {
@@ -116,16 +118,18 @@ export function useTabletopEdits(scope: string, sceneId: string | undefined, run
     }
     if (currentScope.current === scope)
       setState((s) =>
-        result
-          ? { scope, history: JSON.parse(result.history), message: 'Tabletop change confirmed.' }
-          : {
-              ...s,
-              attempt,
-              message:
-                'Change failed or unconfirmed. Retry checks the same operation; it will not apply twice. Later changes or lost permission can block undo.',
-            },
+        history !== undefined
+          ? { scope, history: JSON.parse(history), message: 'Tabletop change confirmed.' }
+          : rejection
+            ? { ...s, attempt: undefined, message: rejection }
+            : {
+                ...s,
+                attempt,
+                message:
+                  'Change failed or unconfirmed. Retry checks the same operation; it will not apply twice. Later changes or lost permission can block undo.',
+              },
       );
-    return !!result;
+    return history !== undefined;
   }
   async function commit(command: Attempt['command'], payload: Record<string, unknown>) {
     if (blocked || locked.current || !sceneId) return false;
@@ -193,7 +197,7 @@ export function useTabletopEdits(scope: string, sceneId: string | undefined, run
     uncertain: ready && !!state.attempt && !busy,
     commit,
     undo,
-    retry: () => state.attempt && send(state.attempt),
+    retry: () => state.attempt && send(state.attempt, true),
     dismiss,
   };
 }
