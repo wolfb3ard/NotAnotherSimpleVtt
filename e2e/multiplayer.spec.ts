@@ -790,7 +790,11 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await gm.page.getByLabel('Grid origin X', { exact: true }).fill('10');
     await gm.page.getByLabel('Grid origin Y', { exact: true }).fill('20');
     await gm.page.getByRole('button', { name: 'Apply grid', exact: true }).click();
-    await expect(player.page.getByLabel('Snap to grid', { exact: true })).toBeEnabled();
+    const snap = player.page.getByRole('button', { name: 'Snap to grid', exact: true });
+    await expect(snap).toBeEnabled();
+    const wasSnapping = await snap.getAttribute('aria-pressed');
+    await snap.click();
+    await expect(snap).toHaveAttribute('aria-pressed', wasSnapping === 'true' ? 'false' : 'true');
     const gridState = await (await player.page.request.get(`/api/games/${gameId}`)).json();
     expect(
       gridState.scenes.find((s: { id: string }) => s.id === gridState.game.active_scene_id).grid,

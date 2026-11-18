@@ -298,8 +298,12 @@ it('shares a transformed explicit point without moving a token or the camera; Sp
 });
 it('shows scaled Euclidean drag distance, snaps the submitted endpoint, preserves revision and never commits during drag', async () => {
   await render();
-  const snap = container.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+  const snap = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === 'Snap to grid',
+  )!;
+  expect(snap.getAttribute('aria-pressed')).toBe('false');
   await act(async () => snap.click());
+  expect(snap.getAttribute('aria-pressed')).toBe('true');
   canvas.position = { x: 100, y: 100 };
   const start = dragEvent();
   await act(async () => canvas.token.onDragStart(start));

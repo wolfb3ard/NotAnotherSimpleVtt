@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { Sheet } from '@/lib/types';
 import type { SrdBuilderState } from '@/lib/srd-state';
 import { builderScores } from '@/lib/srd-state';
@@ -16,6 +16,7 @@ import {
   pactConjuredId,
   shopByKey,
   startingBudget,
+  startingEquipmentOptions,
   startingInventory,
   weaponProfile,
   type SrdEquipment,
@@ -35,14 +36,60 @@ export function draftEquipmentItems(sheet: Sheet, state: SrdBuilderState) {
 }
 const money = (copper: number) =>
   `${Math.floor(copper / 100)} GP ${Math.floor((copper % 100) / 10)} SP ${copper % 10} CP`;
+
+function PackagePicker<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { letter: T; label: string; items: string[]; gold: number }[];
+  onChange: (letter: T) => void;
+}) {
+  const description = useId();
+  const selected = options.find((option) => option.letter === value);
+  return (
+    <div className="equipment-package">
+      <label>
+        {label}
+        <select
+          value={value}
+          aria-describedby={description}
+          onChange={(e) => {
+            const option = options.find(({ letter }) => letter === e.target.value);
+            if (option) onChange(option.letter);
+          }}
+        >
+          {options.map((option) => (
+            <option key={option.letter} value={option.letter}>
+              {option.label} (SRD {option.letter})
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="small" id={description}>
+        {selected
+          ? `You receive: ${[...selected.items, `${selected.gold} GP`].join(', ')}.`
+          : 'Choose a starting equipment package.'}
+      </p>
+    </div>
+  );
+}
+
 export function SrdEquipmentControls({
   sheet,
   state,
   onChange,
+  onPackageChange,
 }: {
   sheet: Sheet;
   state: SrdBuilderState;
   onChange: (gear: SrdEquipment) => void;
+  onPackageChange: (
+    choice: Partial<Pick<SrdBuilderState, 'classEquipment' | 'backgroundEquipment'>>,
+  ) => void;
 }) {
   const [search, setSearch] = useState(''),
     [offer, setOffer] = useState('');
@@ -54,9 +101,10 @@ export function SrdEquipmentControls({
   const patch = (value: Partial<SrdEquipment>) => onChange({ ...gear, ...value });
   const positive = inventory.filter((item) => item.quantity > 0);
   const legacy = sheet.character?.items.some(isLegacyStartingBundle);
+  const packages = startingEquipmentOptions(state);
   return (
     <section className="stack" aria-label="Starting equipment and loadout">
-      <h3>Equipment, currency & ready attacks</h3>
+      <h4>Starting equipment</h4>
       <p>
         Starting packages expand into individual items; repeated items combine into counted stacks.
         Packs are containers, not extra grants. Later Apply never refills spent currency,
@@ -86,7 +134,23 @@ export function SrdEquipmentControls({
         </label>
       )}
       <fieldset disabled={(originLocked && !legacy) || gear.grantStarting === false}>
-        <legend>Starting choices & purchases · SRD pp.28–83, 89–100</legend>
+        <legend>Starting packages & purchases · SRD pp.28–83, 89–100</legend>
+        {!originLocked && (
+          <>
+            <PackagePicker
+              label={`${state.levels[0].className} starting equipment`}
+              value={state.classEquipment}
+              options={packages.classOptions}
+              onChange={(classEquipment) => onPackageChange({ classEquipment })}
+            />
+            <PackagePicker
+              label={`${state.background} starting equipment`}
+              value={state.backgroundEquipment}
+              options={packages.backgroundOptions}
+              onChange={(backgroundEquipment) => onPackageChange({ backgroundEquipment })}
+            />
+          </>
+        )}
         {state.levels[0].className === 'Bard' && state.classEquipment === 'A' && (
           <label>
             Bard starting Musical Instrument
@@ -232,6 +296,7 @@ export function SrdEquipmentControls({
           ))}
         </ul>
       </details>
+      <h4>Equipped gear & ready attacks</h4>
       <div className="row">
         <label>
           Worn armor

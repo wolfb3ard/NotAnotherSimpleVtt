@@ -1027,31 +1027,6 @@ function DraftBuilder({
                 onChange={(tools) => patch({ tools })}
               />
             )}
-            <label>
-              Class starting equipment
-              <select
-                value={draft.classEquipment}
-                onChange={(e) => patch({ classEquipment: e.target.value as 'A' | 'B' | 'C' })}
-              >
-                <option>A</option>
-                <option>B</option>
-                {draft.levels[0].className === 'Fighter' && <option>C</option>}
-              </select>
-            </label>
-            <label>
-              Background starting equipment
-              <select
-                value={draft.backgroundEquipment}
-                onChange={(e) => patch({ backgroundEquipment: e.target.value as 'A' | 'B' })}
-              >
-                <option>A</option>
-                <option>B</option>
-              </select>
-            </label>
-            <p>
-              Equipment package text is retained with the source background/class rules. Configure
-              the expanded inventory, currency, and loadout below.
-            </p>
           </fieldset>
         </details>
         {sheet.character?.builder &&
@@ -1163,6 +1138,7 @@ function DraftBuilder({
             sheet={sheet}
             state={draft}
             onChange={(equipment) => patch({ equipment })}
+            onPackageChange={patch}
           />
           <SrdShapesControls
             state={draft}
