@@ -108,14 +108,22 @@ export type DiceStyle = {
 };
 export type RollCue = { roll_id: string; private: boolean; created_at: string };
 export type DiceStyleRecord = { user_id: string; style: DiceStyle };
+export type EncounterOutcome = 'active' | 'defeated' | 'fled';
 export type Encounter = {
   id: string;
   scene_id: string;
-  status: 'active' | 'paused' | 'ended';
+  status: 'setup' | 'active' | 'paused' | 'ended';
   round: number;
   revision: number; // Zero in player projections; only GMs can mutate.
   active_token_id: string | null;
-  participants: { token_id: string; label: string; initiative: number }[];
+  next_token_id?: string | null;
+  archived_outcomes?: { token_id: string; label: string; outcome: 'defeated' | 'fled' }[];
+  participants: {
+    token_id: string;
+    label: string;
+    initiative: number | null;
+    outcome?: EncounterOutcome;
+  }[];
 };
 export type Snapshot = {
   preparedSceneId?: string;
