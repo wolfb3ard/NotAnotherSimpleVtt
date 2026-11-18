@@ -1704,6 +1704,15 @@ summary {
 .dnd-description p {
   white-space: pre-wrap;
 }
+.dnd-description {
+  line-height: 1.55;
+}
+.dnd-rules-reference > summary {
+  font-weight: 700;
+}
+.dnd-rules-reference > .dnd-description {
+  margin-block-start: 8px;
+}
 .dnd-action-group > :is(h3, p),
 .dnd-rules-card > :is(h4, p),
 .dnd-description p {
