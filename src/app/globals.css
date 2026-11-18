@@ -805,25 +805,42 @@ summary {
   border: 2px solid #9ce9b2;
 }
 .canvas-tools {
+  --map-control-background: #1b2528eb;
   display: flex;
-  gap: 5px;
-  z-index: 1;
+  gap: 8px 16px;
   flex-wrap: wrap;
   pointer-events: none;
 }
-.canvas-tools button {
-  pointer-events: auto;
-  font-size: 11px;
-  background: #1b2528eb;
-  box-shadow: 0 3px 10px #0003;
-  padding: 10px;
+.canvas-tool-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
-.canvas-tools select {
+.canvas-tool-group > :is(button, select),
+.canvas-tool-group > details > summary {
   pointer-events: auto;
+  min-height: 40px;
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--map-control-background, #1b2528eb);
+}
+.canvas-tool-group > select {
   width: auto;
-  max-width: 210px;
-  font-size: 11px;
-  background: #1b2528eb;
+  max-width: min(100%, 210px);
+}
+.canvas-tool-group > button:hover:not(:disabled),
+.canvas-tool-group > details > summary:hover {
+  background: #324149;
+}
+.canvas-tool-group > button[aria-pressed='true'] {
+  border-color: var(--gold);
+  color: var(--gold);
 }
 .map-snap {
   flex-direction: row;
@@ -836,22 +853,20 @@ summary {
 .map-snap input[type='checkbox'] {
   width: auto;
 }
-.canvas-tools .small {
-  align-self: center;
-  background: #1b2528eb;
-}
 .map-help {
-  pointer-events: auto;
   border: 0;
-  padding: 10px;
+  padding: 0;
   margin: 0;
-  background: #1b2528eb;
-  border-radius: 6px;
 }
 .map-help summary {
   margin: 0;
 }
+.map-help summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
 .map-help-content {
+  pointer-events: auto;
   position: absolute;
   top: 100%;
   left: 0;
@@ -1004,14 +1019,19 @@ summary {
   padding: 6px;
   border-radius: 7px;
 }
-.canvas-bottom .row {
-  font-size: 11px;
+.canvas-bottom {
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
-.canvas-bottom button {
-  padding: 5px 9px;
-  border: none;
-  background: transparent;
-  font-size: 11px;
+.canvas-view {
+  font-size: 12px;
+}
+.equipment-package {
+  display: grid;
+  gap: 8px;
+}
+.equipment-package p {
+  margin: 0;
 }
 .scene-label {
   color: #c9ccb8;
@@ -1052,10 +1072,6 @@ summary {
 @media (max-width: 1100px) {
   .sidebar {
     width: 340px;
-  }
-  .canvas-tools button {
-    font-size: 10px;
-    padding: 9px 7px;
   }
   .dashboard {
     padding: 0 30px 50px;

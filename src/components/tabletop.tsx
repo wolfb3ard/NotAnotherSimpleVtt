@@ -651,139 +651,168 @@ function TabletopScene({
       }}
     >
       <div className="tabletop-controls" ref={controls}>
-        <div className="canvas-tools" aria-label="Map setup controls" tabIndex={-1}>
-          <button aria-pressed={mode === 'move'} onClick={() => setMode('move')}>
-            ↖ Move
-          </button>
-          <button aria-pressed={mode === 'measure'} onClick={() => setMode('measure')}>
-            ↔ Ruler
-          </button>
-          <details className="map-help">
-            <summary>Map help &amp; shortcuts</summary>
-            <div className="map-help-content">
-              <p>
-                Fit map / Reset view shows the whole map. Find my character centers only your
-                visible active-scene token; choose explicitly when there are several.
-              </p>
-              <p>
-                Right-drag empty map to pan, or hold Space and drag even over tokens. In Move mode,
-                left-drag empty map to box-select tokens you control, then drag any selected token
-                to move them together. Click empty map or press Esc to clear the selection.
-              </p>
-              <p>
-                Scroll to zoom around the pointer; +/− buttons zoom around the viewport center. Drag
-                your token to see straight-line Euclidean distance (diagonals use √(x²+y²)), not
-                path length or a movement allowance. Walls, terrain and speed remain manual.
-              </p>
-              <p>
-                Enable Snap to grid for cell-center movement; turn it off for free movement. GM grid
-                size/origin are shared. Set feet per square in Grid settings, or use Calibrate for a
-                measured line. Uncalibrated distances are estimates.
-              </p>
-              <p>
-                Ctrl/Cmd+Z undoes eligible map edits outside text inputs. Your view is remembered
-                only in this browser per user/game/scene; Reset view recovers an awkward view.
-              </p>
-              {scene && (
-                <>
-                  <label className="map-snap">
-                    <input
-                      type="checkbox"
-                      checked={snap}
-                      disabled={!grid.enabled}
-                      onChange={(e) => setSnap(e.target.checked)}
-                    />{' '}
-                    Snap to grid
-                  </label>
-                  <span className="small muted">
+        <div className="canvas-tools" role="group" aria-label="Map controls" tabIndex={-1}>
+          <div className="canvas-tool-group" role="group" aria-label="Map interaction">
+            <button aria-pressed={mode === 'move'} onClick={() => setMode('move')}>
+              ↖ Move
+            </button>
+            <button aria-pressed={mode === 'measure'} onClick={() => setMode('measure')}>
+              ↔ Ruler
+            </button>
+            {scene && (
+              <button
+                aria-pressed={snap && grid.enabled}
+                disabled={!grid.enabled}
+                onClick={() => setSnap(!snap)}
+              >
+                Snap to grid
+              </button>
+            )}
+          </div>
+          <div className="canvas-tool-group" role="group" aria-label="Map options">
+            <details className="map-help">
+              <summary>Map help &amp; shortcuts</summary>
+              <div className="map-help-content">
+                <p>
+                  Fit map / Reset view shows the whole map. Find my character centers only your
+                  visible active-scene token; choose explicitly when there are several.
+                </p>
+                <p>
+                  Right-drag empty map to pan, or hold Space and drag even over tokens. In Move
+                  mode, left-drag empty map to box-select tokens you control, then drag any selected
+                  token to move them together. Click empty map or press Esc to clear the selection.
+                </p>
+                <p>
+                  Right-click a token to open its actions, or use the Token quick actions picker.
+                </p>
+                <p>
+                  Scroll to zoom around the pointer; +/− buttons zoom around the viewport center.
+                  Drag your token to see straight-line Euclidean distance (diagonals use √(x²+y²)),
+                  not path length or a movement allowance. Walls, terrain and speed remain manual.
+                </p>
+                <p>
+                  Enable Snap to grid for cell-center movement; turn it off for free movement. GM
+                  grid size/origin are shared. Set feet per square in Grid settings, or use
+                  Calibrate for a measured line. Uncalibrated distances are estimates.
+                </p>
+                <p>
+                  Ctrl/Cmd+Z undoes eligible map edits outside text inputs. Your view is remembered
+                  only in this browser per user/game/scene; Reset view recovers an awkward view.
+                </p>
+                {scene && (
+                  <p className="small muted">
                     Distance: Euclidean ·{' '}
                     {scene.calibrated
                       ? `${scene.units_per_pixel} ${scene.unit}/px`
                       : 'uncalibrated estimate'}
+                  </p>
+                )}
+              </div>
+            </details>
+            <details className="map-help">
+              <summary>{gm ? 'Scene tools' : 'Placement'}</summary>
+              <div className="map-help-content stack">
+                {!findable.length && (
+                  <span className="small muted">
+                    No visible controlled character here. Ask the GM about absent, other-scene, or
+                    concealed tokens.
                   </span>
-                </>
-              )}
-            </div>
-          </details>
-          {findable.length === 1 ? (
-            <button
-              disabled={preview}
-              title="Center on my token in visible space"
-              onClick={() => centerToken(findable[0].id)}
-            >
-              Find my character
-            </button>
-          ) : (
-            <select
-              aria-label="Find my character"
-              title="Center on my token in visible space"
-              value=""
-              disabled={preview || !findable.length}
-              onChange={(e) => centerToken(e.target.value)}
-            >
-              <option value="">Find my character…</option>
-              {findable.map((t, i) => (
-                <option key={t.id} value={t.id}>
-                  {t.label} · token {i + 1}
-                </option>
-              ))}
-            </select>
-          )}
-          <details className="map-help">
-            <summary>{gm ? 'Scene tools' : 'Token tools'}</summary>
-            <div className="map-help-content stack">
-              {!findable.length && (
-                <span className="small muted">
-                  No visible controlled character here. Ask the GM about absent, other-scene, or
-                  concealed tokens.
-                </span>
-              )}
-              {scene && (
-                <>
-                  <select
-                    aria-label="Place character"
-                    value={placingActor}
-                    disabled={preview || placement.blocked}
-                    onChange={(e) => setPlacingActor(e.target.value)}
-                  >
-                    <option value="">Place character…</option>
-                    {snapshot.actors
-                      .filter(
-                        (a) => gm || (a.owner_id === snapshot.userId && a.kind === 'character'),
-                      )
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    disabled={preview || !placingActor || mapBlocked}
-                    onClick={() => setMode('place')}
-                  >
-                    Click to place
-                  </button>
-                  <button
-                    disabled={preview || !placingActor || mapBlocked}
-                    onClick={() => void placeAt(undefined, false)}
-                  >
-                    Place at party spawn
-                  </button>
-                  {gm && (
-                    <button disabled={preview || mapBlocked} onClick={() => setMode('spawn')}>
-                      Set party spawn
+                )}
+                {scene && (
+                  <>
+                    <select
+                      aria-label="Place character"
+                      value={placingActor}
+                      disabled={preview || placement.blocked}
+                      onChange={(e) => setPlacingActor(e.target.value)}
+                    >
+                      <option value="">Place character…</option>
+                      {snapshot.actors
+                        .filter(
+                          (a) => gm || (a.owner_id === snapshot.userId && a.kind === 'character'),
+                        )
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      disabled={preview || !placingActor || mapBlocked}
+                      onClick={() => setMode('place')}
+                    >
+                      Click to place
                     </button>
-                  )}
-                </>
-              )}
+                    <button
+                      disabled={preview || !placingActor || mapBlocked}
+                      onClick={() => void placeAt(undefined, false)}
+                    >
+                      Place at party spawn
+                    </button>
+                    {gm && (
+                      <button disabled={preview || mapBlocked} onClick={() => setMode('spawn')}>
+                        Set party spawn
+                      </button>
+                    )}
+                  </>
+                )}
+                <button
+                  disabled={mapBlocked || !edits.entry}
+                  onClick={() => void edits.undo()}
+                  title="Ctrl/Cmd+Z. Last 20 moves/fog edits, within 24 hours, in this scene."
+                >
+                  Undo{edits.entry ? `: ${edits.entry.description}` : ''}
+                </button>
+                {gm && (
+                  <>
+                    {scene && (
+                      <button
+                        disabled={preview || mapBlocked}
+                        onClick={() => setShowGrid(!showGrid)}
+                      >
+                        Grid settings
+                      </button>
+                    )}
+                    <button
+                      className={mode === 'calibrate' ? 'active' : ''}
+                      onClick={() => setMode('calibrate')}
+                    >
+                      ⊹ Calibrate
+                    </button>
+                    <button
+                      className={mode === 'reveal' ? 'active' : ''}
+                      onClick={() => setMode('reveal')}
+                    >
+                      ◉ Reveal
+                    </button>
+                    <button
+                      className={mode === 'conceal' ? 'active' : ''}
+                      onClick={() => setMode('conceal')}
+                    >
+                      ◌ Conceal
+                    </button>
+                    <button
+                      className={preview ? 'active' : ''}
+                      onClick={() => {
+                        if (onPreviewChange?.(!preview) === false) return;
+                        setMode('move');
+                        setSelected([]);
+                        setPreview(!preview);
+                      }}
+                    >
+                      Player view
+                    </button>
+                  </>
+                )}
+              </div>
+            </details>
+          </div>
+          {scene && (
+            <div className="canvas-tool-group" role="group" aria-label="Token actions">
               <select
                 aria-label="Token quick actions"
-                disabled={preview || mode !== 'move'}
-                title={
-                  preview
-                    ? 'Token actions are disabled in player preview.'
-                    : 'Select Move mode to use token actions.'
-                }
+                disabled={preview || mode !== 'move' || !renderedTokens.length}
+                title="Open a token’s actions in Move mode"
                 value=""
                 onChange={(e) => {
                   const token = renderedTokens.find((t) => t.id === e.target.value);
@@ -797,53 +826,8 @@ function TabletopScene({
                   </option>
                 ))}
               </select>
-              <button
-                disabled={mapBlocked || !edits.entry}
-                onClick={() => void edits.undo()}
-                title="Ctrl/Cmd+Z. Last 20 moves/fog edits, within 24 hours, in this scene."
-              >
-                Undo{edits.entry ? `: ${edits.entry.description}` : ''}
-              </button>
-              {gm && (
-                <>
-                  {scene && (
-                    <button disabled={preview || mapBlocked} onClick={() => setShowGrid(!showGrid)}>
-                      Grid settings
-                    </button>
-                  )}
-                  <button
-                    className={mode === 'calibrate' ? 'active' : ''}
-                    onClick={() => setMode('calibrate')}
-                  >
-                    ⊹ Calibrate
-                  </button>
-                  <button
-                    className={mode === 'reveal' ? 'active' : ''}
-                    onClick={() => setMode('reveal')}
-                  >
-                    ◉ Reveal
-                  </button>
-                  <button
-                    className={mode === 'conceal' ? 'active' : ''}
-                    onClick={() => setMode('conceal')}
-                  >
-                    ◌ Conceal
-                  </button>
-                  <button
-                    className={preview ? 'active' : ''}
-                    onClick={() => {
-                      if (onPreviewChange?.(!preview) === false) return;
-                      setMode('move');
-                      setSelected([]);
-                      setPreview(!preview);
-                    }}
-                  >
-                    Player view
-                  </button>
-                </>
-              )}
             </div>
-          </details>
+          )}
         </div>
         {mode !== 'move' && (
           <div className="tabletop-undo-status" role="status">
@@ -1139,7 +1123,26 @@ function TabletopScene({
               {snapshot.preparedSceneId ? 'Private preparation: ' : '◈ '}
               {scene.name}
             </span>
-            <div className="row">
+            <div className="canvas-tool-group canvas-view" role="group" aria-label="Map view">
+              {findable.length === 1 ? (
+                <button disabled={preview} onClick={() => centerToken(findable[0].id)}>
+                  Find my character
+                </button>
+              ) : (
+                <select
+                  aria-label="Find my character"
+                  value=""
+                  disabled={preview || !findable.length}
+                  onChange={(e) => centerToken(e.target.value)}
+                >
+                  <option value="">Find my character…</option>
+                  {findable.map((t, i) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label} · token {i + 1}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button onClick={() => fit(scene)}>Fit map</button>
               <button
                 aria-label="Zoom out"

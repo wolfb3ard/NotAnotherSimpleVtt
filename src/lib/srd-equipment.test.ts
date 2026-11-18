@@ -11,6 +11,7 @@ import {
   equipmentShop,
   shopByKey,
   startingBudget,
+  startingEquipmentOptions,
   startingInventory,
   startingItemId,
 } from './srd-equipment';
@@ -27,6 +28,36 @@ const purchase = (name: string) => ({
   quantity: 1,
 });
 describe('source-audited starting equipment', () => {
+  it('describes Fighter packages and cash using the same data as starting grants', () => {
+    const state = fighterBuilder();
+    const { classOptions, backgroundOptions } = startingEquipmentOptions(state);
+    expect(classOptions).toMatchObject([
+      { letter: 'A', label: 'Chain Mail & Greatsword', gold: 4 },
+      { letter: 'B', label: 'Studded Leather Armor & Scimitar', gold: 11 },
+      { letter: 'C', label: '155 GP only', items: [], gold: 155 },
+    ]);
+    expect(classOptions[0].items).toContain('Javelin ×8');
+    for (const option of classOptions) {
+      for (const background of backgroundOptions) {
+        expect(
+          startingBudget({
+            ...state,
+            classEquipment: option.letter,
+            backgroundEquipment: background.letter,
+          }).grantedCopper,
+        ).toBe((option.gold + background.gold) * 100);
+      }
+    }
+  });
+
+  it('shows unresolved gear choices and keeps non-Fighter packages to A and B', () => {
+    const state = classBuilder('Bard');
+    state.equipment.instrument = '';
+    const { classOptions, backgroundOptions } = startingEquipmentOptions(state);
+    expect(classOptions.map(({ letter }) => letter)).toEqual(['A', 'B']);
+    expect(classOptions[0].items).toContain('Musical instrument (choose below)');
+    expect(backgroundOptions[1]).toMatchObject({ label: '50 GP only', items: [] });
+  });
   it('uses source-indexed variants and table prices without duplicate shop keys', () => {
     expect(shopByKey.size).toBe(equipmentShop.length);
     expect(equipmentShop.find((offer) => offer.name === 'Horse, Riding')?.copper).toBe(7500);

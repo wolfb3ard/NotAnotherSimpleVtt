@@ -392,15 +392,55 @@ export const equipmentShop: ShopOffer[] = srdCatalog
     ];
   });
 export const shopByKey = new Map(equipmentShop.map((offer) => [offer.key, offer]));
+const backgroundStartingGold = (state: SrdBuilderState) =>
+  state.backgroundEquipment === 'B'
+    ? 50
+    : { Acolyte: 8, Criminal: 16, Sage: 8, Soldier: 14 }[state.background];
+
+export function startingEquipmentOptions(state: SrdBuilderState) {
+  function option<T extends string>(letter: T, gold: number, lots: Lot[], pending?: string) {
+    const items = lots.map(({ name, quantity }) =>
+      name ? (quantity > 1 ? `${name} ×${quantity}` : name) : (pending ?? ''),
+    );
+    return {
+      letter,
+      gold,
+      items,
+      label: items.slice(0, 2).join(' & ') || `${gold} GP only`,
+    };
+  }
+
+  const className = state.levels[0].className;
+  const classChoices = className === 'Fighter' ? (['A', 'B', 'C'] as const) : (['A', 'B'] as const);
+  return {
+    classOptions: classChoices.map((letter, index) =>
+      option(
+        letter,
+        classStartingGold[className][index],
+        classLots({ ...state, classEquipment: letter }),
+        className === 'Bard'
+          ? 'Musical instrument (choose below)'
+          : 'Monk tool or instrument (class choice)',
+      ),
+    ),
+    backgroundOptions: (['A', 'B'] as const).map((letter) => {
+      const draft = { ...state, backgroundEquipment: letter };
+      return option(
+        letter,
+        backgroundStartingGold(draft),
+        backgroundLots(draft),
+        'Gaming set (background choice)',
+      );
+    }),
+  };
+}
+
 export function startingBudget(state: SrdBuilderState) {
   if (state.equipment?.grantStarting === false)
     return { grantedCopper: 0, spentCopper: 0, remainingCopper: 0 };
   const index = ['A', 'B', 'C'].indexOf(state.classEquipment);
   const classGold = classStartingGold[state.levels[0].className][index] ?? 0;
-  const backgroundGold =
-    state.backgroundEquipment === 'B'
-      ? 50
-      : { Acolyte: 8, Criminal: 16, Sage: 8, Soldier: 14 }[state.background];
+  const backgroundGold = backgroundStartingGold(state);
   const spent = (state.equipment?.purchases ?? []).reduce(
     (sum, buy) => sum + (shopByKey.get(buy.key)?.copper ?? 0) * buy.quantity,
     0,
