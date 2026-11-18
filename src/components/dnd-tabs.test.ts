@@ -146,14 +146,44 @@ describe('character tabs', () => {
       'Roll Fire Bolt (Human · Magic Initiate)',
     ]);
     const description = actions.closest('article')!.querySelector('.dnd-description')!;
-    expect(description.textContent).toMatch(/\n\nSRD 5\.2\.1, PDF p\./);
-    expect(description.textContent).not.toMatch(/(?<!\n)\n(?!\n)/);
+    expect(description.querySelector('em')?.textContent).toMatch(/^SRD 5\.2\.1, PDF p\./);
+    expect(description.textContent).not.toContain('\n');
+    expect(description.textContent).not.toContain('Components:');
+    expect(description.querySelector('strong')?.textContent).toBe('Cantrip Upgrade.');
     await click('Roll Fire Bolt (Human · Magic Initiate)');
     expect(onRoll).toHaveBeenCalledExactlyOnceWith(
       `2d20kh1 + @{${dndId('srd-resource:casting:feat:human:attack')}}`,
       'Spell attack with Fire Bolt (Human · Magic Initiate)',
     );
     expect(panel().textContent).toContain('Human · Magic Initiate · Save DC 10');
+  });
+  it('separates wrapped SRD spell facts from the description in play mode', async () => {
+    const sheet = createDndSheet();
+    sheet.character = emptyCharacterDetails();
+    const entry = srdEntry('spell', 'Arcane Lock')!;
+    sheet.character.spells.push({
+      id: crypto.randomUUID(),
+      name: entry.name,
+      level: 2,
+      prepared: true,
+      actionType: 'Action',
+      description: entry.text,
+    });
+    await fixture(sheet);
+    await click('Spell');
+    expect([...panel().querySelectorAll('dt')].map((element) => element.textContent)).toEqual([
+      'Casting Time',
+      'Range',
+      'Components',
+      'Duration',
+    ]);
+    expect([...panel().querySelectorAll('dd')].map((element) => element.textContent)).toEqual([
+      'Action',
+      'Touch',
+      'V, S, M (gold dust worth 25+ GP, which the spell consumes)',
+      'Until dispelled',
+    ]);
+    expect(panel().querySelector('.dnd-description')?.textContent).toMatch(/^You touch a closed/);
   });
   it('exposes builder resources and keeps grouped Hit Dice synchronized with the total', async () => {
     const { current } = await fixture(applySrdBuilder(createDndSheet(), fighterBuilder(2)));
@@ -338,6 +368,8 @@ describe('character tabs', () => {
     const { current } = await fixture(initial);
     await click('Features & Traits');
     expect(panel().textContent).toContain('Legacy feature');
+    expect(button('Add feature')).toBeUndefined();
+    await click('Edit character');
     await click('Add feature');
     await value('Feature name', 'Second Wind');
     await value('Second Wind action type', 'Bonus action');
@@ -352,6 +384,27 @@ describe('character tabs', () => {
     expect(panel().textContent).toContain('1 / 2 uses remaining');
     await click('Remove Second Wind');
     expect(current().character!.features).toEqual([]);
+  });
+
+  it('uses the same readable SRD class feature card in Actions and Features & Traits', async () => {
+    await fixture(applySrdBuilder(createDndSheet(), fighterBuilder()));
+    function secondWind() {
+      return [...panel().querySelectorAll('article')].find(
+        (article) => article.querySelector('h4')?.textContent === 'Second Wind',
+      )!;
+    }
+    const card = secondWind();
+    expect(card.querySelector('.dnd-rules-meta')?.textContent).toContain('Class feature');
+    const paragraphs = [...card.querySelectorAll('.dnd-description p')];
+    expect(paragraphs).toHaveLength(4);
+    expect(paragraphs[0].textContent).toContain('mental stamina');
+    expect(paragraphs[1].textContent).toMatch(/^You can use this feature twice/);
+    expect(paragraphs[3].querySelector('em')?.textContent).toMatch(/^SRD 5\.2\.1/);
+    await click('Features & Traits');
+    expect(secondWind().textContent).toBe(card.textContent);
+    expect(panel().querySelector('[aria-label="Second Wind description"]')).toBeNull();
+    await click('Edit character');
+    expect(panel().querySelector('textarea[aria-label="Second Wind description"]')).not.toBeNull();
   });
 
   it('limits attunement to three items and permits ending attunement', async () => {

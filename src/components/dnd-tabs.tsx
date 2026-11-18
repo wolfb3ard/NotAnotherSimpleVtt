@@ -15,6 +15,7 @@ import type { QuickUpdate } from '@/lib/resources';
 import { castChoices } from '@/lib/play-assistance';
 import { PlayInventory } from './play-inventory';
 import { SrdEquipmentSummary } from './srd-equipment-controls';
+import { DndRulesText, spellRules } from './dnd-rules-text';
 
 const tabs = [
   'Actions',
@@ -163,10 +164,7 @@ export function DndTabs({
   }
   function uses(feature: CharacterDetails['features'][number]) {
     return (
-      <div className="wrap" aria-label={`${feature.name} uses`}>
-        <span>
-          {feature.uses} / {feature.maxUses} uses remaining
-        </span>
+      <div className="dnd-rules-buttons" role="group" aria-label={`${feature.name} uses`}>
         <button
           disabled={!editable || !quickEditable || feature.uses === 0}
           onClick={() =>
@@ -194,6 +192,22 @@ export function DndTabs({
       </div>
     );
   }
+  function usesRemaining(feature: CharacterDetails['features'][number]) {
+    return `${feature.uses} / ${feature.maxUses} uses remaining`;
+  }
+  function featureCard(feature: CharacterDetails['features'][number]) {
+    return (
+      <article className="dnd-box dnd-rules-card" key={feature.id}>
+        <h4>{feature.name}</h4>
+        <p className="small muted dnd-rules-meta">
+          {feature.actionType} · {feature.source === 'Class' ? 'Class feature' : feature.source}
+          {feature.maxUses > 0 && ` · ${usesRemaining(feature)}`}
+        </p>
+        <DndRulesText description={feature.description} />
+        {feature.maxUses > 0 && uses(feature)}
+      </article>
+    );
+  }
   const spells = [...details.spells].sort(
     (a, b) => a.level - b.level || a.name.localeCompare(b.name),
   );
@@ -208,22 +222,27 @@ export function DndTabs({
         )
       : [];
     const hasAttack = /spell attack/i.test(spell.description);
-    const description = spell.description.includes('\n\nSRD 5.2.1, PDF p.')
-      ? spell.description
-          .split(/\n\s*\n/)
-          .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' '))
-          .join('\n\n')
-      : spell.description;
+    const rules = spellRules(spell.description);
     return (
-      <article className="dnd-box dnd-spell-card" key={spell.id}>
+      <article className="dnd-box dnd-rules-card" key={spell.id}>
         <h4>
           {spell.name} · {spell.level ? `Level ${spell.level}` : 'Cantrip'}
         </h4>
-        <p>
-          {spell.actionType}
+        <p className="small muted dnd-rules-meta">
+          {rules.school ?? spell.actionType}
           {!canCast && ' · Not prepared'}
         </p>
-        <p className="dnd-description">{description || 'No description recorded.'}</p>
+        {rules.facts && (
+          <dl className="dnd-rules-facts">
+            {rules.facts.map(({ label, value }) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        <DndRulesText description={rules.description} />
         {sources.length > 0 && (
           <p className="small">
             {sources
@@ -232,7 +251,7 @@ export function DndTabs({
           </p>
         )}
         {(choices.length > 0 || !spell.level || (hasAttack && sources.length > 0)) && (
-          <div className="dnd-spell-buttons" role="group" aria-label={`${spell.name} actions`}>
+          <div className="dnd-rules-buttons" role="group" aria-label={`${spell.name} actions`}>
             {choices.map((c) => (
               <button
                 key={c.key}
@@ -363,35 +382,29 @@ export function DndTabs({
                 );
                 const features = details.features.filter((f) => f.actionType === type);
                 return (
-                  <section className="dnd-box" key={type}>
+                  <section className="dnd-box dnd-action-group" key={type}>
                     <h3>{type}</h3>
                     {availableSpells.length + features.length === 0 && (
                       <p className="muted">No entries. Add spells or features in their tabs.</p>
                     )}
                     {tab === label && availableSpells.map(spellCard)}
-                    {features.map((feature) => (
-                      <article key={feature.id}>
-                        <h4>
-                          {feature.name} · {feature.source}
-                        </h4>
-                        <p className="dnd-description">{feature.description}</p>
-                        {feature.maxUses > 0 && uses(feature)}
-                      </article>
-                    ))}
+                    {tab === label && features.map(featureCard)}
                   </section>
                 );
               })}
               {customAbilities.map((ability) => (
-                <article className="dnd-box" key={ability.id}>
+                <article className="dnd-box dnd-rules-card" key={ability.id}>
                   <h4>{ability.name}</h4>
-                  <p className="dnd-description">{ability.description}</p>
+                  <DndRulesText description={ability.description} />
                   {ability.expression && (
-                    <button
-                      disabled={!rollable || dirty}
-                      onClick={() => onRoll(ability.expression, ability.name)}
-                    >
-                      Roll {ability.name}
-                    </button>
+                    <div className="dnd-rules-buttons">
+                      <button
+                        disabled={!rollable || dirty}
+                        onClick={() => onRoll(ability.expression, ability.name)}
+                      >
+                        Roll {ability.name}
+                      </button>
+                    </div>
                   )}
                 </article>
               ))}
@@ -685,7 +698,7 @@ export function DndTabs({
           )}
           {label === 'Features & Traits' && (
             <>
-              {editable && (
+              {!playing && editable && (
                 <button
                   disabled={details.features.length >= 200}
                   onClick={() =>
@@ -706,59 +719,66 @@ export function DndTabs({
                 </button>
               )}
               {details.features.length === 0 && <p className="muted">No features or traits.</p>}
-              {details.features.map((feature) => (
-                <article className="dnd-box" key={feature.id}>
-                  {text('Feature name', feature.name, (v) =>
-                    edit((d) => {
-                      d.features.find((f) => f.id === feature.id)!.name = v;
-                    }),
-                  )}
-                  {select(
-                    `${feature.name} source`,
-                    feature.source,
-                    ['Class', 'Species', 'Background', 'Feat', 'Other'],
-                    (v) =>
+              {playing && tab === label && details.features.map(featureCard)}
+              {!playing &&
+                details.features.map((feature) => (
+                  <article className="dnd-box" key={feature.id}>
+                    {text('Feature name', feature.name, (v) =>
                       edit((d) => {
-                        d.features.find((f) => f.id === feature.id)!.source =
-                          v as typeof feature.source;
+                        d.features.find((f) => f.id === feature.id)!.name = v;
                       }),
-                  )}
-                  {select(`${feature.name} action type`, feature.actionType, actionTypes, (v) =>
-                    edit((d) => {
-                      d.features.find((f) => f.id === feature.id)!.actionType =
-                        v as typeof feature.actionType;
-                    }),
-                  )}
-                  {number(`${feature.name} maximum uses`, feature.maxUses, (v) =>
-                    edit((d) => {
-                      const f = d.features.find((f) => f.id === feature.id)!;
-                      f.maxUses = v;
-                      f.uses = Math.min(f.uses, v);
-                    }),
-                  )}
-                  {feature.maxUses > 0 && uses(feature)}
-                  {text(
-                    `${feature.name} description`,
-                    feature.description,
-                    (v) =>
-                      edit((d) => {
-                        d.features.find((f) => f.id === feature.id)!.description = v;
-                      }),
-                    true,
-                  )}
-                  {editable && (
-                    <button
-                      onClick={() =>
+                    )}
+                    {select(
+                      `${feature.name} source`,
+                      feature.source,
+                      ['Class', 'Species', 'Background', 'Feat', 'Other'],
+                      (v) =>
                         edit((d) => {
-                          d.features = d.features.filter((f) => f.id !== feature.id);
-                        })
-                      }
-                    >
-                      Remove {feature.name}
-                    </button>
-                  )}
-                </article>
-              ))}
+                          d.features.find((f) => f.id === feature.id)!.source =
+                            v as typeof feature.source;
+                        }),
+                    )}
+                    {select(`${feature.name} action type`, feature.actionType, actionTypes, (v) =>
+                      edit((d) => {
+                        d.features.find((f) => f.id === feature.id)!.actionType =
+                          v as typeof feature.actionType;
+                      }),
+                    )}
+                    {number(`${feature.name} maximum uses`, feature.maxUses, (v) =>
+                      edit((d) => {
+                        const f = d.features.find((f) => f.id === feature.id)!;
+                        f.maxUses = v;
+                        f.uses = Math.min(f.uses, v);
+                      }),
+                    )}
+                    {feature.maxUses > 0 && (
+                      <>
+                        <p>{usesRemaining(feature)}</p>
+                        {uses(feature)}
+                      </>
+                    )}
+                    {text(
+                      `${feature.name} description`,
+                      feature.description,
+                      (v) =>
+                        edit((d) => {
+                          d.features.find((f) => f.id === feature.id)!.description = v;
+                        }),
+                      true,
+                    )}
+                    {editable && (
+                      <button
+                        onClick={() =>
+                          edit((d) => {
+                            d.features = d.features.filter((f) => f.id !== feature.id);
+                          })
+                        }
+                      >
+                        Remove {feature.name}
+                      </button>
+                    )}
+                  </article>
+                ))}
               {input('features', 'Existing feature notes', true)}
             </>
           )}
