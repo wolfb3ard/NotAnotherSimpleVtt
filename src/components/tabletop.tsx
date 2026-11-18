@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Stage, Layer, Image as CanvasImage, Circle, Text, Group, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
@@ -8,7 +8,7 @@ import { distance, visibleAt } from '@/lib/geometry';
 import type { Command } from '@/lib/commands';
 import type { useTabletopEdits } from './use-tabletop-edits';
 import { portraitCrop, tokenRings } from '@/lib/token-appearance';
-import { boardEncounter } from '@/lib/encounter-view';
+import { boardEncounter, encounterFocusToken } from '@/lib/encounter-view';
 import { findableTokens } from '@/lib/onboarding';
 import { useConfirmedMapCommand, usePlacement } from './use-placement';
 import {
@@ -92,6 +92,7 @@ function ActorToken({
   sheet,
   quickActions,
   active,
+  highlighted,
   selected,
   distanceLabel,
   zoom,
@@ -108,6 +109,7 @@ function ActorToken({
   sheet: () => void;
   quickActions: (x: number, y: number) => void;
   active: boolean;
+  highlighted: boolean;
   selected: boolean;
   distanceLabel: (from: Point, to: Point) => string;
   zoom: number;
@@ -156,6 +158,14 @@ function ActorToken({
         e.target.position(dragEnd(e.target.position()));
       }}
     >
+      {highlighted && (
+        <Circle
+          radius={token.size / 2 + 17 / zoom}
+          stroke="#8deaff"
+          strokeWidth={4 / zoom}
+          listening={false}
+        />
+      )}
       {selected && (
         <Circle radius={token.size / 2 + 7} stroke="#79c9e8" strokeWidth={2} listening={false} />
       )}
@@ -247,6 +257,7 @@ function TabletopScene({
   onPreviewChange,
   children,
   attention,
+  focusTokenRef,
 }: {
   snapshot: Snapshot;
   edits: ReturnType<typeof useTabletopEdits>;
@@ -256,6 +267,7 @@ function TabletopScene({
   onPreviewChange?: (preview: boolean) => boolean;
   children?: React.ReactNode;
   attention?: RoomAttention;
+  focusTokenRef?: React.Ref<(tokenId: string) => void>;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
@@ -269,6 +281,8 @@ function TabletopScene({
   const [calibration, setCalibration] = useState('5');
   const [unit, setUnit] = useState('ft');
   const [selected, setSelected] = useState<string[]>([]);
+  const [highlighted, setHighlighted] = useState<string>();
+  const highlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const marqueeStart = useRef<Point | null>(null);
   const [marquee, setMarquee] = useState<{ from: Point; to: Point } | null>(null);
   const rightPan = useRef<{ pointer: Point; view: Point } | null>(null);
@@ -465,6 +479,19 @@ function TabletopScene({
     });
     setSelected([token.id]);
   }
+  useImperativeHandle(focusTokenRef, () => (id) => {
+    if (preview) return;
+    const token = encounterFocusToken(snapshot, id);
+    if (!token) return;
+    setPosition({
+      x: dimensions.width / 2 - token.x * scale,
+      y: dimensions.height / 2 - token.y * scale,
+    });
+    clearTimeout(highlightTimer.current);
+    setHighlighted(id);
+    highlightTimer.current = setTimeout(() => setHighlighted(undefined), 1800);
+  });
+  useEffect(() => () => clearTimeout(highlightTimer.current), []);
   async function up(e?: KonvaEventObject<MouseEvent>) {
     if (rightPan.current && e && e.evt.button !== 2) return;
     if (!rightPan.current && e?.evt.button === 2) return;
@@ -527,7 +554,7 @@ function TabletopScene({
   const renderedTokens = snapshot.tokens.filter(
     (t) =>
       t.scene_id === scene?.id &&
-      (!preview || (!t.hidden && !!scene && visibleAt(scene.fog, t.x, t.y))),
+      ((gm && !preview) || (!t.hidden && !!scene && visibleAt(scene.fog, t.x, t.y))),
   );
   const selectedIds = new Set(selected);
   const previewOrigins = new Map(dragPreview?.tokens.map((t) => [t.id, t]));
@@ -1027,6 +1054,7 @@ function TabletopScene({
                     offset={origin ? dragPreview?.delta : undefined}
                     showDistance={dragPreview?.anchor.id === token.id}
                     selected={!preview && selectedIds.has(token.id)}
+                    highlighted={!preview && highlighted === token.id}
                     zoom={scale}
                     quickActions={(x, y) => {
                       if (!rightStartedOnMap.current) choose(token, { x, y });

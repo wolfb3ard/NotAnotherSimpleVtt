@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { Command } from '@/lib/commands';
 import type { Snapshot } from '@/lib/types';
-import { boardEncounter, encounterTurn } from '@/lib/encounter-view';
+import { boardEncounter, encounterFocusToken, encounterTurn } from '@/lib/encounter-view';
 import { initiativeExpression } from '@/lib/initiative';
 import { useEncounterCommand } from './use-encounter-command';
 import { combatSummary } from '@/lib/combat';
@@ -43,11 +43,13 @@ export function EncounterPanel({
   run,
   refresh,
   onSheet,
+  onFocusToken,
 }: {
   snapshot: Snapshot;
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
   refresh: () => Promise<void>;
   onSheet: (id: string) => void;
+  onFocusToken?: (id: string) => void;
 }) {
   const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
   const encounter = boardEncounter(snapshot);
@@ -66,6 +68,10 @@ export function EncounterPanel({
   const archived = gm ? (encounter?.archived_outcomes ?? []) : [];
   const waiting = inOrder.filter((p) => p.initiative === null).length;
   const upNext = inOrder.find((p) => p.token_id === encounter?.next_token_id);
+  const endTurnKey =
+    !gm && encounter?.status === 'active' && encounter.active_token_id
+      ? encounter.end_turn_key
+      : undefined;
   const available = snapshot.tokens.filter(
     (t) => t.scene_id === scene?.id && (!live || !participants.some((p) => p.token_id === t.id)),
   );
@@ -114,6 +120,19 @@ export function EncounterPanel({
         });
     if (saved) setSelection({});
   }
+  function combatantName(tokenId: string, label: string) {
+    return onFocusToken && encounterFocusToken(snapshot, tokenId) ? (
+      <button
+        className="encounter-focus"
+        aria-label={`Find ${label} on map`}
+        onClick={() => onFocusToken(tokenId)}
+      >
+        {label}
+      </button>
+    ) : (
+      <strong>{label}</strong>
+    );
+  }
   function reorder(index: number, delta: number) {
     const ids = [...inOrder, ...outOfOrder].map((p) => p.token_id);
     [ids[index], ids[index + delta]] = [ids[index + delta], ids[index]];
@@ -132,7 +151,7 @@ export function EncounterPanel({
         <>
           <p className="small">
             Roll Initiative on your sheet to update your token here. The tracker shows totals, even
-            for private rolls. Only the GM advances turns.
+            for private rolls. Players can end turns for tokens they control.
           </p>
           {encounter && (
             <>
@@ -164,7 +183,7 @@ export function EncounterPanel({
                       aria-current={current ? 'step' : undefined}
                     >
                       <div className="encounter-entry">
-                        <strong>{p.label}</strong>
+                        {combatantName(p.token_id, p.label)}
                         {current && <span className="small">Current turn</span>}
                         <span className="initiative-score">
                           {p.initiative === null ? (
@@ -258,9 +277,10 @@ export function EncounterPanel({
                   <ul className="encounter-order">
                     {outOfOrder.map((p) => (
                       <li key={p.token_id}>
-                        <strong>
-                          {p.label} · {p.outcome === 'defeated' ? 'Defeated' : 'Fled'}
-                        </strong>
+                        <div>
+                          {combatantName(p.token_id, p.label)} ·{' '}
+                          {p.outcome === 'defeated' ? 'Defeated' : 'Fled'}
+                        </div>
                         {p.initiative !== null && <small>Initiative {p.initiative}</small>}
                         {gm && live && (
                           <button
@@ -290,6 +310,22 @@ export function EncounterPanel({
                 <p>Waiting for GM.</p>
               )}
               {!inOrder.length && <p>No visible turn-order entries.</p>}
+              {endTurnKey && (
+                <button
+                  className="primary"
+                  disabled={operation.blocked}
+                  onClick={() =>
+                    void operation.commit({
+                      action: 'end_turn',
+                      id: encounter.id,
+                      scene_id: scene.id,
+                      turn_key: endTurnKey,
+                    })
+                  }
+                >
+                  End turn
+                </button>
+              )}
               {gm && live && (
                 <div className="wrap">
                   {setup ? (
@@ -309,6 +345,15 @@ export function EncounterPanel({
                       >
                         Next turn
                       </button>
+                      {encounter.can_undo_turn && (
+                        <button
+                          disabled={operation.blocked}
+                          title="Restore the previous turn and round only"
+                          onClick={() => void change('undo_turn')}
+                        >
+                          Undo turn
+                        </button>
+                      )}
                       <button disabled={operation.blocked} onClick={() => void change('pause')}>
                         Pause encounter
                       </button>
@@ -422,18 +467,20 @@ export function EncounterPanel({
                 Highest initiative goes first; arrows only break ties. Removing a combatant here
                 leaves its token on the map.
               </p>
-              <p role="status">{operation.message}</p>
-              {operation.uncertain && (
-                <div className="wrap">
-                  <button disabled={operation.busy} onClick={() => void operation.retry()}>
-                    Retry encounter change
-                  </button>
-                  <button disabled={operation.busy} onClick={() => void operation.dismiss()}>
-                    Dismiss encounter attempt
-                  </button>
-                </div>
-              )}
             </>
+          )}
+          {(gm || operation.busy || operation.uncertain || endTurnKey) && (
+            <p role="status">{operation.message}</p>
+          )}
+          {operation.uncertain && (
+            <div className="wrap">
+              <button disabled={operation.busy} onClick={() => void operation.retry()}>
+                Retry encounter change
+              </button>
+              <button disabled={operation.busy} onClick={() => void operation.dismiss()}>
+                Dismiss encounter attempt
+              </button>
+            </div>
           )}
         </>
       )}

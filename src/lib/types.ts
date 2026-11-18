@@ -116,6 +116,8 @@ export type Encounter = {
   round: number;
   revision: number; // Zero in player projections; only GMs can mutate.
   active_token_id: string | null;
+  end_turn_key?: string;
+  can_undo_turn?: boolean;
   next_token_id?: string | null;
   archived_outcomes?: { token_id: string; label: string; outcome: 'defeated' | 'fled' }[];
   participants: {

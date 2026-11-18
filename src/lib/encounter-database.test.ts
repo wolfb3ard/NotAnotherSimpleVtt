@@ -501,6 +501,63 @@ describe.sequential('authorized encounter lifecycle', () => {
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
     expect(await snapshot()).toMatchObject({ active_token_id: hero, round: 1 });
   });
+  it('authorizes only the visible current controller and retries without advancing twice', async () => {
+    await command(start([{ token_id: hero, initiative: 10 }]));
+    await as(player);
+    const current = (await snapshot())!;
+    expect(current).toMatchObject({
+      revision: 0,
+      end_turn_key: expect.stringMatching(/^[0-9a-f]{32}$/),
+    });
+    const request = {
+      id: current.id,
+      action: 'end_turn',
+      scene_id: scene,
+      operation_id: randomUUID(),
+      turn_key: current.end_turn_key,
+    };
+    await as(outsider);
+    await expect(command(request)).rejects.toThrow(/Game access denied/);
+    await as(gm);
+    const token = await packet(hero);
+    await mutate('token_update', { id: hero, revision: token.token_revision, hidden: true });
+    await as(player);
+    expect((await snapshot())!.end_turn_key).toBeUndefined();
+    await expect(command(request)).rejects.toThrow(/control this token/);
+    await as(gm);
+    await mutate('token_update', { id: hero, revision: token.token_revision + 1, hidden: false });
+    await as(player);
+    expect(await command(request)).toEqual({ id: current.id, revision: '0' });
+    expect(await command(request)).toEqual({ id: current.id, revision: '0' });
+    await expect(command({ ...request, operation_id: randomUUID() })).rejects.toThrow(
+      /Turn changed/,
+    );
+    expect(await snapshot()).toMatchObject({ round: 2, active_token_id: hero });
+    await as(gm);
+    expect((await snapshot())!.can_undo_turn).toBe(true);
+    const undo = await change('undo_turn');
+    await as(player);
+    await expect(command(undo)).rejects.toThrow(/GM required/);
+    await as(gm);
+    await command(undo);
+    expect(await snapshot()).toMatchObject({
+      round: 1,
+      active_token_id: hero,
+      can_undo_turn: false,
+    });
+    await expect(command(await change('undo_turn'))).rejects.toThrow(/No turn to undo/);
+  });
+  it('undoes GM advancement but not after a subsequent encounter edit', async () => {
+    await command(start());
+    await command(await change('next'));
+    expect(await snapshot()).toMatchObject({ active_token_id: hero, can_undo_turn: true });
+    await command(await change('undo_turn'));
+    expect(await snapshot()).toMatchObject({ active_token_id: secret, can_undo_turn: false });
+    await command(await change('next'));
+    await command(await change('initiative', { changes: [{ token_id: monster, value: 4 }] }));
+    expect((await snapshot())!.can_undo_turn).toBe(false);
+    await expect(command(await change('undo_turn'))).rejects.toThrow(/No turn to undo/);
+  });
   it('pauses/resumes/ends explicitly, preserves rounds and allows a new encounter after end', async () => {
     await command(start());
     await command(await change('pause'));
