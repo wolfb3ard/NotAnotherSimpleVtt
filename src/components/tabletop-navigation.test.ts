@@ -19,7 +19,10 @@ vi.mock('react-konva', async () => {
   const node = (p: Props) => {
     if (p.onDragStart) {
       canvas.token = p;
-      canvas.tokens.set(p.children[4].props.text.split(' · ')[0], p);
+      const label = p.children.find(
+        (child: Props | false) => child && child.props?.text && child.props.x === -80,
+      );
+      if (label) canvas.tokens.set(label.props.text.split(' · ')[0], p);
     }
     return createElement('div', { 'data-text': p.text, 'data-stroke': p.stroke }, p.children);
   };
@@ -92,7 +95,11 @@ const snapshot: Snapshot = {
 };
 const commit = vi.fn(async () => true);
 const run = vi.fn(async () => ({ confirmed: 'true' }));
-async function render(s = snapshot, attention?: RoomAttention) {
+async function render(
+  s = snapshot,
+  attention?: RoomAttention,
+  focusTokenRef?: { current: ((id: string) => void) | null },
+) {
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -110,6 +117,7 @@ async function render(s = snapshot, attention?: RoomAttention) {
       createElement(Tabletop, {
         snapshot: s,
         attention,
+        focusTokenRef,
         run,
         openQuickActions: vi.fn(),
         edits: {
@@ -165,6 +173,26 @@ afterEach(async () => {
   run.mockClear();
   canvas.tokens.clear();
   vi.unstubAllGlobals();
+});
+it('centers without sharing, highlights briefly, and ignores hidden tokens for players', async () => {
+  const focusTokenRef: { current: ((id: string) => void) | null } = { current: null };
+  const hidden = { ...snapshot.tokens[0], id: 'hidden', hidden: true, x: 300 };
+  await render({ ...snapshot, tokens: [...snapshot.tokens, hidden] }, undefined, focusTokenRef);
+  vi.useFakeTimers();
+  try {
+    const before = canvas.stage.x;
+    await act(async () => focusTokenRef.current?.('hidden'));
+    expect(canvas.stage.x).toBe(before);
+    await act(async () => focusTokenRef.current?.('token'));
+    expect(canvas.stage.x).not.toBe(before);
+    expect(container.querySelector('[data-stroke="#8deaff"]')).not.toBeNull();
+    expect(run).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTime(1800));
+    expect(container.querySelector('[data-stroke="#8deaff"]')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 it('keeps template pointer placement and numeric edits private until explicit Share; dimensions ignore zoom/grid', async () => {
   const userId = '00000000-0000-4000-8000-000000000003';

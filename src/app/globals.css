@@ -466,7 +466,7 @@ code {
 .encounter-entry strong {
   overflow-wrap: anywhere;
 }
-.encounter-entry button,
+.encounter-entry button:not(.encounter-focus),
 .initiative-score {
   grid-column: -2;
 }
@@ -478,6 +478,17 @@ code {
 .encounter-entry button[aria-pressed='true'] {
   border-color: var(--gold);
   color: var(--gold);
+}
+button.encounter-focus {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
 }
 .initiative-score {
   padding: 4px 8px;

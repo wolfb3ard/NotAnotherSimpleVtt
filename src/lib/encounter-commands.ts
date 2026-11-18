@@ -36,7 +36,20 @@ export const encounterCommandSchema = z
         outcome: z.enum(['active', 'defeated', 'fled']),
       })
       .strict(),
-    z.object({ ...current, action: z.enum(['begin', 'next', 'pause', 'resume', 'end']) }).strict(),
+    z
+      .object({
+        ...current,
+        action: z.enum(['begin', 'next', 'undo_turn', 'pause', 'resume', 'end']),
+      })
+      .strict(),
+    z
+      .object({
+        ...base,
+        id,
+        action: z.literal('end_turn'),
+        turn_key: z.string().regex(/^[0-9a-f]{32}$/),
+      })
+      .strict(),
   ])
   .superRefine((request, ctx) => {
     const ids =

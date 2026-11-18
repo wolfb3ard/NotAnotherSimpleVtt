@@ -85,6 +85,8 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
     anchor: { x: number; y: number };
   }>();
   const [quickBusy, setQuickBusy] = useState(false);
+  const focusToken = useRef<(id: string) => void>(null);
+  const [mapPreview, setMapPreview] = useState({ sceneId: '', enabled: false });
   const [error, setError] = useState('');
   const [sync, setSync] = useState('Snapshot loaded');
   const [live, setLive] = useState(false);
@@ -512,6 +514,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
           edits={tabletopEdits}
           run={run}
           attention={snapshot.preparedSceneId ? undefined : attention}
+          focusTokenRef={focusToken}
           openTokenSheet={(actorId) => {
             if (
               snapshot.actors.some((a) => a.id === actorId) &&
@@ -540,6 +543,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
               setQuickActions(undefined);
               setQuickBusy(false);
             }
+            setMapPreview({ sceneId: scene?.id ?? '', enabled: preview });
             return true;
           }}
         />
@@ -653,6 +657,11 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                 snapshot={snapshot}
                 run={run}
                 refresh={refresh}
+                onFocusToken={
+                  mapPreview.enabled && mapPreview.sceneId === scene?.id
+                    ? undefined
+                    : (id) => focusToken.current?.(id)
+                }
                 onSheet={(id) => {
                   openSheet(id);
                 }}

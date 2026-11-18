@@ -1,4 +1,17 @@
 import type { Encounter, Snapshot } from './types';
+import { visibleAt } from './geometry';
+
+export function encounterFocusToken(snapshot: Snapshot, tokenId: string) {
+  if (snapshot.preparedSceneId) return;
+  const scene = snapshot.scenes.find((s) => s.id === snapshot.game.active_scene_id);
+  if (!scene) return;
+  return snapshot.tokens.find(
+    (t) =>
+      t.id === tokenId &&
+      t.scene_id === scene.id &&
+      (snapshot.role === 'gm' || (!t.hidden && visibleAt(scene.fog, t.x, t.y))),
+  );
+}
 
 /** Intersect separately fetched projections with the current authorized board. */
 export function boardEncounter(snapshot: Snapshot): Encounter | null {

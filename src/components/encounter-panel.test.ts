@@ -225,6 +225,39 @@ it('shows Up next and moves defeated or fled combatants out of the turn order', 
   );
   expect(container.textContent).not.toContain('Up next: Secret enemy');
 });
+it('lets the current player end the turn and focus only authorized tokens; offers undo to the GM', async () => {
+  const snapshot = fixture();
+  snapshot.role = 'player';
+  snapshot.userId = 'player';
+  snapshot.scenes[0].fog = [{ x: 0, y: 0, width: 200, height: 200, reveal: true }];
+  snapshot.encounter!.end_turn_key = 'a'.repeat(32);
+  const run = vi.fn().mockResolvedValue({ id: encounter, revision: '0' });
+  const onFocusToken = vi.fn();
+  const render = () =>
+    createElement(EncounterPanel, { snapshot, run, refresh, onSheet: vi.fn(), onFocusToken });
+  await mount(render());
+  expect(container.querySelector('[aria-label="Find Secret enemy on map"]')).toBeNull();
+  await click('Hero');
+  expect(onFocusToken).toHaveBeenCalledWith(hero);
+  expect(run).not.toHaveBeenCalled();
+  await click('End turn');
+  expect(run).toHaveBeenCalledWith('encounter', {
+    action: 'end_turn',
+    id: encounter,
+    scene_id: scene,
+    turn_key: 'a'.repeat(32),
+    operation_id: expect.any(String),
+  });
+  snapshot.role = 'gm';
+  snapshot.encounter!.can_undo_turn = true;
+  await act(async () => root.render(render()));
+  expect(button('End turn')).toBeUndefined();
+  await click('Undo turn');
+  expect(run).toHaveBeenLastCalledWith(
+    'encounter',
+    expect.objectContaining({ action: 'undo_turn' }),
+  );
+});
 it('restores an uncertain command after remount and retries the same revision and operation', async () => {
   const run = vi.fn().mockResolvedValue(undefined),
     snapshot = fixture();
