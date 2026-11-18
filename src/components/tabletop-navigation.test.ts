@@ -9,6 +9,7 @@ import type { RoomAttention } from './use-room-attention';
 const canvas = vi.hoisted(() => ({
   stage: {} as Record<string, any>, // eslint-disable-line @typescript-eslint/no-explicit-any
   token: {} as Record<string, any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+  tokens: new Map<string, Record<string, any>>(), // eslint-disable-line @typescript-eslint/no-explicit-any
   point: { x: 125, y: 100 },
   position: { x: 100, y: 100 },
 }));
@@ -16,8 +17,11 @@ vi.mock('react-konva', async () => {
   const { forwardRef, useImperativeHandle } = await import('react');
   type Props = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   const node = (p: Props) => {
-    if (p.onDragStart) canvas.token = p;
-    return createElement('div', { 'data-text': p.text }, p.children);
+    if (p.onDragStart) {
+      canvas.token = p;
+      canvas.tokens.set(p.children[4].props.text.split(' · ')[0], p);
+    }
+    return createElement('div', { 'data-text': p.text, 'data-stroke': p.stroke }, p.children);
   };
   const Stage = forwardRef(function Stage(p: Props, ref) {
     useImperativeHandle(ref, () => ({ getPointerPosition: () => canvas.point }));
@@ -159,6 +163,7 @@ afterEach(async () => {
   sessionStorage.clear();
   commit.mockClear();
   run.mockClear();
+  canvas.tokens.clear();
   vi.unstubAllGlobals();
 });
 it('keeps template pointer placement and numeric edits private until explicit Share; dimensions ignore zoom/grid', async () => {
@@ -407,6 +412,73 @@ it('keeps free movement and clamps drops at map bounds regardless of zoom', asyn
   expect(pan.x).toBe(736);
   expect(pan.y).toBeCloseTo(-376);
 });
+it.each(['player', 'gm'] as const)(
+  'box-selects tokens the %s controls and moves them as one formation',
+  async (role) => {
+    const token = snapshot.tokens[0];
+    await render({
+      ...snapshot,
+      role,
+      tokens: [
+        token,
+        { ...token, id: 'ally', label: 'Ally', x: 140, y: 110, revision: 3 },
+        { ...token, id: 'other', label: 'Other', x: 170, controller_id: 'other' },
+        { ...token, id: 'outside', label: 'Outside', x: 300 },
+      ],
+    });
+    canvas.point = { x: 240, y: 185 };
+    await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
+    canvas.point = { x: 125, y: 130 };
+    await act(async () => canvas.stage.onMouseMove());
+    expect(container.querySelector('[data-stroke="#79c9e8"]')).not.toBeNull();
+    await act(async () => canvas.stage.onMouseUp({ evt: { button: 0 } }));
+    const picked = role === 'gm' ? 3 : 2;
+    expect(container.querySelectorAll('[data-stroke="#79c9e8"]')).toHaveLength(picked);
+    await act(async () => canvas.tokens.get('Ally')!.onClick({ evt: { button: 0 } }));
+    expect(container.querySelectorAll('[data-stroke="#79c9e8"]')).toHaveLength(picked);
+    canvas.position = { x: 140, y: 110 };
+    await act(async () => canvas.tokens.get('Ally')!.onDragStart(dragEvent()));
+    canvas.position = { x: 180, y: 160 };
+    await act(async () => canvas.tokens.get('Ally')!.onDragMove(dragEvent()));
+    expect(canvas.tokens.get('Hero')).toMatchObject({ x: 140, y: 150 });
+    expect(canvas.tokens.get('Outside')).toMatchObject({ x: 300, y: 100 });
+    canvas.position = { x: 900, y: -100 };
+    await act(async () => canvas.tokens.get('Ally')!.onDragMove(dragEvent()));
+    const edgeToken = canvas.tokens.get(role === 'gm' ? 'Other' : 'Ally')!;
+    expect(edgeToken.x).toBeCloseTo(599.99);
+    expect(edgeToken.x - canvas.tokens.get('Hero')!.x).toBe(role === 'gm' ? 70 : 40);
+    expect(canvas.tokens.get('Hero')!.y).toBe(0);
+    canvas.position = { x: 180, y: 160 };
+    await act(async () => canvas.tokens.get('Ally')!.onDragMove(dragEvent()));
+    expect(commit).not.toHaveBeenCalled();
+    await act(async () => canvas.tokens.get('Ally')!.onDragEnd(dragEvent()));
+    expect(commit).toHaveBeenCalledExactlyOnceWith('tabletop_move_group', {
+      moves: [
+        { id: 'token', revision: 7, x: 140, y: 150 },
+        { id: 'ally', revision: 3, x: 180, y: 160 },
+        ...(role === 'gm' ? [{ id: 'other', revision: 7, x: 210, y: 150 }] : []),
+      ],
+    });
+    await act(async () => canvas.stage.onMouseDown({ evt: { button: 0 } }));
+    await act(async () => canvas.stage.onMouseUp({ evt: { button: 0 } }));
+    expect(container.querySelectorAll('[data-stroke="#79c9e8"]')).toHaveLength(0);
+  },
+);
+it('right-drags empty map without selecting or moving tokens', async () => {
+  await render();
+  expect(canvas.stage.draggable).toBe(false);
+  canvas.point = { x: 100, y: 100 };
+  await act(async () => canvas.stage.onMouseDown({ evt: { button: 2 } }));
+  canvas.point = { x: 90, y: 105 };
+  await act(async () => canvas.stage.onMouseMove());
+  expect(canvas.stage).toMatchObject({ x: 40, y: 55 });
+  await act(async () => canvas.stage.onMouseUp({ evt: { button: 2 } }));
+  canvas.point = { x: 75, y: 80 };
+  await act(async () => canvas.stage.onMouseMove());
+  expect(canvas.stage).toMatchObject({ x: 40, y: 55 });
+  expect(container.querySelector('[data-stroke="#79c9e8"]')).toBeNull();
+  expect(commit).not.toHaveBeenCalled();
+});
 it('finishes Space-pan before restoring a drawing tool and never reuses a ruler line as fog', async () => {
   await render({ ...snapshot, role: 'gm', userId: 'gm' });
   await click('↔ Ruler');
@@ -456,7 +528,7 @@ it('restores separate scene cameras and clears unfinished gestures when changing
   };
   await render(other);
   expect(canvas.stage.scaleX).toBe(1);
-  expect(canvas.stage.draggable).toBe(true);
+  expect(canvas.stage.draggable).toBe(false);
   await act(async () => canvas.stage.onMouseUp());
   await render(snapshot);
   expect(canvas.stage.scaleX).toBe(oldScale);

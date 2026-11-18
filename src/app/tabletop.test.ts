@@ -38,6 +38,28 @@ it.each([
   expect(await mutate(game, 'tabletop_move', payload)).toHaveProperty('error');
   expect(rpc).not.toHaveBeenCalled();
 });
+it('routes a group move with the preparation flag and distinguishes server rejection', async () => {
+  const moves = [
+    { id: game, revision: 3, x: 30, y: 55 },
+    { id: scene, revision: 1, x: 65, y: 70 },
+  ];
+  const payload = { scene_id: scene, preparing: true, operation_id: operation, moves };
+  rpc.mockResolvedValueOnce({ error: { code: 'P0001', message: 'Token changed.' } });
+  expect(await mutate(game, 'tabletop_move_group', payload)).toEqual({
+    error: 'Token changed.',
+    rejected: true,
+  });
+  expect(rpc).toHaveBeenCalledWith('tabletop_command', {
+    p_game: game,
+    p_command: 'tabletop_move_group',
+    p: payload,
+  });
+  rpc.mockClear();
+  expect(
+    await mutate(game, 'tabletop_move_group', { ...payload, moves: [moves[0], moves[0]] }),
+  ).toHaveProperty('rejected', true);
+  expect(rpc).not.toHaveBeenCalled();
+});
 it('routes shared grid settings to their authorized revision-checked boundary', async () => {
   const p = {
     scene_id: scene,
