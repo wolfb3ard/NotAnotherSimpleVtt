@@ -170,7 +170,7 @@ export function changeInventory(
       );
       if (slot < 0)
         throw new Error(
-          'No free attack slot. Unequip a weapon first or configure a slot in the builder.',
+          'No free attack slot. Unequip a ready weapon first. Manually configured slots can be changed in the builder.',
         );
       state.equipment.weaponIds[slot] = item.id;
       state.equipment.twoHanded[slot] = false;

@@ -5,10 +5,12 @@ export function ActionForm({
   action,
   children,
   label,
+  disabled,
 }: {
   action: (form: FormData) => Promise<{ error?: string; success?: string }>;
   children: React.ReactNode;
   label: string;
+  disabled?: boolean;
 }) {
   const [status, setStatus] = useState('');
   const [pending, setPending] = useState(false);
@@ -17,6 +19,7 @@ export function ActionForm({
       className="stack"
       onSubmit={async (event) => {
         event.preventDefault();
+        if (pending || disabled) return;
         setPending(true);
         setStatus('');
         try {
@@ -30,7 +33,7 @@ export function ActionForm({
       }}
     >
       {children}
-      <button className="primary" disabled={pending}>
+      <button className="primary" disabled={pending || disabled}>
         {pending ? 'Working…' : label}
       </button>
       {status && (

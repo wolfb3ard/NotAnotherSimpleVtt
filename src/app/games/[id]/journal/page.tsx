@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 import { ActionForm } from '@/components/action-form';
+import { JournalSharing } from '@/components/journal-sharing';
 import { supabaseServer } from '@/lib/supabase/server';
 import { writeJournal } from './actions';
 
@@ -140,11 +141,12 @@ export default async function Journal({
             {section.map((e) => (
               <article className="panel stack" key={e.id}>
                 <small>
-                  {e.kind} · {e.created_at.slice(0, 10)} ·{' '}
+                  {e.kind} · {e.created_at.slice(0, 10)} · Visible to:{' '}
                   {e.party
-                    ? 'Entire party'
+                    ? 'Party'
                     : e.recipient_id
-                      ? `Shared with ${members?.data?.find((m) => m.user_id === e.recipient_id)?.display_name ?? 'you'}`
+                      ? (members?.data?.find((m) => m.user_id === e.recipient_id)?.display_name ??
+                        (gm ? 'Former player' : 'You and the GM'))
                       : 'GM only'}
                 </small>
                 <h3>
@@ -173,24 +175,13 @@ export default async function Journal({
                   </details>
                 )}
                 {gm && e.kind !== 'note' && (
-                  <ActionForm action={action} label="Apply audience">
-                    <input type="hidden" name="entry" value={e.id} />
-                    <label>
-                      Publish or revoke
-                      <select
-                        name="audience"
-                        defaultValue={e.party ? 'party' : (e.recipient_id ?? 'private')}
-                      >
-                        <option value="private">GM only — revoke access</option>
-                        <option value="party">Publish to entire party</option>
-                        {members?.data?.map((m) => (
-                          <option key={m.user_id} value={m.user_id}>
-                            Publish to {m.display_name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </ActionForm>
+                  <JournalSharing
+                    key={e.party ? 'party' : (e.recipient_id ?? 'private')}
+                    entry={e.id}
+                    current={e.party ? 'party' : (e.recipient_id ?? 'private')}
+                    members={members?.data ?? []}
+                    action={action}
+                  />
                 )}
               </article>
             ))}

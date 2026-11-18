@@ -452,32 +452,37 @@ export function SrdEquipmentControls({
   );
 }
 
-export function SrdEquipmentSummary({ sheet }: { sheet: Sheet }) {
+export function SrdEquipmentSummary({ sheet, onManage }: { sheet: Sheet; onManage: () => void }) {
   const state = sheet.character?.builder;
   if (!state) return null;
   const loadout = deriveEquipment(state, sheet.character?.items ?? [], builderScores(state));
   return (
-    <details className="sheet-help">
-      <summary>
-        Equipped: {loadout.armor?.name ?? 'no armor'} · {loadout.shield?.name ?? 'no Shield'} ·{' '}
-        {loadout.ac === undefined
-          ? 'manual AC / Speed'
-          : `equipment base AC ${loadout.ac}, Speed ${loadout.speed}`}
-      </summary>
-      <p>
-        Use the builder’s loadout controls to equip/unequip or replace ready attacks. Existing sheet
-        AC/Speed can include preserved manual adjustments.
-      </p>
-      {loadout.warnings.map((warning) => (
-        <p className="notice" key={warning}>
-          {warning}
+    <div className="wrap">
+      <details className="sheet-help">
+        <summary>
+          Equipped: {loadout.armor?.name ?? 'no armor'} · {loadout.shield?.name ?? 'no Shield'} ·{' '}
+          {loadout.ac === undefined
+            ? 'manual AC / Speed'
+            : `equipment base AC ${loadout.ac}, Speed ${loadout.speed}`}
+        </summary>
+        <p>
+          Sheet AC and Speed can include manual adjustments. To replace a ready weapon, unequip it
+          before equipping another.
         </p>
-      ))}
-      {loadout.errors.map((error) => (
-        <p role="alert" key={error}>
-          {error}
-        </p>
-      ))}
-    </details>
+        {loadout.warnings.map((warning) => (
+          <p className="notice" key={warning}>
+            {warning}
+          </p>
+        ))}
+        {loadout.errors.map((error) => (
+          <p role="alert" key={error}>
+            {error}
+          </p>
+        ))}
+      </details>
+      <button type="button" onClick={onManage}>
+        Manage equipped items
+      </button>
+    </div>
   );
 }

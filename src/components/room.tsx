@@ -25,6 +25,7 @@ import { EncounterPanel, EncounterTurnCue } from './encounter-panel';
 import { PracticeTable } from './practice-table';
 import { tableSystem } from '@/lib/table-system';
 import { useRoomAttention } from './use-room-attention';
+import { ActionForm } from './action-form';
 
 const Tabletop = dynamic(() => import('./tabletop'), {
   ssr: false,
@@ -34,12 +35,27 @@ const DiceOverlay = dynamic(() => import('./dice-overlay'), { ssr: false });
 const MonsterLibrary = dynamic(() => import('./monster-library'));
 type Tab = 'party' | 'encounter' | 'dice' | 'scenes' | 'settings' | 'appearance';
 
-export function Room({ initial }: { initial: Snapshot }) {
+type RoomProps = {
+  initial: Snapshot;
+  templateDestinations?: { id: string; name: string }[] | null;
+};
+export function Room({ initial, templateDestinations }: RoomProps) {
   const storageKey = `vtt:layout:v1:${initial.userId}:${initial.game.id}`;
-  return <RoomWorkspace key={storageKey} initial={initial} storageKey={storageKey} />;
+  return (
+    <RoomWorkspace
+      key={storageKey}
+      initial={initial}
+      storageKey={storageKey}
+      templateDestinations={templateDestinations}
+    />
+  );
 }
 
-function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey: string }) {
+function RoomWorkspace({
+  initial,
+  storageKey,
+  templateDestinations,
+}: RoomProps & { storageKey: string }) {
   const [diceZoom, setDiceZoom] = useDiceZoom();
   const [snapshot, setSnapshot] = useState(initial);
   const prepare = useRef<string | undefined>(undefined);
@@ -1272,46 +1288,68 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
                     </button>
                   </>
                 )}
-                <div className="section-divider">SHEET TEMPLATES</div>
-                {snapshot.templates.map((t) => (
-                  <div key={t.id} className="card">
-                    <strong>{t.name}</strong>
-                    {t.creator_id === snapshot.userId && (
-                      <form
-                        className="stack"
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          const form = new FormData(e.currentTarget);
-                          const destination = String(form.get('destination'));
-                          setError('');
-                          try {
-                            const result = await mutate(destination, 'template_copy', { id: t.id });
-                            if (result.error) setError(result.error);
-                            else await refresh();
-                          } catch {
-                            setError('Copy failed. Please retry.');
-                          }
-                        }}
-                      >
-                        <label>
-                          Copy to another game ID
-                          <input name="destination" placeholder="Game ID from its URL" required />
-                        </label>
-                        <button>Copy template</button>
-                      </form>
-                    )}
-                  </div>
-                ))}
-                {snapshot.templates.length === 0 && (
-                  <p className="small muted">Save a sheet as a template from its editor.</p>
-                )}
-                <button
-                  onClick={() =>
-                    setLayout((current) => ({ actor: current.actor, detached: false }))
-                  }
-                >
-                  Reset layout
-                </button>
+                <section className="stack" aria-label="Window layout">
+                  <h3 className="section-divider">Window layout</h3>
+                  <button
+                    onClick={() =>
+                      setLayout((current) => ({ actor: current.actor, detached: false }))
+                    }
+                  >
+                    Reset window positions
+                  </button>
+                </section>
+                <section className="stack" aria-label="Sheet templates">
+                  <h3 className="section-divider">Sheet templates</h3>
+                  {snapshot.templates.map((t) => (
+                    <div key={t.id} className="card">
+                      <strong>{t.name}</strong>
+                      {t.creator_id === snapshot.userId &&
+                        (templateDestinations?.length ? (
+                          <ActionForm
+                            label="Copy template"
+                            action={async (form) => {
+                              const destination = templateDestinations.find(
+                                (game) => game.id === form.get('destination'),
+                              );
+                              if (!destination) return { error: 'Choose a destination game.' };
+                              const result = await mutate(destination.id, 'template_copy', {
+                                id: t.id,
+                              });
+                              return result.error
+                                ? { error: result.error }
+                                : { success: `Copied to ${destination.name}.` };
+                            }}
+                          >
+                            <label>
+                              Destination game
+                              <select name="destination" defaultValue="" required>
+                                <option value="" disabled>
+                                  Choose a game…
+                                </option>
+                                {templateDestinations.map((game) => (
+                                  <option key={game.id} value={game.id}>
+                                    {game.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <p className="small muted">
+                              The copy is available to members of the destination game.
+                            </p>
+                          </ActionForm>
+                        ) : (
+                          <p className="small muted">
+                            {templateDestinations
+                              ? 'Join or create another game to copy this template.'
+                              : 'Could not load destination games.'}
+                          </p>
+                        ))}
+                    </div>
+                  ))}
+                  {snapshot.templates.length === 0 && (
+                    <p className="small muted">Save a sheet as a template from its editor.</p>
+                  )}
+                </section>
                 <p className="small muted">
                   Game ID: <code>{snapshot.game.id}</code>
                 </p>
