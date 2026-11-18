@@ -334,7 +334,7 @@ it('pops out, moves, maximizes and docks one shared dice panel without losing ro
   const snapshot: Snapshot = {
     userId: 'owner',
     role: 'player',
-    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [6, 20] },
+    game: { id: 'game', name: 'Game', gm_id: 'gm', active_scene_id: null, dice: [6, 8, 20] },
     actors: [],
     grants: [],
     tokens: [],
@@ -381,6 +381,18 @@ it('pops out, moves, maximizes and docks one shared dice panel without losing ro
     [...container.querySelectorAll('label')]
       .find((l) => l.firstChild?.textContent?.trim() === label)!
       .querySelector('input')!;
+  const expressionInput = labelInput('Expression');
+  expect(expressionInput.value).toBe('');
+  for (let i = 0; i < 6; i++) await click('Add d6');
+  expect(expressionInput.value).toBe('6d6');
+  await click('Add d8');
+  expect(expressionInput.value).toBe('6d6 + 1d8');
+  await click('Remove d6');
+  expect(expressionInput.value).toBe('5d6 + 1d8');
+  await click('Remove d8');
+  expect(expressionInput.value).toBe('5d6');
+  await click('Clear expression');
+  expect(expressionInput.value).toBe('');
   await act(async () => {
     for (const [label, value] of [
       ['Expression', '2d6'],
@@ -596,6 +608,9 @@ it('clears a deleted roll target and permits another manual roll without reloadi
   await click('Delete character');
   expect(container.querySelector('[role="dialog"]')).toBeNull();
   await click('Dice');
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Add d20"]')!.click(),
+  );
   await click('◇ Roll dice');
   expect(roll).toHaveBeenCalledExactlyOnceWith(
     'game',
