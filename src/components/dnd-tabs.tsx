@@ -203,7 +203,7 @@ export function DndTabs({
           {feature.actionType} · {feature.source === 'Class' ? 'Class feature' : feature.source}
           {feature.maxUses > 0 && ` · ${usesRemaining(feature)}`}
         </p>
-        <DndRulesText description={feature.description} />
+        <DndRulesText description={feature.description} feature />
         {feature.maxUses > 0 && uses(feature)}
       </article>
     );

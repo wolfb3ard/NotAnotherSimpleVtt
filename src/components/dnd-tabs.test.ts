@@ -407,6 +407,42 @@ describe('character tabs', () => {
     expect(panel().querySelector('textarea[aria-label="Second Wind description"]')).not.toBeNull();
   });
 
+  it('shows Wizard Spellcasting without flattened progression rows or truncated rules', async () => {
+    const sheet = applySrdBuilder(createDndSheet(), classBuilder('Wizard'));
+    const saved = sheet.character!.features.find((feature) => feature.name === 'Spellcasting')!;
+    expect(saved.description).toContain('\nWizard Features\n');
+    expect(saved.description).not.toContain('Spellcasting Focus.');
+    const { current } = await fixture(sheet);
+    await click('Features & Traits');
+    const card = [...panel().querySelectorAll('article')].find(
+      (article) => article.querySelector('h4')?.textContent === 'Spellcasting',
+    )!;
+    expect(card.textContent).not.toContain('Signature Spells');
+    expect(card.textContent).toContain('See the Wizard Features progression table in the SRD.');
+    expect([...card.querySelectorAll('strong')].map((label) => label.textContent)).toEqual(
+      expect.arrayContaining(['Cantrips.', 'Prepared Spells of Level 1+.', 'Spellcasting Focus.']),
+    );
+    const sidebar = card.querySelector('details')!;
+    expect(sidebar.open).toBe(false);
+    expect(sidebar.querySelector('summary')?.textContent).toBe(
+      'Expanding and Replacing a Spellbook',
+    );
+    expect(sidebar.textContent).toContain('50 GP');
+    expect(current()).toBe(sheet);
+  });
+
+  it('removes an embedded progression table without breaking the surrounding sentence', async () => {
+    const sheet = applySrdBuilder(createDndSheet(), classBuilder('Druid'));
+    await fixture(sheet);
+    await click('Features & Traits');
+    const card = [...panel().querySelectorAll('article')].find(
+      (article) => article.querySelector('h4')?.textContent === 'Spellcasting',
+    )!;
+    expect(card.textContent).not.toContain('Archdruid');
+    expect(card.textContent).toContain('details how you use those rules with Druid spells');
+    expect(card.textContent).toContain('See the Druid Features progression table in the SRD.');
+  });
+
   it('limits attunement to three items and permits ending attunement', async () => {
     const initial = createDndSheet();
     initial.character = emptyCharacterDetails();
