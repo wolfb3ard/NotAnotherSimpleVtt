@@ -1689,25 +1689,52 @@ summary {
   border-bottom: 1px solid #b7aa90;
   padding: 12px 0;
 }
+.dnd-action-group,
+.dnd-rules-card,
 .dnd-description {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.dnd-spell-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   min-width: 0;
 }
-.dnd-spell-card > :is(h4, p) {
+.dnd-description,
+.dnd-rules-card {
+  overflow-wrap: anywhere;
+}
+.dnd-description p {
+  white-space: pre-wrap;
+}
+.dnd-action-group > :is(h3, p),
+.dnd-rules-card > :is(h4, p),
+.dnd-description p {
   margin: 0;
 }
-.dnd-spell-buttons {
+.dnd-rules-meta {
+  font-weight: 600;
+}
+.dnd-rules-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0;
+}
+.dnd-rules-facts dt,
+.dnd-rules-facts dd {
+  display: inline;
+  margin: 0;
+}
+.dnd-rules-facts dt {
+  font-weight: 700;
+  margin-inline-end: 0.4em;
+}
+.dnd-rules-buttons {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: 8px;
 }
-.dnd-spell-buttons > button {
+.dnd-rules-buttons > button {
   min-height: 36px;
   max-width: 100%;
 }
