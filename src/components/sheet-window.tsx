@@ -63,18 +63,39 @@ export function SheetWindow({
         </p>
       )}
       {audience}
-      <SheetEditor
-        actor={actor}
-        snapshot={snapshot}
-        run={run}
-        onDirtyChange={(dirty) => {
-          dirtyRef.current = dirty;
-          onDirtyChange?.(dirty);
-        }}
-        onRoll={onRoll}
-        initialBuilderOpen={initialBuilderOpen}
-        externalBusy={externalBusy}
-      />
+      {actor.sheetUpgradeIssue ? (
+        <div className="notice stack" role="alert">
+          <p>This saved sheet needs review before editing. The original has not been changed.</p>
+          <p>{actor.sheetUpgradeIssue}</p>
+          <button
+            onClick={() => {
+              const url = URL.createObjectURL(
+                new Blob([JSON.stringify(actor.sheet, null, 2)], { type: 'application/json' }),
+              );
+              const download = document.createElement('a');
+              download.href = url;
+              download.download = `sheet-${actor.id}.json`;
+              download.click();
+              window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }}
+          >
+            Download original sheet
+          </button>
+        </div>
+      ) : (
+        <SheetEditor
+          actor={actor}
+          snapshot={snapshot}
+          run={run}
+          onDirtyChange={(dirty) => {
+            dirtyRef.current = dirty;
+            onDirtyChange?.(dirty);
+          }}
+          onRoll={onRoll}
+          initialBuilderOpen={initialBuilderOpen}
+          externalBusy={externalBusy}
+        />
+      )}
     </FloatingWindow>
   );
 }

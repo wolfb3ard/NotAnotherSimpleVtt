@@ -30,6 +30,7 @@ const field = z
 export const sheetSchema = z
   .object({
     version: z.literal(1),
+    compatibilityVersion: z.literal(1).optional(),
     character: characterDetailsSchema.optional(),
     sections: z
       .array(

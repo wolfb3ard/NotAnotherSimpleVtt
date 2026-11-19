@@ -1,4 +1,5 @@
 import type { Sheet } from './types';
+import { loadCompatibleSheet } from './sheet-compatibility';
 import { previewResources, type ResourceChange } from './resources';
 
 type Operation = {
@@ -81,7 +82,7 @@ export class ResourceWriter {
         };
         const result = await this.send(this.attempt);
         if (!result?.sheet || !result.revision) throw new Error('Update not confirmed.');
-        this.confirmed = JSON.parse(result.sheet) as Sheet;
+        this.confirmed = loadCompatibleSheet(JSON.parse(result.sheet) as Sheet).sheet;
         this.revision = Number(result.revision);
         this.queue.shift();
         this.attempt = undefined;

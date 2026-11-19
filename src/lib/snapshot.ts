@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseServer } from './supabase/server';
 import type { Snapshot } from './types';
+import { loadCompatibleSheet } from './sheet-compatibility';
 
 export async function getSnapshot(gameId: string, prepare?: string): Promise<Snapshot> {
   const db = await supabaseServer();
@@ -108,10 +109,13 @@ export async function getSnapshot(gameId: string, prepare?: string): Promise<Sna
     role: game.gm_id === user.id ? 'gm' : 'player',
     userId: user.id,
     members,
-    actors,
+    actors: actors.map((actor) => ({ ...actor, ...loadCompatibleSheet(actor.sheet) })),
     scenes,
     tokens,
-    templates,
+    templates: templates.map((template) => ({
+      ...template,
+      sheet: loadCompatibleSheet(template.sheet).sheet,
+    })),
     rolls,
     diceStyles: styles.data ?? [],
     rollCues,

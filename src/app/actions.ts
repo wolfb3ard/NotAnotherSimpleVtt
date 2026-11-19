@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { commandSchemas, type Command } from '@/lib/commands';
 import { rollDice } from '@/lib/dice';
 import { sheetSchema } from '@/lib/sheets';
+import { compatibleSheetSchema } from '@/lib/sheet-compatibility';
 import { tableSystem } from '@/lib/table-system';
 import { diceStyleSchema } from '@/lib/dice-style';
 import { invitationUrl } from '@/lib/invitations';
@@ -433,7 +434,7 @@ export async function roll(gameId: string, payload: unknown) {
         .single();
       // Sheet access and character control are separate; record_roll checks control again.
       if (!actor) throw new Error('Character sheet access denied.');
-      fields = tableSystem(game).numbers(sheetSchema.parse(actor.sheet));
+      fields = tableSystem(game).numbers(compatibleSheetSchema.parse(actor.sheet));
       if (input.sheet_initiative) {
         const saved = initiativeInput(actor.sheet);
         const allowed = [

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sheetSchema } from './sheets';
+import { compatibleSheetSchema } from './sheet-compatibility';
 import { tokenRings } from './token-appearance';
 import { encounterCommandSchema } from './encounter-commands';
 import { combatCommandSchema } from './combat';
@@ -104,9 +104,9 @@ export const commandSchemas = {
     name,
     kind: z.enum(['character', 'npc', 'enemy']),
     owner_id: id,
-    sheet: sheetSchema,
+    sheet: compatibleSheetSchema,
   }),
-  actor_save: z.object({ id, name, sheet: sheetSchema, revision }),
+  actor_save: z.object({ id, name, sheet: compatibleSheetSchema, revision }),
   actor_resources: z.object({
     id,
     revision,
