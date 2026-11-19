@@ -101,6 +101,12 @@ export function SheetEditor({
   const dnd = isDndSheet(sheet);
   const monster = !!monsterId(sheet);
   const computed = dndNumbers(sheet);
+  const progressionFields = new Set(
+    sheet.character?.builder
+      ? ['level', 'hit-dice', ...Array.from({ length: 6 }, (_, i) => `score:${i}`)].map(dndId)
+      : [],
+  );
+  const isCustom = (id: string) => !dnd || !id.startsWith('5e202024-');
   const builtInRolls = new Set(
     dnd ? createDndSheet().sections.flatMap((s) => s.abilities.map((a) => a.id)) : [],
   );
@@ -222,6 +228,9 @@ export function SheetEditor({
               <>
                 <div className="row sheet-mode">
                   <strong>5.5e · Character sheet</strong>
+                  <button aria-pressed={customize} onClick={() => setCustomize(!customize)}>
+                    Customize sheet
+                  </button>
                 </div>
                 <SrdBuilder
                   commit={
@@ -265,6 +274,7 @@ export function SheetEditor({
           <label>
             Name
             <input
+              aria-label="Name"
               value={name}
               disabled={!editable}
               maxLength={100}
@@ -277,6 +287,9 @@ export function SheetEditor({
         )}
         {monster && customize && (
           <button onClick={() => setCustomize(false)}>Done editing monster</button>
+        )}
+        {dnd && customize && (
+          <button onClick={() => setCustomize(false)}>Back to character sheet</button>
         )}
         {monster && !customize ? (
           <MonsterSheet
@@ -336,7 +349,7 @@ export function SheetEditor({
             quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
             onRoll={(expression, label) => onRoll(actor.id, expression, label)}
           />
-        ) : dnd ? (
+        ) : dnd && !customize ? (
           <DndSheet
             onUseItem={(id) => void inventoryChange({ type: 'use', id })}
             onEquip={(id) => void inventoryChange({ type: 'toggle', id })}
@@ -391,18 +404,20 @@ export function SheetEditor({
                       >
                         ↑
                       </button>
-                      {!dnd && (
-                        <button
-                          aria-label={`Delete ${section.title} section`}
-                          onClick={() =>
-                            update((s) => {
-                              s.sections.splice(si, 1);
-                            })
-                          }
-                        >
-                          ×
-                        </button>
-                      )}
+                      {isCustom(section.id) &&
+                        section.fields.every((f) => isCustom(f.id)) &&
+                        section.abilities.every((a) => isCustom(a.id)) && (
+                          <button
+                            aria-label={`Delete ${section.title} section`}
+                            onClick={() =>
+                              update((s) => {
+                                s.sections.splice(si, 1);
+                              })
+                            }
+                          >
+                            ×
+                          </button>
+                        )}
                     </>
                   )}
                 </div>
@@ -424,7 +439,7 @@ export function SheetEditor({
                           })
                         }
                       />
-                      {editable && !dnd && (
+                      {editable && isCustom(field.id) && (
                         <button
                           aria-label={`Delete ${field.label}`}
                           onClick={() =>
@@ -473,7 +488,11 @@ export function SheetEditor({
                           aria-label={field.label}
                           type="number"
                           value={computed[field.id] ?? field.value}
-                          disabled={!editable || Object.hasOwn(computed, field.id)}
+                          disabled={
+                            !editable ||
+                            Object.hasOwn(computed, field.id) ||
+                            progressionFields.has(field.id)
+                          }
                           onChange={(e) =>
                             update((s) => {
                               s.sections[si].fields[fi].value = Number(e.target.value);
@@ -488,7 +507,7 @@ export function SheetEditor({
                               type="number"
                               min={0}
                               value={field.max ?? 0}
-                              disabled={!editable}
+                              disabled={!editable || progressionFields.has(field.id)}
                               onChange={(e) =>
                                 update((s) => {
                                   s.sections[si].fields[fi].max = Number(e.target.value);
@@ -716,7 +735,7 @@ export function SheetEditor({
                     ? 'Unsaved changes'
                     : 'All changes saved'}
             </span>
-            {!dnd && !monster && (
+            {!monster && (!dnd || customize) && (
               <button
                 onClick={() =>
                   update((s) => {

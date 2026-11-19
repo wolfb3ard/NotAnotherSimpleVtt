@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SheetWindow } from './sheet-window';
 import { ActorCard } from './actor-card';
 import { createDndSheet, dndId } from '@/lib/dnd';
+import { sheetSchema } from '@/lib/sheets';
 import type { Actor, Snapshot } from '@/lib/types';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -47,7 +48,7 @@ function fixture(gm = false) {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  const run = vi.fn(async () => ({}));
+  const run = vi.fn<Parameters<typeof SheetWindow>[0]['run']>(async () => ({}));
   const onRoll = vi.fn();
   const onClose = vi.fn();
   const render = async (initialBuilderOpen = false) => {
@@ -77,11 +78,25 @@ async function typeName(value: string) {
     (b) => b.textContent === 'Edit character',
   );
   if (edit) await click(edit);
-  const element = container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!;
+  await typeField('Name', value);
+}
+async function typeField(label: string, value: string) {
+  const element = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+    `input[aria-label="${label}"], textarea[aria-label="${label}"]`,
+  )!;
+  const prototype =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value);
+    Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(element, value);
     element.dispatchEvent(new Event('input', { bubbles: true }));
   });
+}
+function textButton(label: string) {
+  return [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === label,
+  )!;
 }
 afterEach(async () => {
   if (root) await act(async () => root.unmount());
@@ -90,6 +105,65 @@ afterEach(async () => {
 });
 
 describe('character sheet window', () => {
+  it('saves edits to a legacy character, including custom fields and abilities', async () => {
+    const { actor, render, run } = fixture();
+    actor.revision = 7;
+    const section = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      title: 'Campaign notes',
+      fields: [
+        {
+          id: '550e8400-e29b-41d4-a716-446655440001',
+          label: 'Faction',
+          kind: 'text' as const,
+          value: 'Scouts',
+        },
+      ],
+      abilities: [
+        {
+          id: '550e8400-e29b-41d4-a716-446655440002',
+          name: 'Scout signal',
+          description: 'Signal the scouts',
+          expression: '1d20',
+        },
+      ],
+    };
+    actor.sheet.sections.push(section);
+    await render();
+    await typeName('Aria the scout');
+    await typeField('Class / subclass', 'Ranger');
+    await click(textButton('Biography'));
+    await typeField('Family & history', 'Grew up among scouts.');
+
+    await click(container.querySelector('.sheet-tools > summary')!);
+    await click(textButton('Customize sheet'));
+    await typeField('Faction', 'Rangers');
+    await typeField('Scout signal expression', '1d20 + 2');
+    await click(textButton('Save sheet'));
+
+    const expected = structuredClone(actor.sheet);
+    expected.sections[0].fields.find((f) => f.id === dndId('class'))!.value = 'Ranger';
+    const custom = expected.sections.at(-1)!;
+    custom.fields[0].value = 'Rangers';
+    custom.abilities[0].expression = '1d20 + 2';
+    expected.character = {
+      spells: [],
+      items: [],
+      features: [],
+      biography: { physical: '', personality: '', history: 'Grew up among scouts.' },
+    };
+    expect(run).toHaveBeenCalledExactlyOnceWith('actor_save', {
+      id: actor.id,
+      revision: 7,
+      name: 'Aria the scout',
+      sheet: expected,
+    });
+    expect(sheetSchema.safeParse(expected).success).toBe(true);
+    expect(container.querySelector('.sheet-save-status')!.textContent).toBe('All changes saved');
+    expect(section.fields[0].value).toBe('Scouts');
+    await click(textButton('Back to character sheet'));
+    expect(container.querySelector('.dnd-identity h2')!.textContent).toBe('Aria the scout');
+  });
   it('keeps the creation builder accessible when a new sheet opens', async () => {
     const previous = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
@@ -301,6 +375,12 @@ describe('character sheet window', () => {
     await click(button('Roll Strength check'));
     expect(onRoll).not.toHaveBeenCalled();
     expect(container.querySelector('[aria-label="Sheet owner"]')).toBeNull();
+    await click(container.querySelector('.sheet-tools > summary')!);
+    await click(textButton('Customize sheet'));
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Name"]')!.disabled).toBe(
+      true,
+    );
+    expect(textButton('Save sheet')).toBeUndefined();
   });
   it('confirms deletion and submits the saved revision only for the owner', async () => {
     const { render, run } = fixture();

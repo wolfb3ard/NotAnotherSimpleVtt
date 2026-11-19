@@ -587,9 +587,14 @@ export function DndSheet({
         </section>
       </DndTabs>
       {sheet.sections.some(
-        (s) => s.abilities.some((a) => !a.id.startsWith('5e202024-')) || !knownSections.has(s.id),
+        (s) =>
+          !knownSections.has(s.id) ||
+          [...s.fields, ...s.abilities].some((entry) => !entry.id.startsWith('5e202024-')),
       ) && (
-        <p className="notice">Custom fields and abilities are available in “Customize sheet”.</p>
+        <p className="notice">
+          For custom fields and abilities, open “Customize sheet” under Character settings &amp;
+          tools.
+        </p>
       )}
     </div>
   );
