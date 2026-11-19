@@ -279,7 +279,14 @@ export function SrdEquipmentControls({
           <input
             type="checkbox"
             checked={gear.expandLegacyBundles}
-            onChange={(e) => patch({ expandLegacyBundles: e.target.checked })}
+            onChange={(e) =>
+              patch({
+                expandLegacyBundles: e.target.checked,
+                grantStarting: e.target.checked
+                  ? true
+                  : (sheet.character?.builder?.equipment?.grantStarting ?? true),
+              })
+            }
           />
           One-time legacy bundle expansion: grant the original full items/currency and set the old
           bundle records’ quantities to zero. Use ONLY if those bundles are untouched; existing

@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { createDndSheet, dndId } from './dnd';
 import { ResourceWriter } from './resource-writer';
 import { previewResources } from './resources';
+import { loadCompatibleSheet } from './sheet-compatibility';
 
 const hp = (value: number) => [{ id: dndId('hp'), value }];
 const response = (value: number, revision: number) => ({
@@ -30,7 +31,11 @@ it('serializes rapid edits with successive revisions and reconciles reconnect sn
   resolve(response(8, 1));
   await vi.waitFor(() => expect(writer.state.status).toBe('Saved'));
   expect(send.mock.calls.map(([p]) => p.revision)).toEqual([0, 1]);
-  expect(committed).toHaveBeenLastCalledWith(JSON.parse(response(4, 2).sheet), 2);
+  expect(committed).toHaveBeenLastCalledWith(
+    expect.objectContaining({ compatibilityVersion: 1 }),
+    2,
+  );
+  expect(writer.state.sheet).toEqual(loadCompatibleSheet(JSON.parse(response(4, 2).sheet)).sheet);
   writer.sync(JSON.parse(response(6, 3).sheet), 3);
   expect(writer.state.sheet).toEqual(JSON.parse(response(6, 3).sheet));
   writer.sync(createDndSheet(), 1);
@@ -75,5 +80,5 @@ it('does not roll confirmed values backward when reloading an older snapshot', a
   writer.enqueue(hp(4));
   await vi.waitFor(() => expect(writer.state.status).toBe('Failed'));
   writer.discard(createDndSheet(), 0);
-  expect(writer.state.sheet).toEqual(JSON.parse(response(8, 1).sheet));
+  expect(writer.state.sheet).toEqual(loadCompatibleSheet(JSON.parse(response(8, 1).sheet)).sheet);
 });

@@ -10,6 +10,10 @@ import { emptyCharacterDetails } from './character-details';
 import { applySrdBuilder } from './srd-engine';
 import { classBuilder, fighterBuilder, multiclassBuilder } from './srd-test-fixtures';
 import { srdClasses } from './srd-rules';
+import { commandSchemas } from './commands';
+import { initiativeInput } from './initiative';
+import { legacySheet } from './legacy-sheet-fixtures';
+import { loadCompatibleSheet } from './sheet-compatibility';
 
 const gm = randomUUID(),
   player = randomUUID(),
@@ -513,6 +517,90 @@ describe.sequential('database authorization and transactions', () => {
       ]),
     ).rejects.toThrow(/permission denied/);
   });
+  it.each(['manual', 'bard'] as const)(
+    'saves a legacy %s in place without changing board links, permissions, or roll history',
+    async (kind) => {
+      const original = legacySheet(kind);
+      await as(gm);
+      const id = (
+        await command('actor_create', {
+          name: 'Legacy hero',
+          kind: 'character',
+          owner_id: player,
+          sheet: original,
+        })
+      ).id;
+      await command('token_create', { actor_id: id, scene_id: scene, asset_id: null });
+      await command('template_create', { actor_id: id, name: `Legacy ${kind}` });
+      await command('grant', { actor_id: id, user_id: gm, access: 'edit' });
+      const placements = () =>
+        db.query('select id,actor_id,scene_id,controller_id from tokens where actor_id=$1', [id]);
+      const grants = () => db.query('select * from sheet_grants where actor_id=$1', [id]);
+      const rolls = () => db.query('select * from rolls where actor_id=$1', [id]);
+      const read = async () =>
+        (
+          await db.query<{ owner_id: string; name: string; sheet: Sheet; revision: number }>(
+            'select owner_id,name,sheet,revision from actors where id=$1',
+            [id],
+          )
+        ).rows[0];
+      const rollResult = {
+        total: 1,
+        dice: [{ sides: 6, values: [1], kept: [true], total: 1 }],
+        resolvedExpression: '1d6',
+        modifiers: {},
+      };
+      await db.exec('reset role; set role service_role');
+      await db.query("select record_roll($1,$2,$3,$4,'1d6','public',$5,'Old check')", [
+        player,
+        game,
+        randomUUID(),
+        id,
+        JSON.stringify(rollResult),
+      ]);
+      await as(gm);
+      const linksBefore = (await placements()).rows;
+      const grantsBefore = (await grants()).rows;
+      const rollsBefore = (await rolls()).rows;
+      expect([linksBefore.length, grantsBefore.length, rollsBefore.length]).toEqual([1, 1, 1]);
+      const template = (
+        await db.query<{ sheet: Sheet }>('select sheet from templates where name=$1', [
+          `Legacy ${kind}`,
+        ])
+      ).rows[0].sheet;
+      expect(template).toEqual(original);
+      expect(loadCompatibleSheet(template).sheet.compatibilityVersion).toBe(1);
+
+      await as(player);
+      const stored = await read();
+      const view = loadCompatibleSheet(stored.sheet);
+      expect(view.sheetUpgradeIssue).toBeUndefined();
+      expect(initiativeInput(stored.sheet).expression).toBe(`1d20 + @{${dndId('initiative')}}`);
+      expect(await read()).toEqual(stored);
+      view.sheet.character!.biography.history = 'Continued the campaign.';
+      const payload = commandSchemas.actor_save.parse({
+        id,
+        name: 'Veteran hero',
+        sheet: view.sheet,
+        revision: stored.revision,
+      });
+      await command('actor_save', payload);
+      await expect(command('actor_save', payload)).rejects.toThrow(/changed/);
+      expect(await read()).toEqual({
+        owner_id: player,
+        name: payload.name,
+        sheet: payload.sheet,
+        revision: stored.revision + 1,
+      });
+      expect(numericFields(payload.sheet)[dndId('hp')]).toBe(2);
+      if (kind === 'bard') expect(numericFields(payload.sheet)[dndId('slot:0')]).toBe(0);
+
+      await as(gm);
+      expect((await placements()).rows).toEqual(linksBefore);
+      expect((await grants()).rows).toEqual(grantsBefore);
+      expect((await rolls()).rows).toEqual(rollsBefore);
+    },
+  );
   it('persists and templates SRD sheets under existing database validation and permissions', async () => {
     await as(player);
     const original = createDndSheet();

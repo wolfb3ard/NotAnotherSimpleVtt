@@ -105,6 +105,17 @@ afterEach(async () => {
 });
 
 describe('character sheet window', () => {
+  it('offers a recovery download instead of saving a sheet that failed its upgrade', async () => {
+    const { actor, render, run } = fixture();
+    actor.sheetUpgradeIssue = 'Level must be 1–20.';
+    await render();
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain(
+      actor.sheetUpgradeIssue,
+    );
+    expect(textButton('Download original sheet')).toBeDefined();
+    expect(textButton('Save sheet')).toBeUndefined();
+    expect(run).not.toHaveBeenCalled();
+  });
   it('saves edits to a legacy character, including custom fields and abilities', async () => {
     const { actor, render, run } = fixture();
     actor.revision = 7;

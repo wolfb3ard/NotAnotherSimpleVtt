@@ -1,5 +1,6 @@
 import { dndId, isDndSheet } from './dnd';
-import { numericFields, sheetSchema } from './sheets';
+import { numericFields } from './sheets';
+import { compatibleSheetSchema } from './sheet-compatibility';
 import type { Sheet } from './types';
 
 /** Saved rules only. Missing generic/summoned initiative requires a manual total. */
@@ -16,7 +17,7 @@ export function initiativeExpression(sheet: Sheet): string | undefined {
   return field ? `1d20 + @{${field.id}}` : undefined;
 }
 export function initiativeInput(sheet: Sheet) {
-  const validated = sheetSchema.parse(sheet);
+  const validated = compatibleSheetSchema.parse(sheet);
   const expression = initiativeExpression(validated);
   if (!expression)
     throw new Error(

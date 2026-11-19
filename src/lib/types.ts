@@ -10,6 +10,7 @@ export type Ability = { id: string; name: string; description: string; expressio
 export type Section = { id: string; title: string; fields: Field[]; abilities: Ability[] };
 export type Sheet = {
   version: 1;
+  compatibilityVersion?: 1;
   sections: Section[];
   character?: import('./character-details').CharacterDetails;
 };
@@ -20,6 +21,7 @@ export type Actor = {
   kind: 'character' | 'npc' | 'enemy';
   owner_id: string;
   sheet: Sheet;
+  sheetUpgradeIssue?: string;
   revision: number;
   token_asset_id?: string | null;
   token_ring?: import('./token-appearance').TokenRing;
