@@ -3,7 +3,7 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { createDndSheet, dndId } from './dnd';
+import { createDndSheet, dndId, setAbilityScoreOverride } from './dnd';
 import { numericFields, sheetSchema } from './sheets';
 import type { Sheet } from './types';
 import { emptyCharacterDetails } from './character-details';
@@ -578,6 +578,7 @@ describe.sequential('database authorization and transactions', () => {
       expect(initiativeInput(stored.sheet).expression).toBe(`1d20 + @{${dndId('initiative')}}`);
       expect(await read()).toEqual(stored);
       view.sheet.character!.biography.history = 'Continued the campaign.';
+      if (kind === 'bard') setAbilityScoreOverride(view.sheet, 1, 22);
       const payload = commandSchemas.actor_save.parse({
         id,
         name: 'Veteran hero',
@@ -593,7 +594,12 @@ describe.sequential('database authorization and transactions', () => {
         revision: stored.revision + 1,
       });
       expect(numericFields(payload.sheet)[dndId('hp')]).toBe(2);
-      if (kind === 'bard') expect(numericFields(payload.sheet)[dndId('slot:0')]).toBe(0);
+      if (kind === 'bard') {
+        const updated = (await read()).sheet;
+        expect(updated.character?.builder?.levels).toEqual(original.character?.builder?.levels);
+        expect(numericFields(updated)[dndId('slot:0')]).toBe(0);
+        expect(initiativeInput(updated).fields[dndId('mod:1')]).toBe(6);
+      }
 
       await as(gm);
       expect((await placements()).rows).toEqual(linksBefore);

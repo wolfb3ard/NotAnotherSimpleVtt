@@ -195,15 +195,25 @@ export function DndTabs({
   function usesRemaining(feature: CharacterDetails['features'][number]) {
     return `${feature.uses} / ${feature.maxUses} uses remaining`;
   }
-  function featureCard(feature: CharacterDetails['features'][number]) {
+  function featureCard(feature: CharacterDetails['features'][number], compact = false) {
     return (
-      <article className="dnd-box dnd-rules-card" key={feature.id}>
+      <article
+        className={`dnd-box dnd-rules-card${compact ? ' dnd-action-row' : ''}`}
+        key={feature.id}
+      >
         <h4>{feature.name}</h4>
         <p className="small muted dnd-rules-meta">
           {feature.actionType} · {feature.source === 'Class' ? 'Class feature' : feature.source}
           {feature.maxUses > 0 && ` · ${usesRemaining(feature)}`}
         </p>
-        <DndRulesText description={feature.description} feature />
+        {compact ? (
+          <details>
+            <summary>Rules</summary>
+            <DndRulesText description={feature.description} feature />
+          </details>
+        ) : (
+          <DndRulesText description={feature.description} feature />
+        )}
         {feature.maxUses > 0 && uses(feature)}
       </article>
     );
@@ -213,7 +223,7 @@ export function DndTabs({
   );
   const options = (spell: CharacterDetails['spells'][number]) =>
     spell.level ? castChoices(sheet, spell).filter((c) => c.key !== 'manual') : [];
-  function spellCard(spell: CharacterDetails['spells'][number]) {
+  function spellCard(spell: CharacterDetails['spells'][number], compact = false) {
     const choices = options(spell);
     const canCast = spell.level === 0 || spell.prepared;
     const sources = canCast
@@ -224,25 +234,44 @@ export function DndTabs({
     const hasAttack = /spell attack/i.test(spell.description);
     const rules = spellRules(spell.description);
     return (
-      <article className="dnd-box dnd-rules-card" key={spell.id}>
+      <article
+        className={`dnd-box dnd-rules-card${compact ? ' dnd-action-row' : ''}`}
+        key={spell.id}
+      >
         <h4>
           {spell.name} · {spell.level ? `Level ${spell.level}` : 'Cantrip'}
         </h4>
         <p className="small muted dnd-rules-meta">
           {rules.school ?? spell.actionType}
           {!canCast && ' · Not prepared'}
+          {compact &&
+            rules.facts?.filter((fact) => fact.label === 'Range').map(({ value }) => ` · ${value}`)}
         </p>
-        {rules.facts && (
-          <dl className="dnd-rules-facts">
-            {rules.facts.map(({ label, value }) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
+        {compact ? (
+          <details>
+            <summary>Spell rules</summary>
+            {rules.facts?.map(({ label, value }) => (
+              <p className="small" key={label}>
+                {label}: {value}
+              </p>
             ))}
-          </dl>
+            <DndRulesText description={rules.description} />
+          </details>
+        ) : (
+          <>
+            {rules.facts && (
+              <dl className="dnd-rules-facts">
+                {rules.facts.map(({ label, value }) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <DndRulesText description={rules.description} />
+          </>
         )}
-        <DndRulesText description={rules.description} />
         {sources.length > 0 && (
           <p className="small">
             {sources
@@ -321,6 +350,15 @@ export function DndTabs({
   const customAbilities = sheet.sections
     .flatMap((s) => s.abilities)
     .filter((a) => !a.id.startsWith('5e202024-'));
+  function editCustomAbility(
+    id: string,
+    patch: Partial<Pick<(typeof customAbilities)[number], 'name' | 'description' | 'expression'>>,
+  ) {
+    update((copy) => {
+      const ability = copy.sections.flatMap((s) => s.abilities).find((a) => a.id === id);
+      if (ability) Object.assign(ability, patch);
+    });
+  }
 
   return (
     <div className="dnd-tabbed">
@@ -381,21 +419,45 @@ export function DndTabs({
                     (s.level === 0 || s.prepared || (tab === label && options(s).length > 0)),
                 );
                 const features = details.features.filter((f) => f.actionType === type);
+                if (!availableSpells.length && !features.length) return null;
+                const compact = type !== 'Passive' && type !== 'Other';
                 return (
                   <section className="dnd-box dnd-action-group" key={type}>
                     <h3>{type}</h3>
-                    {availableSpells.length + features.length === 0 && (
-                      <p className="muted">No entries. Add spells or features in their tabs.</p>
-                    )}
-                    {tab === label && availableSpells.map(spellCard)}
-                    {tab === label && features.map(featureCard)}
+                    {tab === label && availableSpells.map((spell) => spellCard(spell, compact))}
+                    {tab === label && features.map((feature) => featureCard(feature, compact))}
                   </section>
                 );
               })}
               {customAbilities.map((ability) => (
                 <article className="dnd-box dnd-rules-card" key={ability.id}>
                   <h4>{ability.name}</h4>
-                  <DndRulesText description={ability.description} />
+                  {!playing && editable ? (
+                    <>
+                      {text('Custom ability name', ability.name, (name) =>
+                        editCustomAbility(ability.id, { name }),
+                      )}
+                      {text(
+                        `${ability.name} description`,
+                        ability.description,
+                        (description) => editCustomAbility(ability.id, { description }),
+                        true,
+                      )}
+                      <label>
+                        Roll expression
+                        <input
+                          aria-label={`${ability.name} expression`}
+                          maxLength={500}
+                          value={ability.expression}
+                          onChange={(e) =>
+                            editCustomAbility(ability.id, { expression: e.target.value })
+                          }
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <DndRulesText description={ability.description} />
+                  )}
                   {ability.expression && (
                     <div className="dnd-rules-buttons">
                       <button
@@ -418,7 +480,7 @@ export function DndTabs({
                 of their level or higher.
               </p>
               {!spells.length && <p>No spells on this sheet.</p>}
-              {spells.map(spellCard)}
+              {spells.map((spell) => spellCard(spell))}
             </section>
           )}
           {label === 'Spell' && (
@@ -719,7 +781,7 @@ export function DndTabs({
                 </button>
               )}
               {details.features.length === 0 && <p className="muted">No features or traits.</p>}
-              {playing && tab === label && details.features.map(featureCard)}
+              {playing && tab === label && details.features.map((feature) => featureCard(feature))}
               {!playing &&
                 details.features.map((feature) => (
                   <article className="dnd-box" key={feature.id}>

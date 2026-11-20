@@ -8,11 +8,13 @@ import {
   dndNumbers,
   dndDamageExpression,
   dndFieldOptions,
+  scoreOverrideId,
+  setAbilityScoreOverride,
 } from '@/lib/dnd';
 import type { Sheet } from '@/lib/types';
 import { DndTabs } from './dnd-tabs';
 import { srdCastingSources } from '@/lib/srd-casting';
-import type { QuickUpdate } from '@/lib/resources';
+import { healthChanges, temporaryHpId, type QuickUpdate } from '@/lib/resources';
 
 type Props = {
   onEquip?: (id: string) => void;
@@ -28,6 +30,8 @@ type Props = {
   onRoll: (expression: string, rollType?: string) => void;
   quickUpdate?: QuickUpdate;
   quickEditable?: boolean;
+  combatStatus?: ReactNode;
+  combatDetails?: ReactNode;
 };
 const signed = (n: number) => (n >= 0 ? `+${n}` : String(n));
 const ref = (key: string) => `@{${dndId(key)}}`;
@@ -47,15 +51,23 @@ export function DndSheet({
   onRoll,
   quickUpdate,
   quickEditable,
+  combatStatus,
+  combatDetails,
 }: Props) {
   const [mode, setMode] = useState('normal');
   const [editing, setEditing] = useState(false);
+  const [healthAmount, setHealthAmount] = useState('');
   const fields = new Map(sheet.sections.flatMap((s) => s.fields).map((f) => [f.id, f]));
   const computed = dndNumbers(sheet);
   const castingSources = sheet.character?.builder ? srdCastingSources(sheet.character.builder) : [];
   const field = (key: string) => fields.get(dndId(key));
   function change(key: string, value: string | number, maximum = false) {
+    const score = /^score:(\d)$/.exec(key);
     update((copy) => {
+      if (copy.character?.builder && score) {
+        setAbilityScoreOverride(copy, Number(score[1]), value === '' ? undefined : Number(value));
+        return;
+      }
       const target = copy.sections.flatMap((s) => s.fields).find((f) => f.id === dndId(key));
       if (target) {
         if (target.kind === 'resource') {
@@ -73,14 +85,15 @@ export function DndSheet({
     if (!f) return null;
     const options = dndFieldOptions(f.id);
     const derived = Object.hasOwn(computed, f.id);
+    const score = /^score:(\d)$/.exec(key);
+    const override = score && fields.get(scoreOverrideId(Number(score[1])));
+    const value = score ? (override ? override.value : f.value) : (computed[f.id] ?? f.value);
     return (
       <div className={`dnd-value ${multiline ? 'dnd-notes' : ''}`}>
         <label htmlFor={f.id}>{label ?? f.label}</label>
         {!editing ? (
           <output id={f.id} aria-label={label ?? f.label}>
-            {options?.find((option) => option.value === f.value)?.label ??
-              computed[f.id] ??
-              f.value}
+            {options?.find((option) => option.value === f.value)?.label ?? value}
           </output>
         ) : options ? (
           <select
@@ -109,12 +122,11 @@ export function DndSheet({
             id={f.id}
             aria-label={label ?? f.label}
             type={f.kind === 'text' ? 'text' : 'number'}
-            value={computed[f.id] ?? f.value}
+            value={value}
             disabled={
               !editable ||
               derived ||
-              (!!sheet.character?.builder &&
-                (key === 'level' || key === 'hit-dice' || key.startsWith('score:')))
+              (!!sheet.character?.builder && (key === 'level' || key === 'hit-dice'))
             }
             min={
               key === 'level' || key.startsWith('score:')
@@ -135,9 +147,28 @@ export function DndSheet({
                       : undefined
             }
             onChange={(e) =>
-              change(key, f.kind === 'text' ? e.target.value : Number(e.target.value))
+              change(
+                key,
+                f.kind === 'text' || (score && sheet.character?.builder && !e.target.value)
+                  ? e.target.value
+                  : Number(e.target.value),
+              )
             }
           />
+        )}
+        {score && sheet.character?.builder && editing && (
+          <small>
+            {override ? `Override · builder score ${f.value}` : 'Builder score · editable override'}
+            {override && editable && (
+              <button
+                type="button"
+                aria-label={`Reset ${label ?? f.label} override`}
+                onClick={() => change(key, '')}
+              >
+                Reset
+              </button>
+            )}
+          </small>
         )}
         {f.kind === 'resource' &&
           (editing ? (
@@ -313,8 +344,9 @@ export function DndSheet({
       </details>
       {editing && sheet.character?.builder && (
         <p className="small">
-          Level, ability scores, and Hit Dice are managed by class progression. To edit them
-          manually, choose Use manual progression under Character settings &amp; tools.
+          Edit scores in the Abilities tab. Edits override rolls without changing progression
+          choices. Reset an override to use the builder score again. Level and Hit Dice remain
+          builder-managed.
         </p>
       )}
       <div className="dnd-roll-toolbar">
@@ -336,8 +368,18 @@ export function DndSheet({
             : '◇ rolls immediately using dice panel visibility.'}
         </span>
       </div>
-      <section className="dnd-box dnd-combat-dashboard" aria-label="Combat essentials">
-        <div className="dnd-health">{input('hp')}</div>
+      <section
+        className={`dnd-box dnd-combat-dashboard${editing ? '' : ' dnd-combat-sticky'}`}
+        aria-label="Combat essentials"
+      >
+        <div className="dnd-health">
+          {input('hp')}
+          {!editing && (
+            <span>
+              Temp HP <strong>{fields.get(temporaryHpId)?.value ?? 0}</strong>
+            </span>
+          )}
+        </div>
         <div className="dnd-combat-stats">
           {input('ac')}
           {input('speed')}
@@ -346,24 +388,63 @@ export function DndSheet({
             {rollButton('Initiative', 'initiative', undefined, 'Roll')}
           </div>
         </div>
-        <div className="dnd-resource-grid">
-          {input('hit-dice')}
-          {input('inspiration')}
-          {input('exhaustion')}
-        </div>
-      </section>
-      <div className="dnd-ability-summary" role="group" aria-label="Quick ability checks">
-        {abilities.map((name, i) => (
-          <div key={name}>
-            {rollButton(
-              `${name} check`,
-              `check:${i}`,
-              undefined,
-              `${name.slice(0, 3).toUpperCase()} ${field(`score:${i}`)?.value ?? ''}`,
-            )}
+        {!editing && editable && quickUpdate && (
+          <div className="dnd-health-actions">
+            <label>
+              HP adjustment
+              <input
+                type="number"
+                min={1}
+                max={1e12}
+                step={1}
+                value={healthAmount}
+                onChange={(event) => setHealthAmount(event.target.value)}
+              />
+            </label>
+            {(['damage', 'heal'] as const).map((action) => (
+              <button
+                key={action}
+                type="button"
+                disabled={
+                  !quickEditable ||
+                  dirty ||
+                  !Number.isSafeInteger(Number(healthAmount)) ||
+                  Number(healthAmount) <= 0 ||
+                  Number(healthAmount) > 1e12 ||
+                  !field('hp')
+                }
+                onClick={() => {
+                  quickUpdate(healthChanges(sheet, Number(healthAmount), action));
+                  setHealthAmount('');
+                }}
+              >
+                {action === 'damage' ? 'Damage' : 'Heal'}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+        {!editing && combatStatus}
+        {editing && (
+          <div className="dnd-resource-grid">
+            {input('hit-dice')}
+            {input('inspiration')}
+            {input('exhaustion')}
+          </div>
+        )}
+      </section>
+      {!editing && combatDetails}
+      {!editing && (
+        <details className="dnd-box">
+          <summary>
+            Hit Dice, inspiration &amp; exhaustion · Passive Perception {computed[dndId('passive')]}
+          </summary>
+          <div className="dnd-resource-grid">
+            {input('hit-dice')}
+            {input('inspiration')}
+            {input('exhaustion')}
+          </div>
+        </details>
+      )}
       {sheet.sections.some((section) => section.id === dndId('srd-resources')) && (
         <details className="dnd-box">
           <summary>Class resources, grouped Hit Dice & spellcasting</summary>
@@ -456,19 +537,22 @@ export function DndSheet({
                       <output aria-label={`${name} modifier`}>
                         {signed(computed[dndId(`mod:${i}`)])}
                       </output>
+                      {rollButton(`${name} check`, `check:${i}`, undefined, 'Check')}
+                      {rollButton(`${name} save`, `save:${i}`, undefined, 'Save')}
                     </div>
                   ))}
                 </div>
               </section>
-              <section className="dnd-box">
-                <h3>Saving throws</h3>
-                {abilities.map((name, i) => (
-                  <div className="dnd-stat-row" key={name}>
-                    {proficiency(`save-prof:${i}`, name)}
-                    {rollButton(`${name} save`, `save:${i}`)}
-                  </div>
-                ))}
-              </section>
+              {editing && (
+                <section className="dnd-box">
+                  <h3>Saving throws</h3>
+                  {abilities.map((name, i) => (
+                    <div className="dnd-stat-row" key={name}>
+                      {proficiency(`save-prof:${i}`, name)}
+                    </div>
+                  ))}
+                </section>
+              )}
             </div>
             <div className="dnd-column">
               <section className="dnd-box">
@@ -526,7 +610,7 @@ export function DndSheet({
                 <div className="dnd-attack-summary">
                   <strong>{field(`weapon-name:${i}`)?.value || `Attack ${i + 1}`}</strong>
                   <span className="muted">
-                    {signed(computed[dndId(`weapon-total:${i}`)])} to hit ·{' '}
+                    Hit {signed(computed[dndId(`weapon-total:${i}`)])} · Damage{' '}
                     {field(`weapon-dice:${i}`)?.value}
                     {` ${signed(computed[dndId(`weapon-damage-total:${i}`)])}`}{' '}
                     {field(`weapon-type:${i}`)?.value}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Actor, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import { combatSummary, emptyCombat, type Combat } from '@/lib/combat';
@@ -15,6 +15,7 @@ export function CombatControls({
   run,
   onBusyChange,
   onRoll,
+  showDeathSaves = false,
 }: {
   actor: Actor;
   snapshot: Snapshot;
@@ -23,8 +24,10 @@ export function CombatControls({
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
   onBusyChange: (busy: boolean) => void;
   onRoll?: (roll: { actorId: string; expression: string; rollType: string }) => Promise<void>;
+  showDeathSaves?: boolean;
 }) {
   const state = actor.combat ?? emptyCombat();
+  const markerFormId = useId();
   const operation = useCombatCommand(actor, snapshot.userId, run);
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -89,7 +92,7 @@ export function CombatControls({
                 setNotes(condition.notes);
                 setPhase(condition.expiry?.phase ?? 'manual');
                 setRound(condition.expiry?.round.toString() ?? '');
-                document.getElementById(`marker-form-${actor.id}`)?.setAttribute('open', '');
+                document.getElementById(markerFormId)?.setAttribute('open', '');
               }}
             >
               Edit {condition.name}
@@ -121,7 +124,7 @@ export function CombatControls({
           </div>
         </div>
       ))}
-      <details id={`marker-form-${actor.id}`}>
+      <details id={markerFormId}>
         <summary>
           {editing ? 'Edit condition / custom marker' : 'Add condition / custom marker'}
         </summary>
@@ -326,7 +329,14 @@ export function CombatControls({
           </p>
         </div>
       </details>
-      <details open={state.death.successes > 0 || state.death.failures > 0 || state.death.stable}>
+      <details
+        open={
+          showDeathSaves ||
+          state.death.successes > 0 ||
+          state.death.failures > 0 ||
+          state.death.stable
+        }
+      >
         <summary>Death saves & recovery</summary>
         <div className="stack">
           <p>
