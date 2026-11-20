@@ -37,6 +37,17 @@ export function dndId(key: string) {
   return `5e202024-0000-4000-8000-${(hash >>> 0).toString(16).padStart(12, '0')}`;
 }
 export const isDndSheet = (sheet: Sheet) => sheet.sections.some((s) => s.id === dndId('character'));
+export const scoreOverrideId = (i: number) => dndId(`score-override:${i}`);
+
+export function setAbilityScoreOverride(sheet: Sheet, index: number, value: number | undefined) {
+  const section = sheet.sections.find((s) => s.id === dndId('scores'));
+  if (!section || !abilities[index]) return;
+  const id = scoreOverrideId(index);
+  const field = section.fields.find((f) => f.id === id);
+  if (value === undefined) section.fields = section.fields.filter((f) => f.id !== id);
+  else if (field) field.value = value;
+  else section.fields.push({ id, label: `${abilities[index]} override`, kind: 'number', value });
+}
 const ref = (key: string) => `@{${dndId(key)}}`;
 const number = (key: string, label: string, value = 0): Field => ({
   id: dndId(key),
@@ -152,7 +163,17 @@ export function dndNumbers(sheet: Sheet): Record<string, number> {
   const fields = new Map(sheet.sections.flatMap((s) => s.fields).map((f) => [f.id, f]));
   const n = (key: string, fallback = 0) => Number(fields.get(dndId(key))?.value ?? fallback);
   const pb = 2 + Math.floor((n('level', 1) - 1) / 4);
-  const mods = abilities.map((_, i) => Math.floor((n(`score:${i}`, 10) - 10) / 2));
+  const scores = abilities.map((_, i) => {
+    const override = fields.get(scoreOverrideId(i));
+    return override?.kind === 'number' &&
+      typeof override.value === 'number' &&
+      Number.isInteger(override.value) &&
+      override.value >= 1 &&
+      override.value <= 30
+      ? override.value
+      : n(`score:${i}`, 10);
+  });
+  const mods = scores.map((score) => Math.floor((score - 10) / 2));
   const penalty = n('exhaustion') * 2;
   const result: Record<string, number> = {};
   const set = (key: string, value: number) => {
@@ -246,6 +267,18 @@ export function validateDndSheet(sheet: Sheet): string | undefined {
   if (!isDndSheet(sheet)) return;
   const fields = new Map(sheet.sections.flatMap((s) => s.fields).map((f) => [f.id, f]));
   const expected = createDndSheet();
+  for (const [i, label] of abilities.entries()) {
+    const override = fields.get(scoreOverrideId(i));
+    if (
+      override &&
+      (override.kind !== 'number' ||
+        typeof override.value !== 'number' ||
+        !Number.isInteger(override.value) ||
+        override.value < 1 ||
+        override.value > 30)
+    )
+      return `${label} override must be a whole number from 1–30.`;
+  }
   for (const field of expected.sections.flatMap((s) => s.fields)) {
     const actual = fields.get(field.id);
     if (!actual || actual.kind !== field.kind)

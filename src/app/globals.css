@@ -1542,11 +1542,36 @@ summary {
 .dnd-combat-dashboard .dnd-resource-grid > .dnd-value > label:first-child {
   grid-column: 1 / -1;
 }
-.dnd-ability-summary {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 8px;
+.dnd-combat-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  gap: 6px 10px;
+  padding: 8px 12px;
+  background: #fffaf0;
+}
+.dnd-health-actions,
+.dnd-combat-status {
+  grid-column: 1 / -1;
+}
+.dnd-combat-status:empty {
+  display: none;
+}
+.dnd-health-actions {
+  display: flex;
+  gap: 6px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.dnd-health-actions input {
+  width: 110px;
+}
+.dnd-sheet .dnd-action-row {
+  padding: 8px 10px;
+  gap: 5px;
+}
+.dnd-action-row > details > summary {
+  width: fit-content;
 }
 .dnd-combat-dashboard .dnd-combat-stats {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1900,9 +1925,6 @@ summary {
   }
   .dnd-combat-dashboard {
     grid-template-columns: 1fr;
-  }
-  .dnd-ability-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .dnd-roll-toolbar {
     flex-direction: column;

@@ -22,6 +22,7 @@ import { monsterId, monsterSourceId } from '@/lib/monster-sheet';
 import { tableSystem } from '@/lib/table-system';
 import { PlayInventory } from './play-inventory';
 import type { changeInventory } from '@/lib/inventory-play';
+import { CombatControls } from './combat-controls';
 
 const MonsterSheet = dynamic(() => import('./monster-sheet'));
 
@@ -67,7 +68,8 @@ export function SheetEditor({
     }
   }
   async function commitPlay(next: Sheet, message: string) {
-    if (!editable || saving || resourceBusy || externalBusy || conflict || dirty) return false;
+    if (!editable || saving || resourceBusy || combatBusy || externalBusy || conflict || dirty)
+      return false;
     setSaving(true);
     try {
       if (
@@ -85,13 +87,14 @@ export function SheetEditor({
     }
   }
   const [resourceBusy, setResourceBusy] = useState(false);
+  const [combatBusy, setCombatBusy] = useState(false);
   const resourceWriter = useRef<ResourceWriter | null>(null);
   const [customize, setCustomize] = useState(false);
   const [accessPending, setAccessPending] = useState(false);
   const accessRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
-    onDirtyChange?.(dirty || resourceBusy);
-  }, [dirty, resourceBusy, onDirtyChange]);
+    onDirtyChange?.(dirty || resourceBusy || combatBusy);
+  }, [dirty, resourceBusy, combatBusy, onDirtyChange]);
   // Reconcile clean editors only; configuration drafts retain their revision/conflict guard.
   if (!dirty && !saving && !resourceBusy && actor.revision > savedRevision) {
     setSheet(structuredClone(actor.sheet));
@@ -111,6 +114,7 @@ export function SheetEditor({
     dnd ? createDndSheet().sections.flatMap((s) => s.abilities.map((a) => a.id)) : [],
   );
   const fields = numericFields(sheet);
+  const atZeroHp = fields[dndId('hp')] === 0;
   const editable =
     snapshot.role === 'gm' ||
     actor.owner_id === snapshot.userId ||
@@ -139,7 +143,7 @@ export function SheetEditor({
         controls={false}
         actor={actor}
         editable={editable}
-        blocked={dirty || saving}
+        blocked={dirty || saving || combatBusy || externalBusy}
         run={run}
         onBusyChange={setResourceBusy}
         writerRef={resourceWriter}
@@ -366,9 +370,58 @@ export function SheetEditor({
             rollable={rollable}
             dirty={dirty || conflict}
             update={update}
-            quickEditable={editable && !dirty && !saving && !resourceBusy}
+            quickEditable={
+              editable &&
+              !dirty &&
+              !conflict &&
+              !saving &&
+              !resourceBusy &&
+              !combatBusy &&
+              !externalBusy
+            }
             quickUpdate={(changes) => resourceWriter.current?.enqueue(changes)}
             onRoll={(expression, rollType) => onRoll(actor.id, expression, rollType)}
+            combatStatus={
+              <div className="wrap dnd-combat-status" aria-label="Combat status">
+                {actor.combat?.conditions.map((condition) => (
+                  <span className="badge" key={condition.id}>
+                    {condition.name}
+                    {condition.due ? ' · review' : ''}
+                  </span>
+                ))}
+                {actor.combat?.concentration && (
+                  <span className="badge">
+                    Concentrating: {actor.combat.concentration.source}
+                    {actor.combat.concentration.checks.length > 0 ? ' · check pending' : ''}
+                  </span>
+                )}
+                {atZeroHp && (
+                  <span className="badge">
+                    Death saves · {actor.combat?.death.successes ?? 0} successes /{' '}
+                    {actor.combat?.death.failures ?? 0} failures
+                  </span>
+                )}
+              </div>
+            }
+            combatDetails={
+              <details open={atZeroHp || undefined} className="dnd-box">
+                <summary>Conditions, concentration &amp; death saves</summary>
+                <CombatControls
+                  actor={actor}
+                  snapshot={snapshot}
+                  editable={editable}
+                  blocked={dirty || saving || resourceBusy || externalBusy || conflict}
+                  run={run}
+                  onBusyChange={setCombatBusy}
+                  showDeathSaves={atZeroHp}
+                  onRoll={
+                    rollable
+                      ? async ({ expression, rollType }) => onRoll(actor.id, expression, rollType)
+                      : undefined
+                  }
+                />
+              </details>
+            }
           />
         ) : (
           sheet.sections.map((section, si) => (
@@ -753,7 +806,7 @@ export function SheetEditor({
             )}
             <button
               className="primary"
-              disabled={!dirty || saving || conflict}
+              disabled={!dirty || saving || combatBusy || conflict}
               onClick={async () => {
                 setSaving(true);
                 try {

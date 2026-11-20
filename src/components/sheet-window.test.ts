@@ -4,7 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SheetWindow } from './sheet-window';
 import { ActorCard } from './actor-card';
-import { createDndSheet, dndId } from '@/lib/dnd';
+import { createDndSheet, dndId, dndNumbers, scoreOverrideId } from '@/lib/dnd';
+import { applySrdBuilder } from '@/lib/srd-engine';
+import { fighterBuilder } from '@/lib/srd-test-fixtures';
 import { sheetSchema } from '@/lib/sheets';
 import type { Actor, Snapshot } from '@/lib/types';
 
@@ -105,6 +107,76 @@ afterEach(async () => {
 });
 
 describe('character sheet window', () => {
+  it('edits a saved homebrew ability directly from Actions', async () => {
+    const { actor, render, run } = fixture();
+    actor.sheet.sections[0].abilities.push({
+      id: crypto.randomUUID(),
+      name: 'Scout signal',
+      description: 'Signal the scouts',
+      expression: '1d20',
+    });
+    await render();
+    await click(textButton('Edit character'));
+    await typeField('Scout signal expression', '1d20 + 2');
+    await click(textButton('Save sheet'));
+    const payload = run.mock.calls[0][1] as { sheet: Actor['sheet'] };
+    expect(payload.sheet.sections[0].abilities.at(-1)?.expression).toBe('1d20 + 2');
+  });
+  it('uses the shared health writer with temporary HP first', async () => {
+    const { actor, render, run } = fixture();
+    const temp = {
+      id: dndId('temp-hp'),
+      label: 'Temporary HP',
+      kind: 'resource' as const,
+      value: 3,
+      max: 1e12,
+    };
+    actor.sheet.sections.find((s) => s.id === dndId('combat'))!.fields.push(temp);
+    await render();
+    const amount = container.querySelector<HTMLInputElement>('.dnd-health-actions input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(amount, '5');
+      amount.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await click(textButton('Damage'));
+    expect(run).toHaveBeenCalledWith(
+      'actor_resources',
+      expect.objectContaining({
+        id: actor.id,
+        revision: actor.revision,
+        changes: [
+          { id: dndId('hp'), value: 8 },
+          { id: temp.id, value: 0 },
+        ],
+      }),
+    );
+  });
+  it('saves and resets an ability score override on an existing builder character', async () => {
+    const { actor, render, run } = fixture();
+    actor.revision = 5;
+    actor.sheet = applySrdBuilder(createDndSheet(), fighterBuilder(4));
+    const base = actor.sheet.sections
+      .flatMap((s) => s.fields)
+      .find((f) => f.id === dndId('score:0'))!;
+    await render();
+    await click(textButton('Edit character'));
+    await click(textButton('Abilities'));
+    await typeField('Strength', '24');
+    await click(textButton('Save sheet'));
+    const saved = run.mock.calls[0][1] as { revision: number; sheet: Actor['sheet'] };
+    expect(saved.revision).toBe(5);
+    expect(sheetSchema.safeParse(saved.sheet).success).toBe(true);
+    expect(saved.sheet.character?.builder).toEqual(actor.sheet.character?.builder);
+    expect(saved.sheet.sections.flatMap((s) => s.fields)).toContainEqual(base);
+    expect(dndNumbers(saved.sheet)[dndId('mod:0')]).toBe(7);
+    await click(button('Reset Strength override'));
+    await click(textButton('Save sheet'));
+    const reset = run.mock.calls[1][1] as typeof saved;
+    expect(reset.revision).toBe(6);
+    expect(
+      reset.sheet.sections.flatMap((s) => s.fields).some((f) => f.id === scoreOverrideId(0)),
+    ).toBe(false);
+  });
   it('offers a recovery download instead of saving a sheet that failed its upgrade', async () => {
     const { actor, render, run } = fixture();
     actor.sheetUpgradeIssue = 'Level must be 1–20.';
@@ -348,6 +420,7 @@ describe('character sheet window', () => {
     const { render, onRoll, onClose } = fixture();
     await render();
     await select('Sheet roll mode', 'advantage');
+    await click(textButton('Abilities'));
     await click(button('Roll Strength check'));
     expect(onRoll).toHaveBeenCalledWith(
       'actor',

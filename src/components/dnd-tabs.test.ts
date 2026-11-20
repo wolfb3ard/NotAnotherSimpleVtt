@@ -224,15 +224,13 @@ describe('character tabs', () => {
     await fixture();
     expect(panel().textContent).toContain('Weapon & spell attacks');
     expect(panel().textContent).not.toContain('Ability scores');
-    const quickChecks = container.querySelector('[aria-label="Quick ability checks"]')!;
-    expect(quickChecks.querySelectorAll('button')).toHaveLength(6);
-    expect(quickChecks.closest('[role="tabpanel"]')).toBeNull();
     const combat = container.querySelector('[aria-label="Combat essentials"]')!;
     expect(combat.closest('[role="tabpanel"]')).toBeNull();
     expect(combat.querySelector('[aria-label="Hit Points"]')).not.toBeNull();
     await click('Abilities');
     expect(panel().textContent).toContain('Ability scores');
-    expect(panel().textContent).toContain('Saving throws');
+    expect(panel().querySelector('[aria-label="Roll Strength check"]')).not.toBeNull();
+    expect(panel().querySelector('[aria-label="Roll Strength save"]')).not.toBeNull();
     expect(panel().textContent).toContain('Skills');
     expect(panel().textContent).toContain('Additional roll bonuses');
     await click('Spell');
