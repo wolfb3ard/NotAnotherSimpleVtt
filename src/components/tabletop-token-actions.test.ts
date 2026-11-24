@@ -21,9 +21,16 @@ vi.mock('react-konva', () => {
         'data-token': props.onDragStart ? 'true' : undefined,
         'data-text': props.text,
         'data-stroke': props.stroke,
-        onContextMenu: (e: React.MouseEvent) =>
-          props.onContextMenu?.({ evt: e.nativeEvent, cancelBubble: false }),
-        onClick: (e: React.MouseEvent) => props.onClick?.({ evt: e.nativeEvent }),
+        onContextMenu: (e: React.MouseEvent) => {
+          const event = { evt: e.nativeEvent, cancelBubble: false };
+          props.onContextMenu?.(event);
+          if (event.cancelBubble) e.stopPropagation();
+        },
+        onClick: (e: React.MouseEvent) => {
+          const event = { evt: e.nativeEvent, cancelBubble: false };
+          props.onClick?.(event);
+          if (event.cancelBubble) e.stopPropagation();
+        },
         onDoubleClick: (e: React.MouseEvent) => props.onDblClick?.({ evt: e.nativeEvent }),
       },
       props.children,
@@ -31,7 +38,10 @@ vi.mock('react-konva', () => {
   return Object.fromEntries(
     ['Stage', 'Layer', 'Image', 'Circle', 'Text', 'Group', 'Line', 'Rect'].map((name) => [
       name,
-      node,
+      name === 'Stage'
+        ? (props: Parameters<typeof node>[0]) =>
+            createElement('div', { 'data-stage': true }, node(props))
+        : node,
     ]),
   );
 });
@@ -109,6 +119,7 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
     },
   };
   const open = vi.fn();
+  const close = vi.fn();
   const sheet = vi.fn();
   const previewChange = vi.fn(() => true);
   container = document.createElement('div');
@@ -131,6 +142,7 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
         },
         run: vi.fn(),
         openQuickActions: open,
+        closeQuickActions: close,
         openTokenSheet: sheet,
         onPreviewChange: previewChange,
       }),
@@ -158,6 +170,16 @@ it('opens right-click actions without opening a sheet and provides a keyboard to
   );
   expect(open).toHaveBeenCalledTimes(1);
   expect(sheet).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+  const background = container.querySelector('[data-stage] > div')!;
+  await act(async () =>
+    background.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })),
+  );
+  expect(close).toHaveBeenCalledTimes(1);
+  await act(async () =>
+    background.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 })),
+  );
+  expect(close).toHaveBeenCalledTimes(2);
   await act(async () =>
     container
       .querySelector('[data-token="true"]')!

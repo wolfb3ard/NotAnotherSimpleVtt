@@ -9,6 +9,7 @@ import { CombatControls } from './combat-controls';
 import { tableSystem } from '@/lib/table-system';
 import { TokenInitiative } from './token-initiative';
 import { PlayAssistance } from './play-assistance';
+import { QuickActionIcon } from './quick-action-icon';
 
 const noRefresh = async () => {};
 
@@ -243,8 +244,9 @@ export function TokenQuickActions({
             }
           }}
         >
-          <span className="eyebrow">QUICK ACTIONS</span>
-          <h2 id={title}>{token.label} quick actions</h2>
+          <h2 id={title} aria-label={`${token.label} quick actions`}>
+            {token.label}
+          </h2>
         </div>
         <button aria-label="Close quick actions" onClick={onClose}>
           ×
@@ -252,9 +254,16 @@ export function TokenQuickActions({
       </header>
       <div className="token-actions-body stack">
         {blocked && <p role="status">Save or reload sheet edits before using quick actions.</p>}
+        {actor && (
+          <button className="quick-action-button" title="Open character sheet" onClick={onSheet}>
+            <QuickActionIcon icon="sheet" label="Open character sheet" />
+          </button>
+        )}
         {snapshot.role === 'gm' && (
-          <details>
-            <summary>GM token controls</summary>
+          <details className="quick-action-disclosure">
+            <summary title="GM token controls">
+              <QuickActionIcon icon="settings" label="GM token controls" />
+            </summary>
             <button disabled={locked} onClick={() => void updateToken({ hidden: !token.hidden })}>
               {token.hidden ? 'Reveal token' : 'Hide token'}
             </button>
@@ -314,18 +323,24 @@ export function TokenQuickActions({
             run={run}
             refresh={refresh}
             onBusyChange={setInitiativeBusy}
+            compact
           />
         ) : (
-          <p className="small">
-            Initiative: ask the GM to add or update this token in the encounter.
-          </p>
+          <details className="quick-action-disclosure">
+            <summary title="Initiative">
+              <QuickActionIcon icon="initiative" label="Initiative" />
+            </summary>
+            <p className="small">
+              Initiative: ask the GM to add or update this token in the encounter.
+            </p>
+          </details>
         )}
         {actor ? (
           <>
-            <button onClick={onSheet}>Open character sheet</button>
-            {ac !== undefined && <span>Armor Class: {ac}</span>}
-            <details>
-              <summary>Attack / sheet rolls</summary>
+            <details className="quick-action-disclosure">
+              <summary title="Attack / sheet rolls">
+                <QuickActionIcon icon="rolls" label="Attack / sheet rolls" />
+              </summary>
               {onVisibilityChange && (
                 <label>
                   Roll visibility
@@ -423,15 +438,11 @@ export function TokenQuickActions({
                 </p>
               )}
             </details>
-            {snapshot.role === 'gm' && actor.kind === 'character' && (
-              <p className="small">
-                Duplicate is available for NPC/enemy creatures only. Player characters keep shared
-                state across placements.
-              </p>
-            )}
             {snapshot.role === 'gm' && actor.kind !== 'character' && (
-              <details>
-                <summary>Duplicate as independent creature</summary>
+              <details className="quick-action-disclosure">
+                <summary title="Duplicate as independent creature">
+                  <QuickActionIcon icon="duplicate" label="Duplicate as independent creature" />
+                </summary>
                 <p className="small">
                   {actor.encounter_instance
                     ? 'Independent encounter creature.'
@@ -458,6 +469,42 @@ export function TokenQuickActions({
                 />
               </details>
             )}
+            <details className="quick-action-disclosure">
+              <summary title="Conditions & survival">
+                <QuickActionIcon icon="conditions" label="Conditions & survival" />
+              </summary>
+              <CombatControls
+                key={`combat:${actor.id}`}
+                actor={actor}
+                snapshot={snapshot}
+                editable={editable}
+                blocked={
+                  blocked ||
+                  resourceBusy ||
+                  assistanceBusy ||
+                  initiativeBusy ||
+                  duplicateBusy ||
+                  actionBusy
+                }
+                run={run}
+                onBusyChange={setCombatBusy}
+                onRoll={onRoll}
+              />
+            </details>
+            {editable && (
+              <PlayAssistance
+                key={`assistance:${snapshot.userId}:${actor.id}`}
+                actor={actor}
+                token={token}
+                userId={snapshot.userId}
+                disabled={locked}
+                active={token.scene_id === snapshot.game.active_scene_id}
+                run={run}
+                onBusyChange={setAssistanceBusy}
+                compact
+              />
+            )}
+            {ac !== undefined && <span className="small">Armor Class: {ac}</span>}
             {!editable && (
               <p className="small">Read only. Token control does not grant sheet editing.</p>
             )}
@@ -477,35 +524,6 @@ export function TokenQuickActions({
               onBusyChange={setResourceBusy}
               onCommitted={onCommitted}
             />
-            <CombatControls
-              key={`combat:${actor.id}`}
-              actor={actor}
-              snapshot={snapshot}
-              editable={editable}
-              blocked={
-                blocked ||
-                resourceBusy ||
-                assistanceBusy ||
-                initiativeBusy ||
-                duplicateBusy ||
-                actionBusy
-              }
-              run={run}
-              onBusyChange={setCombatBusy}
-              onRoll={onRoll}
-            />
-            {editable && (
-              <PlayAssistance
-                key={`assistance:${snapshot.userId}:${actor.id}`}
-                actor={actor}
-                token={token}
-                userId={snapshot.userId}
-                disabled={locked}
-                active={token.scene_id === snapshot.game.active_scene_id}
-                run={run}
-                onBusyChange={setAssistanceBusy}
-              />
-            )}
             {!actor.sheet.sections.some((s) => s.fields.some((f) => f.kind === 'resource')) &&
               !actor.sheet.character?.features.some((f) => f.maxUses > 0) && (
                 <p className="small">

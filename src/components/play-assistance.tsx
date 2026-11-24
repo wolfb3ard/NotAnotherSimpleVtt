@@ -5,6 +5,8 @@ import type { Actor, Token } from '@/lib/types';
 import { commandSchemas, type Command } from '@/lib/commands';
 import { castChoices, hitDieId, hitDieSizes, restChanges } from '@/lib/play-assistance';
 import { healthChanges, playResources, type ResourceChange } from '@/lib/resources';
+import { QuickActionIcon } from './quick-action-icon';
+import { RulesPreview } from './rules-preview';
 
 type Mode = 'cast' | 'short' | 'long' | 'damage';
 type Preview = {
@@ -28,6 +30,7 @@ export function PlayAssistance({
   active,
   run,
   onBusyChange,
+  compact,
 }: {
   actor: Actor;
   token: Token;
@@ -36,6 +39,7 @@ export function PlayAssistance({
   active: boolean;
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
   onBusyChange: (busy: boolean) => void;
+  compact?: boolean;
 }) {
   const spells = actor.sheet.character?.spells ?? [];
   const resources = playResources(actor.sheet);
@@ -221,8 +225,14 @@ export function PlayAssistance({
   }
 
   return (
-    <details>
-      <summary>Casting, rests &amp; damage</summary>
+    <details className={compact ? 'quick-action-disclosure' : undefined}>
+      <summary title={compact ? 'Casting, rests & damage' : undefined}>
+        {compact ? (
+          <QuickActionIcon icon="assistance" label="Casting, rests & damage" />
+        ) : (
+          'Casting, rests & damage'
+        )}
+      </summary>
       <fieldset className="stack" disabled={!ready || disabled || busy || !!attempt}>
         <label>
           Assistance
@@ -261,6 +271,7 @@ export function PlayAssistance({
                 ))}
               </select>
             </label>
+            {spell && <RulesPreview name={spell.name} description={spell.description} />}
             {spell && (
               <label>
                 Slot / casting source

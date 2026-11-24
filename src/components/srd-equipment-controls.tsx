@@ -4,12 +4,15 @@ import type { Sheet } from '@/lib/types';
 import type { SrdBuilderState } from '@/lib/srd-state';
 import { builderScores } from '@/lib/srd-state';
 import { abilityNames, instruments } from '@/lib/srd-rules';
+import { srdById } from '@/lib/srd-catalog';
+import { RulesPreview } from './rules-preview';
 import {
   acModes,
   armorProfile,
   conjuredPactItem,
   defaultEquipment,
   deriveEquipment,
+  equipmentEntry,
   equipmentShop,
   isLegacyStartingBundle,
   isShield,
@@ -102,6 +105,19 @@ export function SrdEquipmentControls({
   const positive = inventory.filter((item) => item.quantity > 0);
   const legacy = sheet.character?.items.some(isLegacyStartingBundle);
   const packages = startingEquipmentOptions(state);
+  const selectedOffer = shopByKey.get(offer);
+  const itemPreview = (id: string) => {
+    const item = positive.find((item) => item.id === id);
+    if (!item) return null;
+    const entry = equipmentEntry(item.name === 'Additional shield' ? 'Shield' : item.name);
+    return (
+      <RulesPreview
+        name={item.name}
+        entry={entry}
+        description={entry ? undefined : item.description}
+      />
+    );
+  };
   return (
     <section className="stack" aria-label="Starting equipment and loadout">
       <h4>Starting equipment</h4>
@@ -223,6 +239,9 @@ export function SrdEquipmentControls({
               ))}
           </select>
         </label>
+        {selectedOffer && (
+          <RulesPreview name={selectedOffer.name} entry={srdById.get(selectedOffer.entryId)} />
+        )}
         <button
           type="button"
           disabled={!offer}
@@ -351,6 +370,8 @@ export function SrdEquipmentControls({
           </select>
         </label>
       </div>
+      {itemPreview(gear.armorId)}
+      {itemPreview(gear.shieldId)}
       <p>
         Armor training: {loadout.training.join(', ') || 'none'}.{' '}
         {loadout.ac === undefined
@@ -406,6 +427,7 @@ export function SrdEquipmentControls({
                 ))}
             </select>
           </label>
+          {itemPreview(id)}
           {id !== '' && (
             <>
               <label>

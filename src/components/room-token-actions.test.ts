@@ -95,8 +95,10 @@ async function click(text: string) {
 async function value(label: string, next: string) {
   await act(async () => {
     const input = container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+    input.focus();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, next);
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.blur();
   });
 }
 afterEach(async () => {
@@ -125,17 +127,17 @@ it('guards closing and switching unconfirmed cards and prevents same-sheet confi
   expect(container.querySelector<HTMLFieldSetElement>('fieldset')!.disabled).toBe(true);
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
   await click('Close quick actions');
-  expect(container.querySelector('.token-actions-header h2')!.textContent).toBe(
+  expect(container.querySelector('.token-actions-header h2')!.getAttribute('aria-label')).toBe(
     'one quick actions',
   );
   await click('Right-click two');
-  expect(container.querySelector('.token-actions-header h2')!.textContent).toBe(
+  expect(container.querySelector('.token-actions-header h2')!.getAttribute('aria-label')).toBe(
     'one quick actions',
   );
   expect(confirm).toHaveBeenCalledTimes(2);
   confirm.mockReturnValue(true);
   await click('Right-click two');
-  expect(container.querySelector('.token-actions-header h2')!.textContent).toBe(
+  expect(container.querySelector('.token-actions-header h2')!.getAttribute('aria-label')).toBe(
     'two quick actions',
   );
   expect(container.querySelector<HTMLFieldSetElement>('fieldset')!.disabled).toBe(false);

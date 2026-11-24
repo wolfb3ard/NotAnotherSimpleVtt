@@ -6,6 +6,7 @@ import type { Command } from '@/lib/commands';
 import { boardEncounter } from '@/lib/encounter-view';
 import { initiativeExpression } from '@/lib/initiative';
 import { useEncounterCommand } from './use-encounter-command';
+import { QuickActionIcon } from './quick-action-icon';
 
 export function TokenInitiative({
   token,
@@ -15,6 +16,7 @@ export function TokenInitiative({
   run,
   refresh,
   onBusyChange,
+  compact,
 }: {
   token: Token;
   actor?: Actor;
@@ -23,6 +25,7 @@ export function TokenInitiative({
   run: (command: Command, payload: unknown) => Promise<Record<string, string> | undefined>;
   refresh: () => Promise<void>;
   onBusyChange: (busy: boolean) => void;
+  compact?: boolean;
 }) {
   const operation = useEncounterCommand(
     `${snapshot.userId}:${snapshot.game.id}:${token.scene_id}:token:${token.id}`,
@@ -68,8 +71,10 @@ export function TokenInitiative({
     );
   }
   return (
-    <details>
-      <summary>Initiative</summary>
+    <details className={compact ? 'quick-action-disclosure' : undefined}>
+      <summary title={compact ? 'Initiative' : undefined}>
+        {compact ? <QuickActionIcon icon="initiative" label="Initiative" /> : 'Initiative'}
+      </summary>
       <p className="small">
         GM only. Blank rolls saved initiative privately; a manual total overrides it.
         {!live && ' Starts a new encounter with this token.'}

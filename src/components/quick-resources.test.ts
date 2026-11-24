@@ -72,8 +72,10 @@ function input(label: string) {
 async function value(label: string, next: string) {
   await act(async () => {
     const element = input(label);
+    element.focus();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, next);
     element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.blur();
   });
 }
 function button(text: string) {
@@ -150,32 +152,34 @@ it.each([
 ])('blocks read-only and configuration-draft writes', async (editable, blocked) => {
   const { run } = await setup(false, editable, blocked);
   expect(input('Quick Hit Points').disabled).toBe(true);
-  expect(button('Confirm Damage').disabled).toBe(true);
+  expect(input('Quick Temporary HP').disabled).toBe(true);
   expect(run).not.toHaveBeenCalled();
 });
-it('previews damage and healing, then submits an atomic health change', async () => {
+it('subtracts signed damage without changing temporary HP and clamps absolute HP to its bounds', async () => {
   const { a, run } = await setup();
+  let sheet = a.sheet;
+  let revision = 0;
   run.mockImplementation(async (_command, payload) => {
     const changes = (payload as { changes: { id: string; value: number }[] }).changes;
-    return { sheet: JSON.stringify(previewResources(a.sheet, changes)), revision: '1' };
+    sheet = previewResources(sheet, changes);
+    return { sheet: JSON.stringify(sheet), revision: String(++revision) };
   });
-  await value('Health amount', '7');
-  expect(container.textContent).toContain('HP 10 → 3');
-  await act(async () => button('Confirm Damage').click());
-  expect(run).toHaveBeenCalledWith(
-    'actor_resources',
-    expect.objectContaining({
-      revision: 0,
-      changes: [{ id: dndId('hp'), value: 3 }],
-    }),
-  );
-  const select = container.querySelector<HTMLSelectElement>('[aria-label="Health action"]')!;
-  await act(async () => {
-    select.value = 'heal';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+  await value('Quick Temporary HP', '5');
+  await value('Quick Hit Points', '-7');
+  expect(run.mock.calls[1][1]).toMatchObject({
+    revision: 1,
+    changes: [{ id: dndId('hp'), value: 3 }],
   });
-  await value('Health amount', '100');
-  expect(container.textContent).toContain('HP 3 → 10');
+  expect(input('Quick Temporary HP').value).toBe('5');
+  await value('Quick Hit Points', '+4');
+  expect(input('Quick Hit Points').value).toBe('4');
+  await value('Quick Hit Points', '100');
+  expect(input('Quick Hit Points').value).toBe('10');
+  await value('Quick Hit Points', '-100');
+  expect(input('Quick Hit Points').value).toBe('0');
+  await value('Quick Hit Points', '-');
+  expect(input('Quick Hit Points').value).toBe('0');
+  expect(run).toHaveBeenCalledTimes(5);
 });
 it('preserves configuration drafts during remote updates and requires an explicit sheet save', async () => {
   const { a, run, render } = await setup(true);

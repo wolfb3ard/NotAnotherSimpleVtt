@@ -370,6 +370,7 @@ export function equipmentEntry(name: string): SrdEntry | undefined {
 }
 export type ShopOffer = {
   key: string;
+  entryId: string;
   name: string;
   copper: number;
   quantity: number;
@@ -384,6 +385,7 @@ export const equipmentShop: ShopOffer[] = srdCatalog
     return [
       {
         key: entry.shopKey ?? entry.id,
+        entryId: entry.id,
         name: entry.inventoryName ?? entry.name.replace(/ \(.*/, ''),
         copper: entry.costCopper,
         quantity: entry.purchaseQuantity ?? 1,

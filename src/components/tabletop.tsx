@@ -253,6 +253,7 @@ function TabletopScene({
   edits,
   run,
   openQuickActions,
+  closeQuickActions,
   openTokenSheet,
   onPreviewChange,
   children,
@@ -263,6 +264,7 @@ function TabletopScene({
   edits: ReturnType<typeof useTabletopEdits>;
   run: Run;
   openQuickActions: (tokenId: string, anchor: Point) => boolean | void;
+  closeQuickActions?: () => void;
   openTokenSheet?: (actorId: string) => void;
   onPreviewChange?: (preview: boolean) => boolean;
   children?: React.ReactNode;
@@ -971,9 +973,13 @@ function TabletopScene({
               if (drawing) setEnd(point());
             }}
             onMouseUp={up}
+            onClick={(e) => {
+              if (e.evt.button === 0 && mode === 'move') closeQuickActions?.();
+            }}
             onContextMenu={(e) => {
               e.evt.preventDefault();
               rightStartedOnMap.current = false;
+              closeQuickActions?.();
             }}
             onMouseLeave={() => {
               if (marqueeStart.current) {

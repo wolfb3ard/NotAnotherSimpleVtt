@@ -31,6 +31,17 @@ const button = (text: string) =>
 const click = async (element: HTMLElement) => {
   await act(async () => element.click());
 };
+async function preview(scope: ParentNode, name: string) {
+  const summary = scope.querySelector<HTMLElement>(`summary[aria-label="Description: ${name}"]`)!;
+  const details = summary.closest('details')!;
+  await act(async () => {
+    summary.click();
+    // jsdom schedules the native toggle event on a later task.
+    details.dispatchEvent(new Event('toggle'));
+  });
+  expect(details.open).toBe(true);
+  return details;
+}
 async function select(label: string, value: string, scope: ParentNode = container) {
   const element = [...scope.querySelectorAll('label')]
     .find(
@@ -58,7 +69,11 @@ describe('isolated SRD builder draft', () => {
     const feat = structuredClone(sheet.character!.builder!.humanFeat);
     await render(sheet);
     await click(button('Edit with SRD builder'));
-    const rules = container.querySelector('#builder-origin .dnd-description');
+    const featPreview = await preview(
+      container.querySelector('#builder-origin')!,
+      'Magic Initiate',
+    );
+    const rules = featPreview.querySelector('.dnd-description');
     expect(rules?.querySelector('p')?.textContent).not.toMatch(/\n/);
     expect(button('Apply builder to unsaved sheet').disabled).toBe(false);
     await click(button('Apply builder to unsaved sheet'));
@@ -114,6 +129,8 @@ describe('isolated SRD builder draft', () => {
     expect(container.textContent).toContain('Human bonus feat');
     expect(container.textContent).toContain('Background feat: Magic Initiate');
     expect(background.textContent).toContain('Cantrips · 0/2');
+    expect(background.textContent).toContain('Level 1 spell · 0/1');
+    expect((await preview(background, 'Shield')).textContent).toContain('+5 bonus to AC');
     expect(background.textContent).toContain('Level 1 spell · 0/1');
     for (const name of ['Fire Bolt', 'Mage Hand', 'Shield']) {
       const checkbox = [...background.querySelectorAll('label')]
@@ -189,6 +206,14 @@ describe('isolated SRD builder draft', () => {
       rarity: 'Common',
     });
     expect(sheet.character!.items[0].description).toContain('Storage (sold separately)');
+  });
+  it('shows the selected purchase offer description before adding it to the draft', async () => {
+    const update = await render(createDndSheet());
+    await click(button('Create with SRD builder'));
+    await select('Purchase offer', 'equipment-potion-of-healing-50-gp');
+    const details = await preview(container.querySelector('dialog')!, 'Potion of Healing');
+    expect(details.textContent).toContain('2d4');
+    expect(update).not.toHaveBeenCalled();
   });
   it('allows read-only catalog access but not character mutation', async () => {
     const sheet = createDndSheet(),

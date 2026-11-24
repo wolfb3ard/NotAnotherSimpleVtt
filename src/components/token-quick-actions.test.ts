@@ -185,8 +185,10 @@ it('explains missing attacks without inventing sheet values', async () => {
 async function value(label: string, next: string) {
   await act(async () => {
     const input = container.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+    input.focus();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, next);
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.blur();
   });
 }
 it('opens a small non-modal card with HP first, collapsed secondary counters, sheet shortcut and Escape', async () => {
