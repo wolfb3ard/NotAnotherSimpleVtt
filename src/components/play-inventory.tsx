@@ -1,6 +1,8 @@
 import { equipmentEntry } from '@/lib/srd-equipment';
 import { inventoryEntries } from '@/lib/inventory-play';
 import type { Sheet } from '@/lib/types';
+import { DndRulesText } from './dnd-rules-text';
+import { srdCatalogCitation, withoutSrdPageReferences } from '@/lib/srd-citations';
 
 export function PlayInventory({
   sheet,
@@ -17,26 +19,24 @@ export function PlayInventory({
       {!entries.length && <p>No inventory items.</p>}
       {entries.map(({ item, equipped, equippable }) => {
         const source = equipmentEntry(item.name === 'Additional shield' ? 'Shield' : item.name);
+        const notes = withoutSrdPageReferences(item.description);
+        const includesRules = srdCatalogCitation.test(notes);
         return (
           <article className="dnd-box" key={item.id}>
             <h3>
               {item.name} ×{item.quantity}
             </h3>
             <p>
-              {item.description.split('\n').find(Boolean) ||
-                source?.kind ||
-                'No description recorded.'}
+              {source?.kind ?? item.rarity}
               {equipped && ' · Equipped'}
             </p>
             <details>
               <summary>Item details</summary>
-              {item.description && <p className="dnd-description">{item.description}</p>}
-              {source && (
-                <p className="dnd-description">
-                  SRD p.{source.page}: {source.text}
-                </p>
+              {notes && <DndRulesText description={notes} />}
+              {source && !includesRules && (
+                <DndRulesText description={source.text} entry={source} />
               )}
-              {!source && !item.description && <p>No rules or notes recorded.</p>}
+              {!source && !notes && <p>No rules or notes recorded.</p>}
             </details>
             {equippable ? (
               <button

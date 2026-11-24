@@ -249,7 +249,7 @@ function generatedDetails(state: SrdBuilderState): CharacterDetails {
   details.features.push({
     id: managedId('proficiency-summary'),
     name: 'SRD proficiencies & languages',
-    description: `${training.join('\n')}\nTools: ${[...tools].join(', ') || 'none'}.\nLanguages: ${[...languages].join(', ')}.\nSRD 5.2.1 PDF pp.20,28–83; individual source classes/backgrounds in catalog.`,
+    description: `${training.join('\n')}\nTools: ${[...tools].join(', ') || 'none'}.\nLanguages: ${[...languages].join(', ')}.\nIndividual source classes and backgrounds are in the SRD catalog.`,
     source: 'Other',
     actionType: 'Passive',
     uses: 0,
@@ -368,7 +368,7 @@ function generatedDetails(state: SrdBuilderState): CharacterDetails {
     details.features.push({
       id: managedId('pact-weapon-preset'),
       name: `Pact weapon · ${companions.pactWeapon || 'owned magic weapon'}`,
-      description: `${companions.pactActive ? 'ACTIVE bond; ready-attack configuration applies proficiency, chosen ability and damage type.' : 'INACTIVE desired profile only; no weapon is conjured or altered.'} ${companions.pactWeapon || companions.pactOwnedId}; ${companions.pactDamage} damage option; ${companions.pactCharisma ? 'Charisma' : 'ordinary weapon ability'}. SRD p.74. Conjuration uses a separate builder-owned item; an owned magic weapon's inventory entry is never converted or deleted. This records configuration, not encounter action usage.\n\n${srdExcerpt(srdEntry('option', 'Pact of the Blade')!, 3000)}`,
+      description: `${companions.pactActive ? 'ACTIVE bond; ready-attack configuration applies proficiency, chosen ability and damage type.' : 'INACTIVE desired profile only; no weapon is conjured or altered.'} ${companions.pactWeapon || companions.pactOwnedId}; ${companions.pactDamage} damage option; ${companions.pactCharisma ? 'Charisma' : 'ordinary weapon ability'}. Conjuration uses a separate builder-owned item; an owned magic weapon's inventory entry is never converted or deleted. This records configuration, not encounter action usage.\n\n${srdExcerpt(srdEntry('option', 'Pact of the Blade')!, 3000)}`,
       source: 'Class',
       actionType: 'Other',
       uses: 0,
@@ -739,7 +739,7 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
       requiresAttunement: false,
       attuned: false,
       description:
-        'Starting Wizard Spellcasting spellbook containing the six chosen level-1 spells. Granted once when first acquiring that feature; no starting-equipment package is granted on multiclassing. SRD 5.2.1 p.78. Later level-ups never replenish a lost/destroyed book; copying/replacement costs remain manual.',
+        'Starting Wizard Spellcasting spellbook containing the six chosen level-1 spells. Granted once when first acquiring that feature; no starting-equipment package is granted on multiclassing. Later level-ups never replenish a lost/destroyed book; copying/replacement costs remain manual.',
     });
   }
   if (old && state.equipment.expandLegacyBundles) {

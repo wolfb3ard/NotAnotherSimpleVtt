@@ -243,46 +243,34 @@ export function featureChoicesAt(name: SrdClass, level: number, first = false): 
   if (name === 'Druid' && level >= 2)
     add(
       'wild-shape-forms',
-      'Known Wild Shape forms (p.42)',
+      'Known Wild Shape forms',
       eligibleWildShapes(level).map((shape) => shape.id),
       wildShapeLimits(level).count,
     );
   if (name === 'Bard' && level === 1)
-    add('instruments', 'Musical instrument proficiencies (p.31)', instruments, first ? 3 : 1);
+    add('instruments', 'Musical instrument proficiencies', instruments, first ? 3 : 1);
   if (name === 'Monk' && level === 1 && first)
-    add('monk-tool', 'Artisan’s tool or instrument proficiency (p.49)', [
-      ...artisanTools,
-      ...instruments,
-    ]);
+    add('monk-tool', 'Artisan’s tool or instrument proficiency', [...artisanTools, ...instruments]);
   if (name === 'Ranger' && level === 2)
-    add(
-      'deft-languages',
-      'Deft Explorer languages (p.59)',
-      [...standardLanguages, ...rareLanguages],
-      2,
-    );
+    add('deft-languages', 'Deft Explorer languages', [...standardLanguages, ...rareLanguages], 2);
   if (name === 'Rogue' && level === 1)
-    add('thieves-language', 'Thieves’ Cant extra language (p.62)', [
+    add('thieves-language', 'Thieves’ Cant extra language', [
       ...standardLanguages,
       ...rareLanguages,
     ]);
   if (name === 'Druid' && level >= 3)
-    add('land', 'Circle of the Land terrain (p.46)', ['Arid', 'Polar', 'Temperate', 'Tropical']);
+    add('land', 'Circle of the Land terrain', ['Arid', 'Polar', 'Temperate', 'Tropical']);
   if (name === 'Cleric' && level === 1)
-    add('divine-order', 'Divine Order (p.37)', ['Protector', 'Thaumaturge']);
-  if (name === 'Druid' && level === 1)
-    add('primal-order', 'Primal Order (p.42)', ['Magician', 'Warden']);
+    add('divine-order', 'Divine Order', ['Protector', 'Thaumaturge']);
+  if (name === 'Druid' && level === 1) add('primal-order', 'Primal Order', ['Magician', 'Warden']);
   if (name === 'Cleric' && level === 7)
-    add('blessed-strikes', 'Blessed Strikes (p.38)', ['Divine Strike', 'Potent Spellcasting']);
+    add('blessed-strikes', 'Blessed Strikes', ['Divine Strike', 'Potent Spellcasting']);
   if (name === 'Druid' && level === 7)
-    add('elemental-fury', 'Elemental Fury (p.44)', ['Potent Spellcasting', 'Primal Strike']);
+    add('elemental-fury', 'Elemental Fury', ['Potent Spellcasting', 'Primal Strike']);
   if (name === 'Ranger' && level === 3)
-    add('hunters-prey', 'Hunter’s Prey (p.61)', ['Colossus Slayer', 'Horde Breaker']);
+    add('hunters-prey', 'Hunter’s Prey', ['Colossus Slayer', 'Horde Breaker']);
   if (name === 'Ranger' && level === 7)
-    add('defensive-tactics', 'Defensive Tactics (p.61)', [
-      'Escape the Horde',
-      'Multiattack Defense',
-    ]);
+    add('defensive-tactics', 'Defensive Tactics', ['Escape the Horde', 'Multiattack Defense']);
   if (
     (name === 'Fighter' && [1, 7].includes(level)) ||
     (['Paladin', 'Ranger'].includes(name) && level === 2)
@@ -294,7 +282,7 @@ export function featureChoicesAt(name: SrdClass, level: number, first = false): 
   if (name === 'Bard' && level >= 6)
     add(
       'magical-discoveries',
-      'College of Lore: Magical Discoveries (p.35)',
+      'College of Lore: Magical Discoveries',
       srdCatalog
         .filter(
           (e) =>
@@ -308,7 +296,7 @@ export function featureChoicesAt(name: SrdClass, level: number, first = false): 
   if (name === 'Wizard' && (level === 3 || (level >= 5 && level <= 17 && level % 2 === 1)))
     add(
       'evocation-savant',
-      'Evocation Savant: free new Evocation spells (p.82)',
+      'Evocation Savant: free new Evocation spells',
       srdCatalog
         .filter(
           (e) =>
@@ -322,7 +310,7 @@ export function featureChoicesAt(name: SrdClass, level: number, first = false): 
       level === 3 ? 2 : 1,
     );
   if (name === 'Sorcerer' && level === 6)
-    add('elemental-affinity', 'Elemental Affinity (p.69)', [
+    add('elemental-affinity', 'Elemental Affinity', [
       'Acid',
       'Cold',
       'Fire',
@@ -332,7 +320,7 @@ export function featureChoicesAt(name: SrdClass, level: number, first = false): 
   if (name === 'Wizard' && level === 18)
     add(
       'spell-mastery',
-      'Spell Mastery (p.79): level 1 then level 2, casting time Action',
+      'Spell Mastery: level 1 then level 2, casting time Action',
       srdCatalog
         .filter(
           (e) =>
@@ -347,7 +335,7 @@ export function featureChoicesAt(name: SrdClass, level: number, first = false): 
   if (name === 'Wizard' && level === 20)
     add(
       'signature-spells',
-      'Signature Spells (p.79): two level 3 spells',
+      'Signature Spells: two level 3 spells',
       srdCatalog
         .filter((e) => e.category === 'spell' && e.classes?.includes('Wizard') && e.level === 3)
         .map((e) => e.id),

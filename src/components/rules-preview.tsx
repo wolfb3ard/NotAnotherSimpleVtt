@@ -18,7 +18,7 @@ export function RulesPreview({
   return (
     <details className="rules-preview" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary aria-label={`Description: ${name}`}>Description</summary>
-      {text && <DndRulesText description={text} imported={!!entry} />}
+      {text && <DndRulesText description={text} entry={entry} />}
     </details>
   );
 }

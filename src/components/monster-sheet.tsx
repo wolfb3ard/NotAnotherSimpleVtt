@@ -1,5 +1,7 @@
 'use client';
 
+import { DndRulesText } from './dnd-rules-text';
+
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { dndId } from '@/lib/dnd';
 import { createMonsterSheet, monsterSource, monsterSpells } from '@/lib/srd-monsters';
@@ -397,8 +399,8 @@ export default function MonsterSheet({
             </div>
             {counter(field(`spell:${spell.entry.id}:uses`), spell.entry.name, true)}
             <details>
-              <summary>Full spell · SRD p. {spell.entry.page}</summary>
-              <p className="dnd-description">{spell.entry.text}</p>
+              <summary>Full spell rules</summary>
+              <DndRulesText description={spell.entry.text} entry={spell.entry} />
             </details>
           </article>
         );
@@ -502,9 +504,7 @@ export default function MonsterSheet({
         </details>
         {source && (
           <details>
-            <summary>
-              Published {source.name} · SRD 5.2.1 pp. {source.page}–{source.endPage} (unmodified)
-            </summary>
+            <summary>Published {source.name} · SRD 5.2.1 (unmodified)</summary>
             <p className="dnd-description">{source.text}</p>
             <small>
               This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by

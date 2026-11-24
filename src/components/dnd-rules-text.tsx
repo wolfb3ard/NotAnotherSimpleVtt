@@ -1,10 +1,12 @@
-import { srdById, srdExcerpt } from '@/lib/srd-catalog';
+import { srdById, srdExcerpt, type SrdEntry } from '@/lib/srd-catalog';
+import { srdCatalogCitation, withoutSrdPageReferences } from '@/lib/srd-citations';
 import { DndRulesTable, type RulesTable } from './dnd-rules-table';
 import { inlineRulesTable } from './dnd-inline-rules-tables';
+import { itemRules, type RuleFact } from './dnd-item-rules';
 
-const sourceLine = /^(?:SRD 5\.2\.1[ ,]+PDF p|Source\(s\):)/;
+const sourceLine = /^(?:SRD 5\.2\.1; catalog:|Source\(s\):)/;
 const ruleLead =
-  /^(At Higher Levels[.:]|(?:Using a Higher-Level Spell Slot|Cantrip Upgrade|Number of Uses|Known Forms|Rules While Shape-Shifted|Cantrips|Spellbook|Spell Slots|Prepared Spells of Level 1\+|Changing Your Prepared Spells|Spellcasting Ability|Spellcasting Focus|Copying a Spell into the Book|Copying the Book|Damage Resistance|Rage Damage|Strength Advantage|No Concentration or Spells|Duration)\.|(?:Trigger|Response|Cost|Prerequisite|Creature Type|Size|Speed|Tools|Languages):)\s*/;
+  /^(At Higher Levels[.:]|(?:Using a Higher-Level Spell Slot|Cantrip Upgrade|Number of Uses|Known Forms|Rules While Shape-Shifted|Cantrips|Spellbook|Spell Slots|Prepared Spells of Level 1\+|Changing Your Prepared Spells|Spellcasting Ability|Spellcasting Focus|Copying a Spell into the Book|Copying the Book|Damage Resistance|Rage Damage|Strength Advantage|No Concentration or Spells|Duration)\.|(?:Trigger|Response|Cost|Prerequisite|Creature Type|Size|Speed|Tools|Languages|Utilize|Craft):)\s*/;
 
 const reflow = (text: string) => text.trim().replace(/[ \t]*\n[ \t]*/g, ' ');
 
@@ -68,12 +70,15 @@ function extractProgression(text: string) {
 }
 
 function featureRules(description: string) {
-  const citation = /\n\nSRD 5\.2\.1, PDF p\.[^\n]+; catalog: ([\w-]+)\./.exec(description);
+  const citation = srdCatalogCitation.exec(description);
   if (!citation || !progressionHeading.test(description)) return { text: description };
   const entry = srdById.get(citation[1]);
   // Recover rules cut off by the old excerpt limit, but only for untouched stock excerpts.
+  const excerpt = description.slice(0, citation.index);
   const original =
-    entry?.category === 'feature' && description === srdExcerpt(entry)
+    entry?.category === 'feature' &&
+    (description === srdExcerpt(entry) ||
+      (excerpt.endsWith('…') && entry.text.startsWith(excerpt.slice(0, -1))))
       ? entry.text + description.slice(citation.index)
       : description;
   const progression = extractProgression(original);
@@ -113,7 +118,8 @@ export function spellRules(description: string) {
   };
 }
 
-type RulesBlock = { paragraph: string } | { bullets: string[] } | { table: RulesTable };
+type RulesBlock =
+  { paragraph: string; indented: boolean } | { bullets: string[] } | { table: RulesTable };
 
 function rulesBlocks(text: string, imported: boolean): RulesBlock[] {
   // The PDF uses indents instead of blank lines for many paragraph breaks.
@@ -122,7 +128,7 @@ function rulesBlocks(text: string, imported: boolean): RulesBlock[] {
   let pending: string[] = [];
   const flush = () => {
     const paragraph = (imported ? reflow : (value: string) => value.trim())(pending.join('\n'));
-    if (paragraph) blocks.push({ paragraph });
+    if (paragraph) blocks.push({ paragraph, indented: pending[0]?.startsWith('\t') ?? false });
     pending = [];
   };
   const bullet = /^[ \t]*•[ \t]+/;
@@ -148,7 +154,13 @@ function rulesBlocks(text: string, imported: boolean): RulesBlock[] {
       blocks.push({ bullets: items });
       i--;
     } else {
-      if (!line.trim() || line.startsWith('\t')) flush();
+      if (
+        !line.trim() ||
+        line.startsWith('\t') ||
+        sourceLine.test(line) ||
+        (imported && /^(Utilize|Craft):/.test(line))
+      )
+        flush();
       pending.push(line);
     }
   }
@@ -173,7 +185,11 @@ function RulesParagraphs({ text, imported }: { text: string; imported: boolean }
           );
         }
         const { paragraph } = block;
-        const lead = ruleLead.exec(paragraph);
+        const lead =
+          ruleLead.exec(paragraph) ??
+          (imported && block.indented
+            ? /^([\p{Lu}][\p{L}’', +\-0-9]*(?:\s+[\p{L}’',+\-0-9]+){0,5}\.)\s+/u.exec(paragraph)
+            : null);
         return (
           <p key={index}>
             {sourceLine.test(paragraph) ? (
@@ -196,31 +212,72 @@ export function DndRulesText({
   description,
   feature = false,
   imported,
+  entry,
+  hideSpellSchool = false,
 }: {
   description: string;
   feature?: boolean;
   imported?: boolean;
+  entry?: SrdEntry;
+  hideSpellSchool?: boolean;
 }) {
-  const rules = feature ? featureRules(description) : { text: description };
+  const clean = withoutSrdPageReferences(description);
+  const citation = srdCatalogCitation.exec(clean);
+  const source = entry ?? (citation ? srdById.get(citation[1]) : undefined);
+  const spell = spellRules(clean);
+  const feat =
+    /^(Origin|General|Fighting Style|Epic Boon) Feat(?: \(Prerequisite: ([^)]*)\))?\s*\n/.exec(
+      clean,
+    );
+  const facts: RuleFact[] = [];
+  let text = clean;
+  if (spell.facts) {
+    if (!hideSpellSchool) facts.push({ label: 'Level & school', value: spell.school });
+    facts.push(...spell.facts);
+    text = spell.description;
+  } else if (feat) {
+    facts.push({ label: 'Feat type', value: feat[1] });
+    if (feat[2]) facts.push({ label: 'Prerequisite', value: reflow(feat[2]) });
+    text = clean.slice(feat[0].length);
+  } else {
+    const item = itemRules(clean, source);
+    facts.push(...item.facts);
+    text = item.description;
+  }
+  const rules = feature ? featureRules(text) : { text };
   return (
-    <div className="dnd-description">
-      <RulesParagraphs
-        text={rules.text}
-        imported={imported ?? /^SRD 5\.2\.1, PDF p\./m.test(rules.text)}
-      />
-      {rules.sidebar && (
-        <details className="dnd-rules-reference">
-          <summary>Expanding and Replacing a Spellbook</summary>
-          <div className="dnd-description">
-            <RulesParagraphs text={rules.sidebar} imported />
-          </div>
-        </details>
+    <div className="dnd-rule-content">
+      {!!facts.length && (
+        <dl className="dnd-rules-facts">
+          {facts.map(({ label, value }) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
-      {rules.progression && (
-        <details className="dnd-rules-reference">
-          <summary>{rules.progression.name} progression table</summary>
-          <DndRulesTable {...rules.progression} />
-        </details>
+      {(rules.text.trim() || !facts.length) && (
+        <div className="dnd-description">
+          <RulesParagraphs
+            text={rules.text}
+            imported={imported ?? !!(source || citation || spell.facts || feat)}
+          />
+          {rules.sidebar && (
+            <details className="dnd-rules-reference">
+              <summary>Expanding and Replacing a Spellbook</summary>
+              <div className="dnd-description">
+                <RulesParagraphs text={rules.sidebar} imported />
+              </div>
+            </details>
+          )}
+          {rules.progression && (
+            <details className="dnd-rules-reference">
+              <summary>{rules.progression.name} progression table</summary>
+              <DndRulesTable {...rules.progression} />
+            </details>
+          )}
+        </div>
       )}
     </div>
   );

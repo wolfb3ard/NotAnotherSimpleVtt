@@ -59,3 +59,21 @@ it('retains the original when a legacy sheet cannot be upgraded safely', () => {
     false,
   );
 });
+
+it('hides legacy SRD citations without rewriting player notes or the stored sheet', () => {
+  const sheet = loadCompatibleSheet(legacySheet('fighter')).sheet;
+  const [item] = sheet.character!.items;
+  const [ability] = sheet.sections.flatMap((section) => section.abilities);
+  item.description =
+    'See p.12 of my journal.\n\nSRD 5.2.1, PDF p. 98–99; catalog: equipment-example. Full text in SRD catalog.\n\nStarting grant/purchase: SRD 5.2.1 class p.47, background p.83. Pack contents are individually expanded from PDF pp.96–99.';
+  ability.description = 'Manual casting. SRD p.123.';
+  const { sheet: cleaned } = loadCompatibleSheet(sheet);
+  expect(cleaned.character?.items[0]?.description).toBe(
+    'See p.12 of my journal.\n\nSRD 5.2.1; catalog: equipment-example. Full text in SRD catalog.\n\nStarting grant or purchase. Pack contents are listed individually.',
+  );
+  expect(cleaned.sections.flatMap((section) => section.abilities)[0].description).toBe(
+    'Manual casting.',
+  );
+  expect(item.description).toContain('PDF p. 98–99');
+  expect(loadCompatibleSheet(cleaned).sheet).toBe(cleaned);
+});

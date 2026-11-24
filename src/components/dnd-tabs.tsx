@@ -250,27 +250,10 @@ export function DndTabs({
         {compact ? (
           <details>
             <summary>Spell rules</summary>
-            {rules.facts?.map(({ label, value }) => (
-              <p className="small" key={label}>
-                {label}: {value}
-              </p>
-            ))}
-            <DndRulesText description={rules.description} />
+            <DndRulesText description={spell.description} hideSpellSchool />
           </details>
         ) : (
-          <>
-            {rules.facts && (
-              <dl className="dnd-rules-facts">
-                {rules.facts.map(({ label, value }) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            <DndRulesText description={rules.description} />
-          </>
+          <DndRulesText description={spell.description} hideSpellSchool />
         )}
         {sources.length > 0 && (
           <p className="small">

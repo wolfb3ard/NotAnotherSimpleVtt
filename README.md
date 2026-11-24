@@ -58,7 +58,7 @@ The rules have been adapted into an interactive sheet and calculations. Source: 
 
 ### SRD catalog & progression
 
-- **SRD 5.2.1 catalog & complete source pages** provides searchable classes/subclasses, species, backgrounds, feats, class features/options, spells, mundane equipment, and magic items. Original text from all 364 PDF pages remains accessible; long sheet entries link back to the full catalog text.
+- **SRD 5.2.1 rules catalog** provides searchable classes/subclasses, species, backgrounds, feats, class features/options, spells, mundane equipment, and magic items. Long sheet entries point to the full rules in the catalog.
 - The imported player catalog includes the SRD's 12 classes and their 12 subclasses, 9 species, 4 backgrounds, 17 feats, and 338 spells. This is the SRD subset, not every option from the commercial Player's Handbook. Heading counts are regression checks, not an independent completeness audit.
 - Creation supports standard array, point buy, or recorded 4d6-drop-lowest results; background boosts/feats; species/lineage choices; class skills, expertise, weapon mastery, spells, and feature options. Recorded ability dice are editable character-builder input, not authenticated server roll-history results.
 - Progression distinguishes class and character levels, checks multiclass prerequisites, and calculates HP, grouped Hit Dice, proficiency, features, spell preparation/book choices, spell slots, and separate Pact Magic resources. Half-casters round up independently for multiclass slot progression. Manual annotations and spent resources survive level-up.

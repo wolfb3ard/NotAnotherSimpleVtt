@@ -224,7 +224,7 @@ export function createMonsterSheet(id: string): Sheet {
       ability(
         `spell:${spell.entry.id}`,
         `Cast ${spell.entry.name}`,
-        `Review the monster's casting restrictions and the full spell text. Casting is declared manually; rolls and use expenditure are separate explicit actions. SRD p.${spell.entry.page}.`,
+        `Review the monster's casting restrictions and the full spell text. Casting is declared manually; rolls and use expenditure are separate explicit actions.`,
       ),
     );
     if (spell.uses)

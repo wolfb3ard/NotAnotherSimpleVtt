@@ -1,6 +1,5 @@
 'use client';
 import { useMemo, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { DndRulesText } from './dnd-rules-text';
 import {
   searchSrd,
@@ -9,9 +8,6 @@ import {
   type SrdCategory,
   type SrdEntry,
 } from '@/lib/srd-catalog';
-const SourcePages = dynamic(() => import('./srd-source-pages'), {
-  loading: () => <p role="status">Loading source pages…</p>,
-});
 
 const categories: SrdCategory[] = [
   'class',
@@ -31,17 +27,16 @@ export function SrdCatalog({ onAddItem }: { onAddItem?: (entry: SrdEntry) => voi
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<SrdCategory | ''>('');
   const [limit, setLimit] = useState(30);
-  const [sourceOpen, setSourceOpen] = useState(false);
   const results = useMemo(() => searchSrd(query, category || undefined), [query, category]);
   return (
     <details className="sheet-help">
-      <summary>SRD 5.2.1 catalog & complete source pages</summary>
+      <summary>SRD 5.2.1 rules catalog</summary>
       <p>{srdManifest.attribution}</p>
-      <p className="notice">{srdManifest.verification}</p>
       <details>
         <summary>Automation limitations</summary>
         <ul>
-          {srdManifest.limitations.map((text) => (
+          <li>Not independently audited as a complete rules implementation.</li>
+          {srdManifest.limitations.slice(1).map((text) => (
             <li key={text}>{text}</li>
           ))}
         </ul>
@@ -78,10 +73,9 @@ export function SrdCatalog({ onAddItem }: { onAddItem?: (entry: SrdEntry) => voi
       {results.slice(0, limit).map((entry) => (
         <details key={entry.id}>
           <summary>
-            {entry.name} · {entry.category} · PDF p.{entry.page}
-            {entry.endPage !== entry.page && `–${entry.endPage}`}
+            {entry.name} · {entry.category}
           </summary>
-          <DndRulesText description={srdFullText(entry)} imported />
+          <DndRulesText description={srdFullText(entry)} entry={entry} />
           <small>{entry.id}</small>
           {onAddItem &&
             entry.addable !== false &&
@@ -102,10 +96,6 @@ export function SrdCatalog({ onAddItem }: { onAddItem?: (entry: SrdEntry) => voi
           Show 30 more
         </button>
       )}
-      <details onToggle={(event) => setSourceOpen(event.currentTarget.open)}>
-        <summary>Read original page text (including tables and nested choices)</summary>
-        {sourceOpen && <SourcePages />}
-      </details>
     </details>
   );
 }

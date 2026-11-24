@@ -636,9 +636,7 @@ function LevelChoices({
         </summary>
         {features.map((feature) => (
           <details key={feature.id}>
-            <summary>
-              {feature.name} · p.{feature.page}
-            </summary>
+            <summary>{feature.name}</summary>
             <DndRulesText description={feature.text} imported />
           </details>
         ))}
@@ -754,7 +752,7 @@ function DraftBuilder({
           </p>
         )}
         {levelingUp && (
-          <p>Magic Initiate can replace one chosen spell per gained character level (SRD p.87).</p>
+          <p>Magic Initiate can replace one chosen spell per gained character level.</p>
         )}
         <nav className="builder-journey" aria-label="Builder sections">
           <a href="#builder-origin">1. Origin & abilities</a>
