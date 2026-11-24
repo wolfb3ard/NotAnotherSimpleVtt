@@ -1805,6 +1805,7 @@ summary {
 }
 .dnd-action-group,
 .dnd-rules-card,
+.dnd-rule-content,
 .dnd-description {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1869,20 +1870,23 @@ summary {
   font-weight: 600;
 }
 .dnd-rules-facts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 8px 16px;
   margin: 0;
+  padding-block-end: 8px;
+  border-block-end: 1px solid currentColor;
+  border-block-end-color: color-mix(in srgb, currentColor 20%, transparent);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .dnd-rules-facts dt,
 .dnd-rules-facts dd {
-  display: inline;
   margin: 0;
 }
 .dnd-rules-facts dt {
   font-weight: 700;
-  margin-inline-end: 0.4em;
+  font-size: 0.85em;
 }
 .dnd-rules-buttons {
   display: flex;

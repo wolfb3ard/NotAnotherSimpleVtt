@@ -49,5 +49,6 @@ it('keeps rule headings and grouped variants non-addable, while selecting a conc
     }),
   );
   expect(container.querySelector('input[type="number"]')).toBeNull();
+  expect(container.textContent).not.toMatch(/PDF page|PDF pp?\./);
   expect(container.textContent).not.toContain('Create Your Character');
 });

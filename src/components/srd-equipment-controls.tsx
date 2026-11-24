@@ -150,7 +150,7 @@ export function SrdEquipmentControls({
         </label>
       )}
       <fieldset disabled={(originLocked && !legacy) || gear.grantStarting === false}>
-        <legend>Starting packages & purchases · SRD pp.28–83, 89–100</legend>
+        <legend>Starting packages & purchases</legend>
         {!originLocked && (
           <>
             <PackagePicker
@@ -233,8 +233,7 @@ export function SrdEquipmentControls({
               .map((entry) => (
                 <option key={entry.key} value={entry.key}>
                   {entry.name}
-                  {entry.quantity > 1 ? ` ×${entry.quantity}` : ''} · {money(entry.copper)} · p.
-                  {entry.page}
+                  {entry.quantity > 1 ? ` ×${entry.quantity}` : ''} · {money(entry.copper)}
                 </option>
               ))}
           </select>

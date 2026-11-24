@@ -192,20 +192,6 @@ export const classStartingGold: Record<SrdClass, number[]> = {
   Warlock: [15, 100],
   Wizard: [5, 55],
 };
-export const classEquipmentPages: Record<SrdClass, number> = {
-  Barbarian: 28,
-  Bard: 31,
-  Cleric: 36,
-  Druid: 41,
-  Fighter: 47,
-  Monk: 49,
-  Paladin: 53,
-  Ranger: 57,
-  Rogue: 61,
-  Sorcerer: 64,
-  Warlock: 70,
-  Wizard: 77,
-};
 export function classLots(state: SrdBuilderState): Lot[] {
   const name = state.levels[0].className,
     choice = state.classEquipment;
@@ -541,7 +527,7 @@ export function startingInventory(state: SrdBuilderState): CharacterDetails['ite
       id: index ? startingItemId(`${item.name}:stack:${index}`) : startingItemId(item.name),
       name: item.name,
       quantity: Math.min(999, item.quantity - index * 999),
-      description: `${currency ? 'Currency; quantity is the number of coins.' : source ? srdExcerpt(source, 3500) : `Selected SRD equipment variant. See PDF p.${instruments.includes(item.name) ? 94 : item.page}.`}\n\nStarting grant/purchase: SRD 5.2.1 class p.${classEquipmentPages[state.levels[0].className]}, background p.83. Pack contents are individually expanded from PDF pp.96–99.${item.name === 'Spellbook' && state.levels[0].className === 'Wizard' ? ' Wizard Spellcasting creates its starting spellbook (p.78); package A already includes it, gold B does not remove that feature.' : ''}`,
+      description: `${currency ? 'Currency; quantity is the number of coins.' : source ? srdExcerpt(source, 3500) : 'Selected SRD equipment variant.'}\n\nStarting grant or purchase. Pack contents are listed individually.${item.name === 'Spellbook' && state.levels[0].className === 'Wizard' ? ' Wizard Spellcasting creates its starting spellbook; package A already includes it, gold B does not remove that feature.' : ''}`,
       rarity: 'Common' as const,
       requiresAttunement: false,
       attuned: false,
@@ -564,7 +550,7 @@ export function conjuredPactItem(
     rarity: 'Common',
     requiresAttunement: false,
     attuned: false,
-    description: `Conjured Pact weapon, not a purchased or converted manual item. Only this one conjured weapon exists; it disappears when the bond ends. SRD p.74. Active configuration, not an encounter action/charge tracker.\n\n${srdExcerpt(weapon.entry, 3500)}`,
+    description: `Conjured Pact weapon, not a purchased or converted manual item. Only this one conjured weapon exists; it disappears when the bond ends. Active configuration, not an encounter action/charge tracker.\n\n${srdExcerpt(weapon.entry, 3500)}`,
   };
 }
 export function recognizableMagicWeapon(
@@ -722,11 +708,11 @@ export function deriveEquipment(state: SrdBuilderState, items: Item[], scores: n
     errors.push('Equipped shield must reference an owned Shield (quantity greater than zero).');
   if (loadout.armor && !training.has(armor?.category ?? ''))
     warnings.push(
-      'No training with this armor: disadvantage on Strength/Dexterity D20 Tests, and you cannot cast spells (PDF p.92).',
+      'No training with this armor: disadvantage on Strength/Dexterity D20 Tests, and you cannot cast spells.',
     );
   const shieldTrained = training.has('Shield');
   if (loadout.shield && !shieldTrained)
-    warnings.push('No Shield training: this Shield supplies no AC benefit (PDF p.92).');
+    warnings.push('No Shield training: this Shield supplies no AC benefit.');
   if (armor?.stealth)
     warnings.push('This armor imposes disadvantage on Dexterity (Stealth) checks.');
   const mods = scores.map((score) => Math.floor((score - 10) / 2));

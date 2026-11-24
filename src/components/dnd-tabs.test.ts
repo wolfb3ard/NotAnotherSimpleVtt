@@ -146,7 +146,7 @@ describe('character tabs', () => {
       'Roll Fire Bolt (Human · Magic Initiate)',
     ]);
     const description = actions.closest('article')!.querySelector('.dnd-description')!;
-    expect(description.querySelector('em')?.textContent).toMatch(/^SRD 5\.2\.1, PDF p\./);
+    expect(description.querySelector('em')?.textContent).toMatch(/^SRD 5\.2\.1; catalog:/);
     expect(description.textContent).not.toContain('\n');
     expect(description.textContent).not.toContain('Components:');
     expect(description.querySelector('strong')?.textContent).toBe('Cantrip Upgrade.');

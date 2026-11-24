@@ -131,10 +131,7 @@ export default function MonsterLibrary({
       </label>
       {monster && (
         <details>
-          <summary>
-            {monster.name} · PDF pp. {monster.page}
-            {monster.endPage !== monster.page ? `–${monster.endPage}` : ''}
-          </summary>
+          <summary>{monster.name}</summary>
           <p className="small" style={{ whiteSpace: 'pre-wrap' }}>
             {monster.text}
           </p>

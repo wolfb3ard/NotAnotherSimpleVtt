@@ -5,6 +5,7 @@ import { sheetSchema } from './sheets';
 import { defaultEquipment } from './srd-equipment';
 import { defaultCompanions } from './srd-shapes';
 import type { Sheet } from './types';
+import { withoutSrdPageReferences } from './srd-citations';
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -65,6 +66,27 @@ function upgradeV1(input: unknown) {
 
 export const compatibleSheetSchema = z.preprocess(upgradeV1, sheetSchema);
 
+function withoutPageCitations(sheet: Sheet): Sheet {
+  let changed = false;
+  function clean<T extends { description?: string }>(entry: T): T {
+    const description = entry.description && withoutSrdPageReferences(entry.description);
+    if (description === entry.description) return entry;
+    changed = true;
+    return { ...entry, description };
+  }
+  const sections = sheet.sections.map((section) => ({
+    ...section,
+    abilities: section.abilities.map(clean),
+  }));
+  const character = sheet.character && {
+    ...sheet.character,
+    spells: sheet.character.spells.map(clean),
+    features: sheet.character.features.map(clean),
+    items: sheet.character.items.map(clean),
+  };
+  return changed ? { ...sheet, sections, ...(character && { character }) } : sheet;
+}
+
 /** Read-only view of a stored sheet. Failed upgrades never replace the source document. */
 export function loadCompatibleSheet(sheet: Sheet): {
   sheet: Sheet;
@@ -74,9 +96,9 @@ export function loadCompatibleSheet(sheet: Sheet): {
     sheet.compatibilityVersion === 1 ||
     (!isDndSheet(sheet) && sheet.compatibilityVersion === undefined)
   )
-    return { sheet };
+    return { sheet: withoutPageCitations(sheet) };
   const result = compatibleSheetSchema.safeParse(sheet);
   return result.success
-    ? { sheet: result.data }
+    ? { sheet: withoutPageCitations(result.data) }
     : { sheet, sheetUpgradeIssue: result.error.issues[0].message };
 }

@@ -55,14 +55,10 @@ export function SrdShapesControls({
               <option value="none">No familiar preset</option>
               {capabilities.normal && <option value="spell">Find Familiar spell / ritual</option>}
               {capabilities.wild && (
-                <option value="wild-companion">
-                  Wild Companion · Fey, ends after Long Rest (p.43)
-                </option>
+                <option value="wild-companion">Wild Companion · Fey, ends after Long Rest</option>
               )}
               {capabilities.chain && (
-                <option value="pact-chain">
-                  Pact of the Chain · normal + 7 special forms (p.74)
-                </option>
+                <option value="pact-chain">Pact of the Chain · normal + 7 special forms</option>
               )}
             </select>
           </label>
@@ -77,7 +73,7 @@ export function SrdShapesControls({
                   <option value="">Choose…</option>
                   {familiarShapes(selected.familiarMode === 'pact-chain').map((form) => (
                     <option key={form.id} value={form.id}>
-                      {form.name} · CR {form.crLabel} · p.{form.page}
+                      {form.name} · CR {form.crLabel}
                     </option>
                   ))}
                 </select>
@@ -98,9 +94,7 @@ export function SrdShapesControls({
               </label>
               {shape && (
                 <details>
-                  <summary>
-                    {shape.name} source stat block · pp.{shape.page}–{shape.endPage}
-                  </summary>
+                  <summary>{shape.name} source stat block</summary>
                   <p style={{ whiteSpace: 'pre-wrap' }}>{shape.text}</p>
                 </details>
               )}

@@ -73,6 +73,8 @@ describe('isolated SRD builder draft', () => {
       container.querySelector('#builder-origin')!,
       'Magic Initiate',
     );
+    expect(featPreview.querySelector('dl')?.textContent).toContain('Feat typeOrigin');
+    expect(featPreview.querySelector('strong')?.textContent).toBe('Two Cantrips.');
     const rules = featPreview.querySelector('.dnd-description');
     expect(rules?.querySelector('p')?.textContent).not.toMatch(/\n/);
     expect(button('Apply builder to unsaved sheet').disabled).toBe(false);
@@ -130,7 +132,11 @@ describe('isolated SRD builder draft', () => {
     expect(container.textContent).toContain('Background feat: Magic Initiate');
     expect(background.textContent).toContain('Cantrips · 0/2');
     expect(background.textContent).toContain('Level 1 spell · 0/1');
-    expect((await preview(background, 'Shield')).textContent).toContain('+5 bonus to AC');
+    const spell = await preview(background, 'Shield');
+    expect(spell.querySelector('dl')).not.toBeNull();
+    expect(spell.querySelector('dl')?.textContent).toContain('Casting Time');
+    expect(spell.querySelector('dl')?.textContent).toContain('ComponentsV, S');
+    expect(spell.querySelector('.dnd-description')?.textContent).toContain('+5 bonus to AC');
     expect(background.textContent).toContain('Level 1 spell · 0/1');
     for (const name of ['Fire Bolt', 'Mage Hand', 'Shield']) {
       const checkbox = [...background.querySelectorAll('label')]
@@ -212,14 +218,16 @@ describe('isolated SRD builder draft', () => {
     await click(button('Create with SRD builder'));
     await select('Purchase offer', 'equipment-potion-of-healing-50-gp');
     const details = await preview(container.querySelector('dialog')!, 'Potion of Healing');
-    expect(details.textContent).toContain('2d4');
+    expect(details.querySelector('dl')?.textContent).toContain('Weight1/2 lb.');
+    expect(details.querySelector('.dnd-description')?.textContent).toContain('2d4');
+    expect(details.textContent).not.toMatch(/PDF p\./);
     expect(update).not.toHaveBeenCalled();
   });
   it('allows read-only catalog access but not character mutation', async () => {
     const sheet = createDndSheet(),
       update = await render(sheet, false);
     expect(button('Create with SRD builder').disabled).toBe(true);
-    expect(container.textContent).toContain('complete source pages');
+    expect(container.textContent).toContain('SRD 5.2.1 rules catalog');
     expect(container.querySelector('dialog')).toBeNull();
     expect(update).not.toHaveBeenCalled();
   });

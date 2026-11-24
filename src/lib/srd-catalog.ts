@@ -72,7 +72,7 @@ export function srdEntry(category: SrdCategory, name: string): SrdEntry | undefi
 }
 /** Long rules stay in the source catalog; sheet excerpts never silently truncate them. */
 export function srdExcerpt(entry: SrdEntry, maxLength = 4000): string {
-  const citation = `\n\nSRD 5.2.1, PDF p. ${entry.page}${entry.endPage !== entry.page ? `–${entry.endPage}` : ''}; catalog: ${entry.id}. Full text in SRD catalog.`;
+  const citation = `\n\nSRD 5.2.1; catalog: ${entry.id}. Full text in SRD catalog.`;
   const room = maxLength - citation.length;
   const text = srdFullText(entry);
   return (text.length <= room ? text : `${text.slice(0, room - 2)}…`) + citation;

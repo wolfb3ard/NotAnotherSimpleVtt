@@ -121,7 +121,7 @@ export function companionErrors(state: SrdBuilderState): string[] {
     )
       errors.push('Choose an eligible SRD familiar form for that source.');
     if (selected.familiarMode === 'wild-companion' && selected.familiarType !== 'Fey')
-      errors.push('Wild Companion familiars must be Fey (SRD p.43).');
+      errors.push('Wild Companion familiars must be Fey.');
   }
   if (selected.steedAppearance && !capability.steed)
     errors.push('A steed preset requires the Find Steed spell/feature.');

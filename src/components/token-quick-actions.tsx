@@ -10,6 +10,7 @@ import { tableSystem } from '@/lib/table-system';
 import { TokenInitiative } from './token-initiative';
 import { PlayAssistance } from './play-assistance';
 import { QuickActionIcon } from './quick-action-icon';
+import { DndRulesText } from './dnd-rules-text';
 
 const noRefresh = async () => {};
 
@@ -401,7 +402,7 @@ export function TokenQuickActions({
                   {selectedRoll?.description && (
                     <details>
                       <summary>Action rules</summary>
-                      <p>{selectedRoll.description}</p>
+                      <DndRulesText description={selectedRoll.description} />
                     </details>
                   )}
                   <button
