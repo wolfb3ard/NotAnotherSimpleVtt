@@ -236,23 +236,11 @@ export function SheetEditor({
                     Customize sheet
                   </button>
                 </div>
-                <SrdBuilder
-                  commit={
-                    dirty
-                      ? undefined
-                      : (next) => commitPlay(next, 'Character progression saved to the table.')
-                  }
-                  sheet={sheet}
-                  editable={editable && !conflict}
-                  update={update}
-                  initialOpen={initialBuilderOpen}
-                />
                 <details className="sheet-help">
                   <summary>Rules guidance & SRD attribution</summary>
                   <p>
-                    Edit character details directly on the sheet. The optional builder manages class
-                    progression and calculates level and ability scores. For manual control of those
-                    values, switch to manual progression. Conditional effects still require
+                    Use the SRD builder for progression and ability generation. Edit details and
+                    ability overrides directly on the sheet. Conditional effects still require
                     reviewing the source rules.
                   </p>
                   <p>
@@ -274,6 +262,17 @@ export function SheetEditor({
             )}
           </div>
         </details>
+        {dnd && (
+          <SrdBuilder
+            commit={
+              dirty ? undefined : (next) => commitPlay(next, 'Character builder changes saved.')
+            }
+            sheet={sheet}
+            editable={editable && !conflict && !combatBusy}
+            update={update}
+            initialOpen={initialBuilderOpen}
+          />
+        )}
         {((!dnd && !monster) || customize) && (
           <label>
             Name

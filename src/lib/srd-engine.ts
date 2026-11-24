@@ -21,6 +21,7 @@ import {
 } from './srd-equipment';
 import { srdCastingSources, speciesSpellIds } from './srd-casting';
 import { companionCapabilities, defaultCompanions, shapeById } from './srd-shapes';
+import { isLegacySrdCharacter } from './srd-adoption';
 
 export function deriveSrd(state: SrdBuilderState) {
   const counts = classLevels(state.levels);
@@ -612,18 +613,11 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
   const state = srdBuilderSchema.parse(input);
   const result = structuredClone(sheet);
   const old = result.character?.builder;
+  const adopting = !old && isLegacySrdCharacter(sheet);
   if (old) {
     const transition = srdTransitionErrors(old, state);
     if (transition.length) throw new Error(transition.join(' '));
   }
-  if (
-    old &&
-    (state.levels.length < old.levels.length ||
-      old.levels.some((step, i) => step.className !== state.levels[i]?.className))
-  )
-    throw new Error(
-      'Progression cannot remove or change previously applied class levels. Detach builder to rebuild manually.',
-    );
   const derived = deriveSrd(state),
     previous = old ? deriveSrd(old) : undefined;
   const fields = new Map(
@@ -658,9 +652,9 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
   );
   set('species', `${state.species}${state.lineage ? ` (${state.lineage})` : ''}`);
   set('background', state.background);
-  if (!old) set('alignment', state.alignment);
+  if (!old || state.alignment !== old.alignment) set('alignment', state.alignment);
   derived.scores.forEach((score, i) => set(`score:${i}`, score));
-  setResource('hp', derived.hp, previous?.hp);
+  if (!adopting) setResource('hp', derived.hp, previous?.hp);
   setResource('hit-dice', derived.total, previous?.total);
   derived.slots.forEach((max, i) => setResource(`slot:${i}`, max, previous?.slots[i]));
   const sources = srdCastingSources(state),
@@ -698,13 +692,14 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
     details = result.character ?? emptyCharacterDetails();
   const merge = <T extends { id: string }>(existing: T[], prior: T[], next: T[]) => {
     const owned = new Set(prior.map((entry) => entry.id));
+    if (adopting) next.forEach((entry) => owned.add(entry.id));
     const userEntries = existing.filter((entry) => !owned.has(entry.id));
     // An identical manual name remains a separate entry; manual data is never overwritten.
     if (userEntries.length + next.length > 200)
       throw new Error('Applying builder would exceed 200 entries; archive manual entries first.');
     const merged = next.map((entry) => {
       const current = existing.find((value) => value.id === entry.id),
-        original = prior.find((value) => value.id === entry.id);
+        original = prior.find((value) => value.id === entry.id) ?? (adopting ? entry : undefined);
       if (!current || !original) return entry;
       const result = { ...entry };
       // Generated entries can still be annotated/customized in the normal sheet.
@@ -722,6 +717,10 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
   };
   details.features = merge(details.features, oldGenerated.features, generated.features);
   details.spells = merge(details.spells, oldGenerated.spells, generated.spells);
+  if (adopting) {
+    const generatedIds = new Set(generated.spells.map((spell) => spell.id));
+    for (const spell of details.spells) if (!generatedIds.has(spell.id)) delete spell.casting;
+  }
   // Starting bundles are created once, never replenished or replaced on level-up.
   if (!old) details.items = merge(details.items, [], generated.items);
   if (
@@ -889,8 +888,8 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
     if (field.kind !== 'resource') return field;
     const existing = fields.get(field.id),
       prior = oldResources.find((entry) => entry.id === field.id);
-    if (!existing || !prior) return field;
-    const max = Math.max(0, (existing.max ?? 0) + field.max! - prior.max!);
+    if (!existing || (!prior && !adopting)) return field;
+    const max = prior ? Math.max(0, (existing.max ?? 0) + field.max! - prior.max!) : field.max!;
     return {
       ...field,
       max,
@@ -898,6 +897,7 @@ export function applySrdBuilder(sheet: Sheet, input: SrdBuilderState): Sheet {
     };
   });
   const oldIds = new Set(oldResources.map((field) => field.id));
+  if (adopting) nextResources.forEach((field) => oldIds.add(field.id));
   const sections = [sectionId, dndId('srd-resources:1')];
   for (const section of result.sections.filter((entry) => sections.includes(entry.id)))
     section.fields = section.fields.filter((field) => !oldIds.has(field.id));
@@ -957,6 +957,9 @@ export function srdTransitionErrors(old: SrdBuilderState, next: SrdBuilderState)
   const errors: string[] = [];
   const delta = next.levels.length - old.levels.length;
   if (delta < 0) return ['Progression cannot remove applied class levels.'];
+  if (old.levels.some((step, i) => step.className !== next.levels[i]?.className))
+    return ['Progression cannot change previously applied classes.'];
+  if (delta === 0) return [];
   const pairs = [
     [old.originFeat, next.originFeat],
     [old.humanFeat, next.humanFeat],
@@ -978,9 +981,7 @@ export function srdTransitionErrors(old: SrdBuilderState, next: SrdBuilderState)
             )
           : value;
     if (JSON.stringify(canonical(identity(before))) !== JSON.stringify(canonical(identity(after))))
-      errors.push(
-        'Applied feat identity/ability choices are locked; detach builder for a homebrew rebuild.',
-      );
+      errors.push('Save corrections to existing feats before adding levels.');
     if (magic && after && after.spells.filter((id) => !before!.spells.includes(id)).length > delta)
       errors.push(
         `Magic Initiate may replace only one chosen spell per gained character level (${Math.max(0, delta)} available).`,

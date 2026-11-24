@@ -1770,6 +1770,7 @@ summary {
 }
 .dnd-description,
 .dnd-rules-card {
+  inline-size: 100%;
   overflow-wrap: anywhere;
 }
 .dnd-description p {

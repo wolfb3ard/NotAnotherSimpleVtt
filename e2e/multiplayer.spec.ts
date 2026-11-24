@@ -181,8 +181,7 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
     await expect(quick.getByText(`Armor Class: ${armor + 2}`, { exact: true })).toBeVisible({
       timeout: 5000,
     });
-    await sheet.getByText('Character settings & tools', { exact: true }).click();
-    await sheet.getByRole('button', { name: 'Progress / level up character' }).click();
+    await sheet.getByRole('button', { name: 'Edit with SRD builder' }).click();
     const builder = player.page.getByRole('dialog', { name: 'SRD 5.2.1 character builder' });
     await builder.getByRole('button', { name: 'Add level 5' }).click();
     await builder.getByRole('button', { name: 'Apply and save to table' }).click();
@@ -596,26 +595,25 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     await player.page
       .getByRole('button', { name: 'Open Builder hero character sheet', exact: true })
       .click();
-    await player.page
-      .getByRole('button', { name: 'Progress / level up character', exact: true })
-      .click();
+    await player.page.getByRole('button', { name: 'Edit with SRD builder', exact: true }).click();
     const builder = player.page.getByRole('dialog', {
       name: 'SRD 5.2.1 character builder',
       exact: true,
     });
     await expect(builder).toBeVisible();
     await builder.getByRole('button', { name: 'Add level 2', exact: true }).click();
-    await builder
-      .getByRole('button', { name: 'Apply builder to unsaved sheet', exact: true })
-      .click();
+    await builder.getByRole('button', { name: 'Apply and save to table', exact: true }).click();
     await expect(builder).toHaveCount(0);
-    await player.page.getByRole('button', { name: 'Save sheet', exact: true }).click();
     await expect(
       player.page.getByRole('button', { name: 'Save sheet', exact: true }),
     ).toBeDisabled();
     await player.page.reload();
     await player.page
       .getByRole('button', { name: 'Open Builder hero character sheet', exact: true })
+      .click();
+    await player.page
+      .getByRole('dialog', { name: 'Builder hero', exact: true })
+      .getByRole('button', { name: 'Edit character', exact: true })
       .click();
     await expect(player.page.getByLabel('Level', { exact: true })).toHaveValue('2');
     await expect(player.page.getByLabel('Level', { exact: true })).toBeDisabled();
