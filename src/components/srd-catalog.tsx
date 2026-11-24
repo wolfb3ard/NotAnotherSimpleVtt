@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { DndRulesText } from './dnd-rules-text';
 import {
   searchSrd,
   srdManifest,
@@ -80,7 +81,7 @@ export function SrdCatalog({ onAddItem }: { onAddItem?: (entry: SrdEntry) => voi
             {entry.name} · {entry.category} · PDF p.{entry.page}
             {entry.endPage !== entry.page && `–${entry.endPage}`}
           </summary>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{srdFullText(entry)}</p>
+          <DndRulesText description={srdFullText(entry)} imported />
           <small>{entry.id}</small>
           {onAddItem &&
             entry.addable !== false &&

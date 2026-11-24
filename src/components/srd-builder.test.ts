@@ -57,10 +57,44 @@ describe('isolated SRD builder draft', () => {
     const sheet = applySrdBuilder(createDndSheet(), magicInitiateBuilder());
     const feat = structuredClone(sheet.character!.builder!.humanFeat);
     await render(sheet);
-    await click(button('Progress / level up character'));
+    await click(button('Edit with SRD builder'));
+    const rules = container.querySelector('#builder-origin .dnd-description');
+    expect(rules?.querySelector('p')?.textContent).not.toMatch(/\n/);
     expect(button('Apply builder to unsaved sheet').disabled).toBe(false);
     await click(button('Apply builder to unsaved sheet'));
     expect(sheet.character!.builder!.humanFeat).toEqual(feat);
+  });
+  it('saves corrected origin feats and manually entered scores at an applied level', async () => {
+    const sheet = applySrdBuilder(createDndSheet(), magicInitiateBuilder());
+    await render(sheet);
+    await click(button('Edit with SRD builder'));
+    await select('Ability generation', 'manual');
+    const score = [...container.querySelectorAll('label')]
+      .find((label) => label.textContent?.trim() === 'Charisma base')!
+      .querySelector('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(score, '22');
+      score.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const feat = [...container.querySelectorAll('fieldset')].find(
+      (node) => node.querySelector(':scope > legend')?.textContent === 'Human bonus feat',
+    )!;
+    await select('Choose feat', 'feat-skilled', feat);
+    for (const skill of ['Arcana', 'Investigation', 'Medicine'])
+      await click(
+        [...feat.querySelectorAll('label')]
+          .find((label) => label.textContent?.trim() === skill)!
+          .querySelector('input')!,
+      );
+    expect(button('Roll six ability scores')).toBeUndefined();
+    expect(button('Apply builder to unsaved sheet').disabled).toBe(false);
+    await click(button('Apply builder to unsaved sheet'));
+    expect(sheet.character!.builder).toMatchObject({
+      abilityMethod: 'manual',
+      humanFeat: { id: 'feat-skilled' },
+    });
+    expect(sheet.character!.builder!.baseScores[5]).toBe(22);
+    expect(sheet.character!.builder!.levels).toHaveLength(1);
   });
   it('identifies separate background and Human feats and prevents a forbidden background list', async () => {
     const sheet = createDndSheet();
@@ -168,7 +202,7 @@ describe('isolated SRD builder draft', () => {
     const sheet = applySrdBuilder(createDndSheet(), fighterBuilder());
     const before = structuredClone(sheet),
       update = await render(sheet);
-    await click(button('Progress / level up character'));
+    await click(button('Edit with SRD builder'));
     await click(button('Add level 2'));
     expect(container.textContent).toContain('total level 2');
     expect(sheet).toEqual(before);
@@ -180,7 +214,7 @@ describe('isolated SRD builder draft', () => {
   it('applies a valid levelup exactly once through the existing dirty-sheet update API', async () => {
     const sheet = applySrdBuilder(createDndSheet(), fighterBuilder()),
       update = await render(sheet);
-    await click(button('Progress / level up character'));
+    await click(button('Edit with SRD builder'));
     await click(button('Add level 2'));
     expect(button('Apply builder to unsaved sheet').disabled).toBe(false);
     await click(button('Apply builder to unsaved sheet'));
@@ -194,7 +228,7 @@ describe('isolated SRD builder draft', () => {
   it('blocks applying a stale draft when sheet props change', async () => {
     const sheet = applySrdBuilder(createDndSheet(), fighterBuilder());
     await render(sheet);
-    await click(button('Progress / level up character'));
+    await click(button('Edit with SRD builder'));
     const changed = structuredClone(sheet);
     changed.sections[0].fields[0].value = 2;
     await render(changed);

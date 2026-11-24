@@ -8,7 +8,13 @@ import { numericFields, sheetSchema } from './sheets';
 import type { Sheet } from './types';
 import { emptyCharacterDetails } from './character-details';
 import { applySrdBuilder } from './srd-engine';
-import { classBuilder, fighterBuilder, multiclassBuilder } from './srd-test-fixtures';
+import { seedSrdBuilder } from './srd-adoption';
+import {
+  classBuilder,
+  fighterBuilder,
+  magicInitiateBuilder,
+  multiclassBuilder,
+} from './srd-test-fixtures';
 import { srdClasses } from './srd-rules';
 import { commandSchemas } from './commands';
 import { initiativeInput } from './initiative';
@@ -844,6 +850,72 @@ describe.sequential('database authorization and transactions', () => {
     await expect(
       command('actor_save', { id, name: 'Stolen', sheet: multi, revision: 0 }),
     ).rejects.toThrow(/denied/);
+  });
+  it('persists same-level feat and manual score corrections through the authorized RPC', async () => {
+    await as(player);
+    const initial = applySrdBuilder(createDndSheet(), magicInitiateBuilder());
+    const name = 'Corrected starter';
+    const { id } = await command('actor_create', {
+      name,
+      kind: 'character',
+      owner_id: player,
+      sheet: initial,
+    });
+    const state = fighterBuilder();
+    state.abilityMethod = 'manual';
+    state.baseScores[0] = 24;
+    state.baseScores[5] = 1;
+    const updated = applySrdBuilder(initial, state);
+    await command('actor_save', { id, name, sheet: updated, revision: 0 });
+    const saved = (await db.query<{ sheet: Sheet }>('select sheet from actors where id=$1', [id]))
+      .rows[0].sheet;
+    expect(saved.character!.builder).toMatchObject({
+      abilityMethod: 'manual',
+      baseScores: state.baseScores,
+      humanFeat: { id: 'feat-skilled' },
+    });
+    expect(numericFields(saved)[dndId('score:0')]).toBe(26);
+    expect(numericFields(saved)[dndId('level')]).toBe(1);
+    // A matching raw sheet score is not enough to bypass the manual bounds.
+    updated.character!.builder!.baseScores[5] = 0;
+    updated.sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.id === dndId('score:5'))!.value = 0;
+    await expect(
+      command('actor_save', { id, name, sheet: updated, revision: 1 }),
+    ).rejects.toThrow();
+  });
+  it('adopts an existing manual character without resetting level, AC, HP, or notes', async () => {
+    await as(player);
+    const sheet = createDndSheet();
+    const fields = sheet.sections.flatMap((section) => section.fields);
+    const field = (key: string) => fields.find((entry) => entry.id === dndId(key))!;
+    field('class').value = 'Fighter';
+    field('level').value = 2;
+    field('score:0').value = 21;
+    field('hp').value = 7;
+    field('hp').max = 24;
+    field('ac').value = 19;
+    field('notes-text').value = 'Keep this note.';
+    const name = 'Manual veteran';
+    const { id } = await command('actor_create', {
+      name,
+      kind: 'character',
+      owner_id: player,
+      sheet,
+    });
+    const draft = seedSrdBuilder(sheet);
+    expect(draft.levels.map((step) => step.className)).toEqual(['Fighter', 'Fighter']);
+    expect(draft.equipment.grantStarting).toBe(false);
+    const { speciesSkill, humanFeat, languages, tools, levels } = fighterBuilder(2);
+    Object.assign(draft, { speciesSkill, humanFeat, languages, tools, levels });
+    await command('actor_save', { id, name, sheet: applySrdBuilder(sheet, draft), revision: 0 });
+    const saved = (await db.query<{ sheet: Sheet }>('select sheet from actors where id=$1', [id]))
+      .rows[0].sheet;
+    expect(saved.character?.items).toEqual([]);
+    const stored = saved.sections.flatMap((section) => section.fields);
+    for (const key of ['level', 'score:0', 'ac', 'hp', 'notes-text'])
+      expect(stored.find((entry) => entry.id === dndId(key))).toEqual(field(key));
   });
   it('rejects forged builder choices, incompatible statistics, and malformed details through direct create/save calls', async () => {
     await as(player);

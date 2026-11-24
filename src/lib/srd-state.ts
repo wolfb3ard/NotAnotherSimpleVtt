@@ -67,8 +67,8 @@ const stateShape = z
     version: z.literal(1),
     source: z.literal('SRD-5.2.1'),
     alignment: z.enum(srdAlignments),
-    abilityMethod: z.enum(['standard', 'point-buy', 'rolled']),
-    baseScores: z.array(z.number().int().min(3).max(18)).length(6),
+    abilityMethod: z.enum(['standard', 'point-buy', 'rolled', 'manual']),
+    baseScores: z.array(z.number().int().min(1).max(30)).length(6),
     rolls: z
       .array(z.array(z.number().int().min(1).max(6)).length(4))
       .length(6)
@@ -474,8 +474,9 @@ function semanticErrors(state: SrdBuilderState): string[] {
     increase.some((value, i) => value > 0 && !(bg.abilities as readonly number[]).includes(i))
   )
     fail('Background grants +2/+1 to two listed abilities, or +1 to all three.');
-  if (state.baseScores.some((score, i) => score + increase[i] > 20))
-    fail('Background increases cannot exceed 20.');
+  const originCap = state.abilityMethod === 'manual' ? 30 : 20;
+  if (state.baseScores.some((score, i) => score + increase[i] > originCap))
+    fail(`Scores with background increases cannot exceed ${originCap}.`);
   const ancestry = lineages[state.species] ?? [];
   if (state.lineage === 'High Elf') {
     const cantrip = srdById.get(state.speciesCantrip);

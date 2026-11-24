@@ -195,15 +195,19 @@ function RulesParagraphs({ text, imported }: { text: string; imported: boolean }
 export function DndRulesText({
   description,
   feature = false,
+  imported,
 }: {
   description: string;
   feature?: boolean;
+  imported?: boolean;
 }) {
   const rules = feature ? featureRules(description) : { text: description };
-  const imported = /^SRD 5\.2\.1, PDF p\./m.test(rules.text);
   return (
     <div className="dnd-description">
-      <RulesParagraphs text={rules.text} imported={imported} />
+      <RulesParagraphs
+        text={rules.text}
+        imported={imported ?? /^SRD 5\.2\.1, PDF p\./m.test(rules.text)}
+      />
       {rules.sidebar && (
         <details className="dnd-rules-reference">
           <summary>Expanding and Replacing a Spellbook</summary>

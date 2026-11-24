@@ -4,6 +4,7 @@ import type { Sheet } from '@/lib/types';
 import { emptyCharacterDetails } from '@/lib/character-details';
 import { srdById, srdCatalog, srdExcerpt } from '@/lib/srd-catalog';
 import { applySrdBuilder, deriveSrd, srdTransitionErrors } from '@/lib/srd-engine';
+import { isLegacySrdCharacter, seedSrdBuilder } from '@/lib/srd-adoption';
 import { defaultEquipment, deriveEquipment } from '@/lib/srd-equipment';
 import { draftEquipmentItems, SrdEquipmentControls } from './srd-equipment-controls';
 import { defaultCompanions } from '@/lib/srd-shapes';
@@ -20,7 +21,6 @@ import {
   featAt,
   featureChoicesAt,
   masteryCount,
-  newSrdState,
   optionCount,
   skillChoicesAt,
   weaponNames,
@@ -46,6 +46,7 @@ import {
   type SrdClass,
 } from '@/lib/srd-rules';
 import { SrdCatalog } from './srd-catalog';
+import { DndRulesText } from './dnd-rules-text';
 
 type Option = { value: string; label: string };
 const asOptions = (values: readonly string[]): Option[] =>
@@ -150,7 +151,6 @@ function FeatChoices({
   origin = false,
   total,
   identityLocked = false,
-  spellsLocked = false,
   label = 'Feat',
   forcedList,
 }: {
@@ -160,7 +160,6 @@ function FeatChoices({
   origin?: boolean;
   total: number;
   identityLocked?: boolean;
-  spellsLocked?: boolean;
   label?: string;
   forcedList?: 'Cleric' | 'Druid' | 'Wizard';
 }) {
@@ -205,7 +204,7 @@ function FeatChoices({
       {entry && (
         <details>
           <summary>Feat rules · p.{entry.page}</summary>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{entry.text}</p>
+          <DndRulesText description={entry.text} imported />
         </details>
       )}
       {boosts > 0 && (
@@ -271,7 +270,7 @@ function FeatChoices({
               ))}
             </select>
           </label>
-          <fieldset disabled={spellsLocked}>
+          <fieldset>
             {[0, 1].map((level) => (
               <Picks
                 key={level}
@@ -504,7 +503,7 @@ function LevelChoices({
             return (
               <details key={id}>
                 <summary>{entry?.name} rules</summary>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{entry?.text}</p>
+                {entry && <DndRulesText description={entry.text} imported />}
                 <p>
                   Selected copies: {step.options.filter((value) => value === id).length}.{' '}
                   <button
@@ -624,7 +623,6 @@ function LevelChoices({
           value={step.feat}
           total={index + 1}
           identityLocked={index < appliedLevels}
-          spellsLocked={index < appliedLevels && draft.levels.length === appliedLevels}
           onChange={(feat) => patch({ feat })}
         />
       )}
@@ -637,7 +635,7 @@ function LevelChoices({
             <summary>
               {feature.name} · p.{feature.page}
             </summary>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{feature.text}</p>
+            <DndRulesText description={feature.text} imported />
           </details>
         ))}
       </details>
@@ -656,17 +654,19 @@ function DraftBuilder({
   commit?: (sheet: Sheet) => Promise<boolean>;
 }) {
   const [initial] = useState(() => JSON.stringify(sheet));
+  const saved = sheet.character?.builder;
+  const legacy = isLegacySrdCharacter(sheet);
   const [draft, setDraft] = useState<SrdBuilderState>(() => {
-    const saved = sheet.character?.builder;
-    const value = saved ? structuredClone(saved) : newSrdState();
+    const value = saved ? structuredClone(saved) : seedSrdBuilder(sheet);
     value.equipment = { ...defaultEquipment(), ...value.equipment };
     value.companions = { ...defaultCompanions(), ...value.companions };
-    if (!saved) value.originFeat = defaultBackgroundFeat(value.background);
     return value;
   });
   const [selected, setSelected] = useState(draft.levels.length - 1);
+  const [initialLevelCount] = useState(draft.levels.length);
   const [nextClass, setNextClass] = useState<SrdClass>(draft.levels.at(-1)!.className);
   const [failure, setFailure] = useState('');
+  const [pending, setPending] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
@@ -682,6 +682,7 @@ function DraftBuilder({
   ];
   const stale = initial !== JSON.stringify(sheet);
   const counts = classLevels(draft.levels);
+  const levelingUp = !!saved && draft.levels.length > saved.levels.length;
   const backgroundRules = backgrounds[draft.background];
   function addLevel() {
     const previous = draft.levels.findLast((step) => step.className === nextClass);
@@ -718,7 +719,7 @@ function DraftBuilder({
       }}
       onCancel={(event) => {
         event.preventDefault();
-        close();
+        if (!pending) close();
       }}
       aria-labelledby="srd-builder-title"
       style={{ width: 'min(70rem, 95vw)', maxHeight: '90vh', overflowY: 'auto' }}
@@ -726,14 +727,31 @@ function DraftBuilder({
       <div className="stack">
         <div className="row">
           <h2 id="srd-builder-title">SRD 5.2.1 character builder</h2>
-          <button type="button" onClick={close}>
+          <button type="button" disabled={pending} onClick={close}>
             Cancel draft
           </button>
         </div>
         <p>
-          Draft only. Apply updates the unsaved sheet; use Save sheet to persist. Cancel/Escape
-          discards this draft.
+          {commit
+            ? 'Apply and save commits this draft to the table. Cancel or Escape discards it.'
+            : 'Apply updates the unsaved sheet. Use Save sheet to keep all your edits.'}
         </p>
+        {legacy && (
+          <p className="notice">
+            This sheet has no saved builder choices. Review the prefilled character details and
+            confirm choices for each level. Existing HP, inventory, notes, and custom entries stay
+            on the sheet. Starting gear is off by default.
+          </p>
+        )}
+        {saved && (
+          <p>
+            Select any applied level to correct its choices. Save feat corrections before adding
+            levels; some changes may require revisiting choices at later levels.
+          </p>
+        )}
+        {levelingUp && (
+          <p>Magic Initiate can replace one chosen spell per gained character level (SRD p.87).</p>
+        )}
         <nav className="builder-journey" aria-label="Builder sections">
           <a href="#builder-origin">1. Origin & abilities</a>
           <a href="#builder-progression">2. Class choices</a>
@@ -749,7 +767,7 @@ function DraftBuilder({
           </p>
           <p>
             Complete origin choices, then your class choices and equipment. Review the preview and
-            remaining selections, Apply, then Save sheet. Nothing is saved by Apply alone.
+            remaining selections, then apply your draft.
           </p>
         </details>
         <p className="notice">
@@ -763,18 +781,21 @@ function DraftBuilder({
             Sheet changed while this draft was open. Cancel and reopen before applying.
           </p>
         )}
-        <details id="builder-origin" open={!sheet.character?.builder}>
+        <details id="builder-origin" open>
           <summary>Origin & ability generation</summary>
-          <fieldset disabled={!!sheet.character?.builder}>
-            <legend>Origin (locked after first apply; detach for manual rebuild)</legend>
+          <fieldset disabled={pending}>
+            <legend>Origin & abilities</legend>
             <label>
               Starting class
               <select
+                disabled={!!saved}
                 value={draft.levels[0].className}
                 onChange={(e) => {
                   const name = e.target.value as SrdClass;
                   patch({
-                    levels: [{ ...blankLevel(name), hp: classRules[name].die }],
+                    levels: draft.levels.map((step, i) =>
+                      i === 0 ? { ...blankLevel(name), hp: classRules[name].die } : step,
+                    ),
                     classEquipment: 'A',
                   });
                   setNextClass(name);
@@ -800,8 +821,15 @@ function DraftBuilder({
                 <option value="standard">Standard array</option>
                 <option value="point-buy">27-point buy</option>
                 <option value="rolled">4d6, drop lowest (recorded rolls)</option>
+                <option value="manual">Manual / rolled elsewhere</option>
               </select>
             </label>
+            {draft.abilityMethod === 'manual' && (
+              <p>
+                Enter base scores from 1–30. No dice required. Origin and feat increases apply
+                separately.
+              </p>
+            )}
             {draft.abilityMethod === 'rolled' && (
               <button
                 type="button"
@@ -840,8 +868,8 @@ function DraftBuilder({
                   {name} base
                   <input
                     type="number"
-                    min={3}
-                    max={18}
+                    min={draft.abilityMethod === 'manual' ? 1 : 3}
+                    max={draft.abilityMethod === 'manual' ? 30 : 18}
                     value={draft.baseScores[i]}
                     onChange={(e) =>
                       patch({
@@ -1025,32 +1053,6 @@ function DraftBuilder({
             )}
           </fieldset>
         </details>
-        {sheet.character?.builder &&
-          (
-            [
-              ['Background', draft.originFeat, 'originFeat'],
-              ['Human', draft.humanFeat, 'humanFeat'],
-            ] as const
-          )
-            .filter(([, feat]) => srdById.get(feat?.id ?? '')?.name === 'Magic Initiate')
-            .map(([label, feat, key]) => (
-              <section key={key}>
-                <h3>{label} Magic Initiate · level-up spell changes</h3>
-                <p>
-                  Origin identity/list/ability remain locked. One chosen spell may change per gained
-                  character level, to the same spell level and list (SRD p.87).{' '}
-                  {draft.levels.length - sheet.character!.builder!.levels.length} replacement(s)
-                  available in this draft.
-                </p>
-                <FeatChoices
-                  value={feat}
-                  identityLocked
-                  spellsLocked={draft.levels.length === sheet.character!.builder!.levels.length}
-                  total={draft.levels.length}
-                  onChange={(value) => patch({ [key]: { ...feat!, spells: value.spells } })}
-                />
-              </section>
-            ))}
         <section id="builder-progression" className="stack" aria-label="Class progression">
           <h3>Class progression · total level {derived.total}</h3>
           {draft.lineage === 'High Elf' && (
@@ -1086,15 +1088,34 @@ function DraftBuilder({
               ))}
             </select>
           </label>
+          {legacy && selected > 0 && (
+            <label>
+              Class at character level {selected + 1}
+              <select
+                value={draft.levels[selected].className}
+                onChange={(e) =>
+                  patch({
+                    levels: draft.levels.map((step, i) =>
+                      i === selected ? blankLevel(e.target.value as SrdClass) : step,
+                    ),
+                  })
+                }
+              >
+                {srdClasses.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <LevelChoices
-            appliedLevels={sheet.character?.builder?.levels.length ?? 0}
+            appliedLevels={levelingUp ? saved.levels.length : 0}
             draft={draft}
             index={selected}
             onChange={(value) =>
               patch({ levels: draft.levels.map((step, i) => (i === selected ? value : step)) })
             }
           />
-          {draft.levels.length < 20 && (
+          {!legacy && draft.levels.length < 20 && (
             <div className="row">
               <label>
                 Next level class (multiclass requires primary abilities 13)
@@ -1112,7 +1133,7 @@ function DraftBuilder({
               </button>
             </div>
           )}
-          {draft.levels.length > (sheet.character?.builder?.levels.length ?? 1) && (
+          {draft.levels.length > (saved?.levels.length ?? initialLevelCount) && (
             <button
               type="button"
               onClick={() => {
@@ -1145,7 +1166,8 @@ function DraftBuilder({
         <section id="builder-review" aria-label="Progression preview">
           <h3>Preview</h3>
           <p>
-            Hit Point maximum {derived.hp} · Proficiency bonus +{derived.pb} · Hit Dice{' '}
+            {legacy ? 'Existing HP retained' : `Builder Hit Point maximum ${derived.hp}`} ·
+            Proficiency bonus +{derived.pb} · Hit Dice{' '}
             {Object.entries(derived.hitDice)
               .map(([die, count]) => `${count}d${die}`)
               .join(' + ')}
@@ -1196,8 +1218,10 @@ function DraftBuilder({
         <div className="row builder-actions">
           <button
             type="button"
-            disabled={stale || errors.length > 0}
+            disabled={pending || stale || errors.length > 0}
             onClick={async () => {
+              setFailure('');
+              setPending(true);
               try {
                 const next = applySrdBuilder(sheet, draft);
                 if (commit) {
@@ -1212,12 +1236,18 @@ function DraftBuilder({
                 close();
               } catch (error) {
                 setFailure((error as Error).message);
+              } finally {
+                setPending(false);
               }
             }}
           >
-            {commit ? 'Apply and save to table' : 'Apply builder to unsaved sheet'}
+            {pending
+              ? 'Saving…'
+              : commit
+                ? 'Apply and save to table'
+                : 'Apply builder to unsaved sheet'}
           </button>
-          <button type="button" onClick={close}>
+          <button type="button" disabled={pending} onClick={close}>
             Cancel draft
           </button>
         </div>
@@ -1244,8 +1274,15 @@ export function SrdBuilder({
   return (
     <section className="stack" aria-label="SRD character tools">
       <div className="row">
-        <button type="button" disabled={!editable} onClick={() => setOpen(true)}>
-          {sheet.character?.builder ? 'Progress / level up character' : 'Create with SRD builder'}
+        <button
+          type="button"
+          className="primary"
+          disabled={!editable}
+          onClick={() => setOpen(true)}
+        >
+          {sheet.character?.builder || isLegacySrdCharacter(sheet)
+            ? 'Edit with SRD builder'
+            : 'Create with SRD builder'}
         </button>
         {sheet.character?.builder && (
           <button

@@ -93,9 +93,7 @@ describe('source-governed SRD spellcasting', () => {
       old = applySrdBuilder(createDndSheet(), state);
     const changed = structuredClone(state);
     changed.humanFeat!.spells[0] = spell('Ray of Frost');
-    expect(srdTransitionErrors(old.character!.builder!, changed).join()).toContain(
-      'Magic Initiate',
-    );
+    expect(srdTransitionErrors(old.character!.builder!, changed)).toEqual([]);
     const level = blankLevel('Fighter');
     level.mastery = [...state.levels[0].mastery];
     changed.levels.push(level);
