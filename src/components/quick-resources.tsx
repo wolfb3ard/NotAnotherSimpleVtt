@@ -4,9 +4,53 @@ import { useEffect, useState, type RefObject } from 'react';
 import type { Actor, Sheet, Snapshot } from '@/lib/types';
 import type { Command } from '@/lib/commands';
 import { dndId, isDndSheet } from '@/lib/dnd';
-import { healthChanges, playResources, previewResources, temporaryHpId } from '@/lib/resources';
+import { playResources, temporaryHpId } from '@/lib/resources';
 import { ResourceWriter, type ResourceState } from '@/lib/resource-writer';
 import { monsterId, monsterHpId, monsterTemporaryHpId } from '@/lib/monster-sheet';
+
+function HealthField({
+  value,
+  label,
+  max,
+  temporary,
+  disabled,
+  onCommit,
+}: {
+  value: number;
+  label: string;
+  max: number;
+  temporary: boolean;
+  disabled: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<string>();
+  return (
+    <input
+      aria-label={`Quick ${label}`}
+      title={temporary ? 'Set temporary HP' : 'Set HP, or enter a negative number to subtract HP'}
+      type="text"
+      inputMode={temporary ? 'numeric' : 'text'}
+      disabled={disabled}
+      value={draft ?? value}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+      onBlur={() => {
+        setDraft(undefined);
+        if (disabled || !draft || !/^[+-]?\d+$/.test(draft.trim())) return;
+        const amount = Number(draft);
+        if (!Number.isSafeInteger(amount)) return;
+        const next = Math.max(0, Math.min(max, !temporary && amount < 0 ? value + amount : amount));
+        if (next !== value) onCommit(next);
+      }}
+    />
+  );
+}
 
 export function QuickResources({
   actor,
@@ -43,9 +87,6 @@ export function QuickResources({
         onCommitted,
       ),
   );
-  const [amount, setAmount] = useState('0');
-  const [mode, setMode] = useState<'damage' | 'heal'>('damage');
-  const [useTemporary, setUseTemporary] = useState(true);
   const [validation, setValidation] = useState('');
   const [reloading, setReloading] = useState(false);
   useEffect(
@@ -63,18 +104,6 @@ export function QuickResources({
   const resources = playResources(state.sheet);
   if (!resources.length) return null;
   const disabled = !editable || blocked || state.status === 'Failed';
-  let changes: ReturnType<typeof healthChanges> = [];
-  let preview: Sheet | undefined;
-  try {
-    if (amount.trim() !== '') {
-      changes = healthChanges(state.sheet, Number(amount), mode, useTemporary);
-      preview = previewResources(state.sheet, changes);
-    }
-  } catch {
-    /* Invalid input disables confirmation; direct resource controls remain available. */
-  }
-  const hp = (sheet: Sheet, id: string) =>
-    playResources(sheet).find((f) => f.id === id)?.value ?? 0;
   const feedback = (
     <>
       <span className="small" role="status">
@@ -135,35 +164,47 @@ export function QuickResources({
     ? resources.filter((r) => r.id === hpId || r.id === tempId)
     : resources.slice(0, 3);
   const secondary = resources.filter((r) => !primary.includes(r));
+  const commit = (resource: (typeof resources)[number], value: number) => {
+    try {
+      writer.enqueue([
+        {
+          id: resource.id,
+          value,
+          ...(resource.target ? { target: resource.target } : {}),
+        },
+      ]);
+      setValidation('');
+    } catch (error) {
+      setValidation((error as Error).message);
+    }
+  };
   const counters = (items: typeof resources) => (
     <div className="quick-resource-grid">
       {items.map((resource) => (
         <label key={`${resource.target ?? 'field'}:${resource.id}`}>
           <span className="quick-resource-label">{resource.label}</span>
-          <input
-            aria-label={`Quick ${resource.label}`}
-            type="number"
-            min={0}
-            max={resource.max}
-            step={resource.target === 'feature' ? 1 : 'any'}
-            disabled={disabled}
-            value={resource.value}
-            onChange={(event) => {
-              try {
-                writer.enqueue([
-                  {
-                    id: resource.id,
-                    value: Number(event.target.value),
-                    ...(resource.target ? { target: resource.target } : {}),
-                  },
-                ]);
-                setValidation('');
-              } catch (error) {
-                setValidation((error as Error).message);
-              }
-            }}
-          />
-          {resource.id !== temporaryHpId && <span> / {resource.max}</span>}
+          {health && (resource.id === hpId || resource.id === tempId) ? (
+            <HealthField
+              label={resource.label}
+              value={Number(resource.value)}
+              max={resource.max ?? 0}
+              temporary={resource.id === tempId}
+              disabled={disabled}
+              onCommit={(value) => commit(resource, value)}
+            />
+          ) : (
+            <input
+              aria-label={`Quick ${resource.label}`}
+              type="number"
+              min={0}
+              max={resource.max}
+              step={resource.target === 'feature' ? 1 : 'any'}
+              disabled={disabled}
+              value={resource.value}
+              onChange={(event) => commit(resource, Number(event.target.value))}
+            />
+          )}
+          {(!health || resource.id !== tempId) && <span> / {resource.max}</span>}
         </label>
       ))}
     </div>
@@ -177,72 +218,7 @@ export function QuickResources({
       )}
       {counters(primary)}
       {health && (
-        <details open className="quick-health">
-          <summary>Damage / Heal</summary>
-          <div className="stack">
-            <div className="quick-health-inputs">
-              <label>
-                Action
-                <select
-                  aria-label="Health action"
-                  value={mode}
-                  onChange={(e) => setMode(e.target.value as typeof mode)}
-                >
-                  <option value="damage">Damage</option>
-                  <option value="heal">Heal</option>
-                </select>
-              </label>
-              <label>
-                Amount
-                <input
-                  aria-label="Health amount"
-                  type="number"
-                  min={0}
-                  max={1e12}
-                  step={1}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </label>
-            </div>
-            {mode === 'damage' && (
-              <label className="quick-temp-option">
-                <input
-                  type="checkbox"
-                  checked={useTemporary}
-                  onChange={(e) => setUseTemporary(e.target.checked)}
-                />
-                Use temporary HP first
-              </label>
-            )}
-            {preview ? (
-              <p role="status">
-                HP {hp(state.sheet, hpId)} → {hp(preview, hpId)}; temporary HP{' '}
-                {hp(state.sheet, tempId)} → {hp(preview, tempId)}.
-              </p>
-            ) : (
-              <p>Enter a nonnegative whole amount to preview.</p>
-            )}
-            <details className="small">
-              <summary>Manual overrides & limits</summary>
-              <p>
-                Healing stops at maximum HP; temporary HP never stacks automatically. No resistance,
-                vulnerability or death-save rules are applied. Concentration reminders use recorded
-                HP/temporary HP loss; adjudicate actual damage manually in Conditions & survival.
-                Override with direct current-value controls above.
-              </p>
-            </details>
-            <button
-              disabled={disabled || state.status === 'Saving' || !preview || Number(amount) <= 0}
-              onClick={() => {
-                writer.enqueue(changes);
-                setAmount('0');
-              }}
-            >
-              Confirm {mode === 'damage' ? 'Damage' : 'Heal'}
-            </button>
-          </div>
-        </details>
+        <span className="small">Set HP, or enter −N to subtract. Temp HP is separate.</span>
       )}
       {secondary.length > 0 && (
         <details>

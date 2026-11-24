@@ -47,6 +47,7 @@ import {
 } from '@/lib/srd-rules';
 import { SrdCatalog } from './srd-catalog';
 import { DndRulesText } from './dnd-rules-text';
+import { RulesPreview } from './rules-preview';
 
 type Option = { value: string; label: string };
 const asOptions = (values: readonly string[]): Option[] =>
@@ -93,23 +94,31 @@ function Picks({
               values.includes(option.value) ||
               option.label.toLowerCase().includes(search.toLowerCase()),
           )
-          .map((option) => (
-            <label className="row" key={option.value}>
-              <input
-                type="checkbox"
-                checked={values.includes(option.value)}
-                disabled={!values.includes(option.value) && values.length >= count}
-                onChange={(e) =>
-                  onChange(
-                    e.target.checked
-                      ? [...values, option.value]
-                      : values.filter((value) => value !== option.value),
-                  )
-                }
-              />
-              {option.label}
-            </label>
-          ))}
+          .map((option) => {
+            const entry = srdById.get(option.value);
+            return (
+              <div className="srd-picker-row" key={option.value}>
+                <label className="row">
+                  <input
+                    type="checkbox"
+                    checked={values.includes(option.value)}
+                    disabled={!values.includes(option.value) && values.length >= count}
+                    onChange={(e) =>
+                      onChange(
+                        e.target.checked
+                          ? [...values, option.value]
+                          : values.filter((value) => value !== option.value),
+                      )
+                    }
+                  />
+                  {option.label}
+                </label>
+                {entry && ['spell', 'feat', 'equipment', 'magic-item'].includes(entry.category) && (
+                  <RulesPreview name={entry.name} entry={entry} />
+                )}
+              </div>
+            );
+          })}
       </div>
     </fieldset>
   );
@@ -201,12 +210,7 @@ function FeatChoices({
           ))}
         </select>
       </label>
-      {entry && (
-        <details>
-          <summary>Feat rules · p.{entry.page}</summary>
-          <DndRulesText description={entry.text} imported />
-        </details>
-      )}
+      {entry && <RulesPreview name={entry.name} entry={entry} />}
       {boosts > 0 && (
         <fieldset disabled={identityLocked}>
           <p>Allocate {boosts} ability increase(s).</p>

@@ -186,7 +186,7 @@ test('live actor updates reach an open GM token and the next attack', async ({ b
     await builder.getByRole('button', { name: 'Add level 5' }).click();
     await builder.getByRole('button', { name: 'Apply and save to table' }).click();
     await expect(builder).toHaveCount(0);
-    await quick.getByText('Attack / sheet rolls', { exact: true }).click();
+    await quick.getByTitle('Attack / sheet rolls', { exact: true }).click();
     await quick.getByLabel('Token attack or ability').selectOption('attack:0');
     const rollAction = quick.getByRole('button', { name: 'Roll selected action' });
     await rollAction.click();
@@ -737,7 +737,7 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
       name: 'Builder hero quick actions',
       exact: true,
     });
-    await quick.getByText('Attack / sheet rolls', { exact: true }).click();
+    await quick.getByTitle('Attack / sheet rolls', { exact: true }).click();
     await quick.getByLabel('Token attack or ability').selectOption({ label: 'Spell attack' });
     await quick.getByRole('button', { name: 'Roll selected action', exact: true }).click();
     await expect
@@ -755,16 +755,17 @@ test('GM and eight players share a persistent scene, sheets, fog, and permission
     const hp = quick.getByLabel('Quick Hit Points', { exact: true });
     const nextHp = Math.max(0, Number(await hp.inputValue()) - 1);
     await hp.fill(String(nextHp));
+    await hp.press('Enter');
     await expect(quick.getByRole('status').filter({ hasText: 'Resources:' })).toHaveText(
       'Resources: Saved',
     );
     const assistance = quick
       .locator('details')
       .filter({
-        has: quick.getByText('Casting, rests & damage', { exact: true }),
+        has: quick.getByTitle('Casting, rests & damage', { exact: true }),
       })
       .last();
-    await quick.getByText('Casting, rests & damage', { exact: true }).click();
+    await quick.getByTitle('Casting, rests & damage', { exact: true }).click();
     await assistance.getByLabel('Assistance', { exact: true }).selectOption('damage');
     await assistance.getByLabel('Final damage to Builder hero').fill('1');
     await assistance.getByRole('button', { name: 'Preview damage', exact: true }).click();

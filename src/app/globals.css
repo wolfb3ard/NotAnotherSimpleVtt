@@ -969,12 +969,12 @@ summary {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--line);
 }
 .token-actions-header h2 {
   font-size: 15px;
-  margin: 3px 0 0;
+  margin: 0;
 }
 .token-actions-handle {
   flex: 1;
@@ -982,8 +982,67 @@ summary {
   cursor: move;
   touch-action: none;
 }
-.token-actions-body {
-  padding: 12px;
+.token-actions-body.stack {
+  padding: 8px;
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+  gap: 6px;
+}
+.token-actions-body > :not(.quick-action-button, .quick-action-disclosure),
+.quick-action-disclosure[open] {
+  flex-basis: 100%;
+}
+.token-actions-body > p {
+  margin-block: 0;
+}
+.quick-action-disclosure,
+.srd-picker-row > .rules-preview {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.quick-action-button,
+.quick-action-disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin: 0;
+  color: var(--text);
+  cursor: pointer;
+}
+.quick-action-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.quick-action-disclosure:not([open]) .quick-action-label,
+.quick-action-button .quick-action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.quick-action-disclosure[open] > summary {
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.srd-picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.srd-picker-row > details[open] {
+  flex-basis: 100%;
+}
+.srd-picker-row > details > summary {
+  margin-bottom: 0;
 }
 .token-actions-body .stack {
   gap: 8px;
@@ -1009,22 +1068,6 @@ summary {
 }
 .quick-resource-grid input:last-child {
   grid-column: 1 / -1;
-}
-.quick-temp-option {
-  flex-direction: row;
-  align-items: center;
-}
-.quick-temp-option input {
-  width: auto;
-}
-.quick-health-inputs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.quick-health p {
-  margin: 0;
-  font-size: 12px;
 }
 .tabletop-undo-status {
   pointer-events: auto;

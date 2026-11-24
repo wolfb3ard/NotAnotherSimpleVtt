@@ -133,6 +133,12 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
       )
     );
   }
+  function closeQuickActions() {
+    if (quickActions && leaveQuickActions()) {
+      setQuickActions(undefined);
+      setQuickBusy(false);
+    }
+  }
   function openSheet(id: string, startBuilder = false) {
     if (
       id !== selectedActor &&
@@ -537,6 +543,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
             setQuickActions({ tokenId, anchor });
             return true;
           }}
+          closeQuickActions={closeQuickActions}
           onPreviewChange={(preview) => {
             if (preview) {
               if (!leaveQuickActions()) return false;
@@ -570,12 +577,7 @@ function RoomWorkspace({ initial, storageKey }: { initial: Snapshot; storageKey:
               setModifier('0');
               setTab('dice');
             }}
-            onClose={() => {
-              if (leaveQuickActions()) {
-                setQuickActions(undefined);
-                setQuickBusy(false);
-              }
-            }}
+            onClose={closeQuickActions}
             onSheet={() => {
               if (quickActor) openSheet(quickActor.id);
             }}
